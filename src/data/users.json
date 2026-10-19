@@ -1,0 +1,12 @@
+{
+  "users": [
+    {
+      "id": "u-001",
+      "name": "Dev Team",
+      "email": "dev@example.com",
+      "role": "ADMIN",
+      "avatar": "https://api.dicebear.com/7.x/avataaars/svg?seed=Dev",
+      "createdAt": "2024-01-01T00:00:00Z"
+    }
+  ]
+}

@@ -1,0 +1,1267 @@
+{
+  "trades": [
+    {
+      "instrument": "XAUUSD",
+      "direction": "LONG",
+      "lotSize": 0.2,
+      "status": "WIN",
+      "entryPrice": 4087.595,
+      "stopLoss": 0,
+      "takeProfit": 4110,
+      "exitPrice": 4104.227,
+      "strategy": "",
+      "entryDate": "2026-07-27T12:00",
+      "netPnL": 332.64,
+      "preTrade": "มั่นใจ",
+      "duringTrade": "หลับ",
+      "postTrade": "ได้เรียนรู้",
+      "notes": {
+        "entryImage": null,
+        "exitImage": null,
+        "preTrade": "มั่นใจ",
+        "duringTrade": "หลับ",
+        "postTrade": "ได้เรียนรู้",
+        "detailedNotes": "หลับ",
+        "selfAssessment": 3
+      },
+      "selfAssessment": 3,
+      "id": "hu8udahq5",
+      "financials": {
+        "grossPnL": null,
+        "commission": 0,
+        "swap": 0,
+        "currency": "USD",
+        "netPnL": 332.64
+      },
+      "analysis": {
+        "strategy": "",
+        "plannedRR": 0.01,
+        "actualRR": 0
+      },
+      "exitDate": "2026-07-27T12:00:39.148Z",
+      "accountId": "acc-002"
+    },
+    {
+      "instrument": "XAUUSD",
+      "direction": "LONG",
+      "lotSize": 0.2,
+      "status": "WIN",
+      "entryPrice": 4089.353,
+      "stopLoss": 0,
+      "takeProfit": 4110,
+      "exitPrice": 4104.227,
+      "strategy": "",
+      "entryDate": "2026-07-27T11:59",
+      "netPnL": 297.48,
+      "preTrade": "มั่นใจ",
+      "duringTrade": "หลับ",
+      "postTrade": "พอใจ",
+      "notes": {
+        "entryImage": null,
+        "exitImage": null,
+        "preTrade": "มั่นใจ",
+        "duringTrade": "หลับ",
+        "postTrade": "พอใจ",
+        "detailedNotes": "ออกก่อน",
+        "selfAssessment": 3
+      },
+      "selfAssessment": 3,
+      "id": "jr5m6chov",
+      "financials": {
+        "grossPnL": null,
+        "commission": 0,
+        "swap": 0,
+        "currency": "USD",
+        "netPnL": 297.48
+      },
+      "analysis": {
+        "strategy": "",
+        "plannedRR": 0.01,
+        "actualRR": 0
+      },
+      "exitDate": "2026-07-27T12:00:06.231Z",
+      "accountId": "acc-002"
+    },
+    {
+      "instrument": "XAUUSD",
+      "direction": "LONG",
+      "lotSize": 0.2,
+      "status": "WIN",
+      "entryPrice": 4091.653,
+      "stopLoss": 0,
+      "takeProfit": 4110,
+      "exitPrice": 4104.227,
+      "strategy": "",
+      "entryDate": "2026-07-27T11:58",
+      "netPnL": 251.48,
+      "preTrade": "มั่นใจ",
+      "duringTrade": "หลับ",
+      "postTrade": "เฉยๆ",
+      "notes": {
+        "entryImage": null,
+        "exitImage": null,
+        "preTrade": "มั่นใจ",
+        "duringTrade": "หลับ",
+        "postTrade": "เฉยๆ",
+        "detailedNotes": "ปืดก่อน ทรงกราฟหมด volume และลง",
+        "selfAssessment": 4
+      },
+      "selfAssessment": 4,
+      "id": "lmrin5xz3",
+      "financials": {
+        "grossPnL": null,
+        "commission": 0,
+        "swap": 0,
+        "currency": "USD",
+        "netPnL": 251.48
+      },
+      "analysis": {
+        "strategy": "",
+        "plannedRR": null,
+        "actualRR": 0
+      },
+      "exitDate": "2026-07-27T11:59:25.332Z",
+      "accountId": "acc-002"
+    },
+    {
+      "instrument": "XAUUSD",
+      "direction": "SHORT",
+      "lotSize": 0.04,
+      "status": "WIN",
+      "entryPrice": 4118.509,
+      "stopLoss": 4123.31,
+      "takeProfit": 4108.31,
+      "exitPrice": 4110.658,
+      "strategy": "โซนอุปสงค์/อุปทาน (S/D)",
+      "entryDate": "2026-07-10T06:06",
+      "netPnL": 31.41,
+      "preTrade": "สงบนิ่ง",
+      "duringTrade": "ปิดจอ ไปกินข้าว",
+      "postTrade": "พอใจ",
+      "notes": {
+        "entryImage": null,
+        "exitImage": null,
+        "preTrade": "สงบนิ่ง",
+        "duringTrade": "ปิดจอ ไปกินข้าว",
+        "postTrade": "พอใจ",
+        "detailedNotes": "ราคา tp แต่ไม่ได้ ปิดเลยปิดมือ เทรดแบบนี้ โครตสบายใจ สุดท้าย ได้กำไร ",
+        "selfAssessment": 5
+      },
+      "selfAssessment": 5,
+      "id": "5co67oudz",
+      "financials": {
+        "grossPnL": null,
+        "commission": 0,
+        "swap": 0,
+        "currency": "USD",
+        "netPnL": 31.41
+      },
+      "analysis": {
+        "strategy": "โซนอุปสงค์/อุปทาน (S/D)",
+        "plannedRR": 2.12,
+        "actualRR": 1.64
+      },
+      "exitDate": "2026-07-10T06:08:07.460Z",
+      "accountId": "acc-002"
+    },
+    {
+      "instrument": "XAUUSD",
+      "direction": "SHORT",
+      "lotSize": 0.05,
+      "status": "LOSS",
+      "entryPrice": 4074.038,
+      "stopLoss": 4079.108,
+      "takeProfit": 4044.77,
+      "exitPrice": 4079.108,
+      "strategy": "",
+      "entryDate": "2026-07-09T05:47",
+      "netPnL": 0,
+      "preTrade": "",
+      "duringTrade": "",
+      "postTrade": "",
+      "notes": {
+        "entryImage": null,
+        "exitImage": null,
+        "preTrade": "",
+        "duringTrade": "",
+        "postTrade": "",
+        "detailedNotes": "",
+        "selfAssessment": null
+      },
+      "selfAssessment": 0,
+      "id": "gd53wf086",
+      "financials": {
+        "grossPnL": null,
+        "commission": 0,
+        "swap": 0,
+        "currency": "USD",
+        "netPnL": -25.350000000000822
+      },
+      "analysis": {
+        "strategy": "",
+        "plannedRR": 5.77,
+        "actualRR": -1
+      },
+      "exitDate": "2026-07-09T05:58:23.085Z",
+      "accountId": "acc-001"
+    },
+    {
+      "instrument": "XAUUSD",
+      "direction": "SHORT",
+      "lotSize": 0.05,
+      "status": "LOSS",
+      "entryPrice": 4070.449,
+      "stopLoss": 4075.849,
+      "takeProfit": 4060.173,
+      "exitPrice": 4075.849,
+      "strategy": "",
+      "entryDate": "2026-07-09T05:42",
+      "netPnL": -27,
+      "preTrade": "",
+      "duringTrade": "",
+      "postTrade": "",
+      "notes": {
+        "entryImage": null,
+        "exitImage": null,
+        "preTrade": "",
+        "duringTrade": "",
+        "postTrade": "",
+        "detailedNotes": "ตามแผน",
+        "selfAssessment": 5
+      },
+      "selfAssessment": 5,
+      "id": "j3nhtik1o",
+      "financials": {
+        "grossPnL": null,
+        "commission": 0,
+        "swap": 0,
+        "currency": "USD",
+        "netPnL": -27
+      },
+      "analysis": {
+        "strategy": "",
+        "plannedRR": 1.9,
+        "actualRR": -1
+      },
+      "exitDate": "2026-07-09T05:42:23.928Z",
+      "accountId": "acc-001"
+    },
+    {
+      "instrument": "XAUUSD",
+      "direction": "LONG",
+      "lotSize": 0.01,
+      "status": "WIN",
+      "entryPrice": 4032.24,
+      "stopLoss": 4027.532,
+      "takeProfit": 4037.27,
+      "exitPrice": 4037.27,
+      "strategy": "SMC",
+      "entryDate": "2026-07-08T15:44",
+      "netPnL": 5.03,
+      "preTrade": "มั่นใจ",
+      "duringTrade": "อดทน",
+      "postTrade": "",
+      "notes": {
+        "entryImage": null,
+        "exitImage": null,
+        "preTrade": "มั่นใจ",
+        "duringTrade": "อดทน",
+        "postTrade": "",
+        "detailedNotes": "ทดสอบ\n",
+        "selfAssessment": 5
+      },
+      "selfAssessment": 5,
+      "id": "70fhhqwqt",
+      "financials": {
+        "grossPnL": null,
+        "commission": 0,
+        "swap": 0,
+        "currency": "USD",
+        "netPnL": 5.03
+      },
+      "analysis": {
+        "strategy": "SMC",
+        "plannedRR": 1.07,
+        "actualRR": 1.07
+      },
+      "exitDate": "2026-07-08T16:06:16.281Z",
+      "accountId": "acc-001"
+    },
+    {
+      "instrument": "XAUUSD",
+      "direction": "SHORT",
+      "lotSize": 0.1,
+      "status": "LOSS",
+      "entryPrice": 4071.742,
+      "stopLoss": 4077.386,
+      "takeProfit": 4050.241,
+      "exitPrice": 4077.386,
+      "strategy": "โซนอุปสงค์/อุปทาน (S/D)",
+      "entryDate": "2026-07-08T12:28",
+      "netPnL": -56.44,
+      "preTrade": "สงบนิ่ง",
+      "duringTrade": "อดทน",
+      "postTrade": "ได้เรียนรู้",
+      "notes": {
+        "entryImage": null,
+        "exitImage": null,
+        "preTrade": "สงบนิ่ง",
+        "duringTrade": "อดทน",
+        "postTrade": "ได้เรียนรู้",
+        "detailedNotes": "",
+        "selfAssessment": 5
+      },
+      "selfAssessment": 5,
+      "id": "udaxc1efr",
+      "financials": {
+        "grossPnL": null,
+        "commission": 0,
+        "swap": 0,
+        "currency": "USD",
+        "netPnL": -56.44
+      },
+      "analysis": {
+        "strategy": "โซนอุปสงค์/อุปทาน (S/D)",
+        "plannedRR": 3.81,
+        "actualRR": -1
+      },
+      "exitDate": "2026-07-08T12:28:53.463Z",
+      "accountId": "acc-001"
+    },
+    {
+      "instrument": "XAUUSD",
+      "direction": "SHORT",
+      "lotSize": 0.1,
+      "status": "LOSS",
+      "entryPrice": 4064.81,
+      "stopLoss": 4070.518,
+      "takeProfit": 4048.502,
+      "exitPrice": 4070.518,
+      "strategy": "",
+      "entryDate": "2026-07-08T12:10",
+      "netPnL": -57.08,
+      "preTrade": "มั่นใจ",
+      "duringTrade": "อดทน",
+      "postTrade": "ได้เรียนรู้",
+      "notes": {
+        "entryImage": null,
+        "exitImage": null,
+        "preTrade": "มั่นใจ",
+        "duringTrade": "อดทน",
+        "postTrade": "ได้เรียนรู้",
+        "detailedNotes": "ตามแผน",
+        "selfAssessment": 5
+      },
+      "selfAssessment": 5,
+      "id": "fqcd8g7mp",
+      "financials": {
+        "grossPnL": null,
+        "commission": 0,
+        "swap": 0,
+        "currency": "USD",
+        "netPnL": -57.08
+      },
+      "analysis": {
+        "strategy": "",
+        "plannedRR": 2.86,
+        "actualRR": -1
+      },
+      "exitDate": "2026-07-08T12:11:03.827Z",
+      "accountId": "acc-001"
+    },
+    {
+      "instrument": "XAUUSD",
+      "direction": "SHORT",
+      "lotSize": 0.05,
+      "status": "WIN",
+      "entryPrice": 4114.306,
+      "stopLoss": 4120.316,
+      "takeProfit": 4102.297,
+      "exitPrice": 4102.297,
+      "strategy": "",
+      "entryDate": "2026-07-08T12:05",
+      "netPnL": 60.05,
+      "preTrade": "สงบนิ่ง",
+      "duringTrade": "นอน",
+      "postTrade": "นอน",
+      "notes": {
+        "entryImage": null,
+        "exitImage": null,
+        "preTrade": "สงบนิ่ง",
+        "duringTrade": "นอน",
+        "postTrade": "นอน",
+        "detailedNotes": "เข้าแล้วนอน\n",
+        "selfAssessment": 5
+      },
+      "selfAssessment": 5,
+      "id": "yv6inf1a5",
+      "financials": {
+        "grossPnL": null,
+        "commission": 0,
+        "swap": 0,
+        "currency": "USD",
+        "netPnL": 60.05
+      },
+      "analysis": {
+        "strategy": "",
+        "plannedRR": 2,
+        "actualRR": 2
+      },
+      "exitDate": "2026-07-08T12:05:26.673Z",
+      "accountId": "acc-001"
+    },
+    {
+      "instrument": "XAUUSD",
+      "direction": "SHORT",
+      "lotSize": 0.1,
+      "status": "LOSS",
+      "entryPrice": 4060.311,
+      "stopLoss": 4065.811,
+      "takeProfit": 4049.362,
+      "exitPrice": 4065.811,
+      "strategy": "SMC",
+      "entryDate": "2026-07-08T11:53",
+      "netPnL": -55,
+      "preTrade": "สงบนิ่ง",
+      "duringTrade": "ลังเล",
+      "postTrade": "พอใจ",
+      "notes": {
+        "entryImage": null,
+        "exitImage": null,
+        "preTrade": "สงบนิ่ง",
+        "duringTrade": "ลังเล",
+        "postTrade": "พอใจ",
+        "detailedNotes": "ตามแผน",
+        "selfAssessment": 5
+      },
+      "selfAssessment": 5,
+      "id": "1b0w3czt5",
+      "financials": {
+        "grossPnL": null,
+        "commission": 0,
+        "swap": 0,
+        "currency": "USD",
+        "netPnL": -55
+      },
+      "analysis": {
+        "strategy": "SMC",
+        "plannedRR": 1.99,
+        "actualRR": -1
+      },
+      "exitDate": "2026-07-08T12:03:12.742Z",
+      "accountId": "acc-001"
+    },
+    {
+      "instrument": "XAUUSD",
+      "direction": "LONG",
+      "lotSize": 0.1,
+      "status": "LOSS",
+      "entryPrice": 4145.966,
+      "stopLoss": 4135.247,
+      "takeProfit": 4165.977,
+      "exitPrice": 4135.247,
+      "strategy": "SMC",
+      "entryDate": "2026-07-08T11:42",
+      "netPnL": -107.19,
+      "preTrade": "อยากเอาคืน",
+      "duringTrade": "อยากเอาคืน",
+      "postTrade": "อยากเอาคืน",
+      "notes": {
+        "entryImage": null,
+        "exitImage": null,
+        "preTrade": "อยากเอาคืน",
+        "duringTrade": "อยากเอาคืน",
+        "postTrade": "อยากเอาคืน",
+        "detailedNotes": "อยากเอาคืน",
+        "selfAssessment": 1
+      },
+      "selfAssessment": 1,
+      "id": "qfgxvt3kg",
+      "financials": {
+        "grossPnL": null,
+        "commission": 0,
+        "swap": 0,
+        "currency": "USD",
+        "netPnL": -107.19
+      },
+      "analysis": {
+        "strategy": "SMC",
+        "plannedRR": 1.87,
+        "actualRR": -1
+      },
+      "exitDate": "2026-07-08T11:43:07.286Z",
+      "accountId": "acc-001"
+    },
+    {
+      "instrument": "XAUUSD",
+      "direction": "SHORT",
+      "lotSize": 0.1,
+      "status": "LOSS",
+      "entryPrice": 4144.501,
+      "stopLoss": 4147.188,
+      "takeProfit": 4138.65,
+      "exitPrice": 4147.188,
+      "strategy": "SMC",
+      "entryDate": "2026-07-08T11:41",
+      "netPnL": -26.87,
+      "preTrade": "FOMO",
+      "duringTrade": "โลภ",
+      "postTrade": "อยากเอาคืน",
+      "notes": {
+        "entryImage": null,
+        "exitImage": null,
+        "preTrade": "FOMO",
+        "duringTrade": "โลภ",
+        "postTrade": "อยากเอาคืน",
+        "detailedNotes": "อยากเอาคืน",
+        "selfAssessment": 1
+      },
+      "selfAssessment": 1,
+      "id": "6jx38byna",
+      "financials": {
+        "grossPnL": null,
+        "commission": 0,
+        "swap": 0,
+        "currency": "USD",
+        "netPnL": -26.87
+      },
+      "analysis": {
+        "strategy": "SMC",
+        "plannedRR": 2.18,
+        "actualRR": -1
+      },
+      "exitDate": "2026-07-08T11:42:22.169Z",
+      "accountId": "acc-001"
+    },
+    {
+      "instrument": "XAUUSD",
+      "direction": "SHORT",
+      "lotSize": 0.1,
+      "status": "WIN",
+      "entryPrice": 4146.557,
+      "stopLoss": 4150.425,
+      "takeProfit": 4139.997,
+      "exitPrice": 4139.997,
+      "strategy": "SMC",
+      "entryDate": "2026-07-08T11:02",
+      "netPnL": 65.6,
+      "preTrade": "",
+      "duringTrade": "",
+      "postTrade": "",
+      "notes": {
+        "entryImage": null,
+        "exitImage": null,
+        "preTrade": "",
+        "duringTrade": "",
+        "postTrade": "",
+        "detailedNotes": "ผิดกฏ",
+        "selfAssessment": null
+      },
+      "selfAssessment": 0,
+      "id": "qr5zjs4cg",
+      "financials": {
+        "grossPnL": null,
+        "commission": 0,
+        "swap": 0,
+        "currency": "USD",
+        "netPnL": 65.6
+      },
+      "analysis": {
+        "strategy": "SMC",
+        "plannedRR": 1.7,
+        "actualRR": 1.7
+      },
+      "exitDate": "2026-07-08T11:03:05.955Z",
+      "accountId": "acc-001"
+    },
+    {
+      "instrument": "XAUUSD",
+      "direction": "LONG",
+      "lotSize": 4145.196,
+      "status": "BREAK_EVEN",
+      "entryPrice": 4145.269,
+      "stopLoss": 4140.24,
+      "takeProfit": 4163.24,
+      "exitPrice": 4145.269,
+      "strategy": "SMC",
+      "entryDate": "2026-07-08T11:00",
+      "netPnL": 0,
+      "preTrade": "",
+      "duringTrade": "",
+      "postTrade": "",
+      "notes": {
+        "entryImage": null,
+        "exitImage": null,
+        "preTrade": "",
+        "duringTrade": "",
+        "postTrade": "",
+        "detailedNotes": "ผิดกฏ\n",
+        "selfAssessment": 1
+      },
+      "selfAssessment": 1,
+      "id": "4n28vfpyo",
+      "financials": {
+        "grossPnL": null,
+        "commission": 0,
+        "swap": 0,
+        "currency": "USD",
+        "netPnL": 0
+      },
+      "analysis": {
+        "strategy": "SMC",
+        "plannedRR": 3.57,
+        "actualRR": 0
+      },
+      "exitDate": "2026-07-08T11:00:42.437Z",
+      "accountId": "acc-001"
+    },
+    {
+      "instrument": "XAUUSD",
+      "direction": "LONG",
+      "lotSize": 0.05,
+      "status": "LOSS",
+      "entryPrice": 4150.496,
+      "stopLoss": 4142.431,
+      "takeProfit": 4174.686,
+      "exitPrice": 4142.431,
+      "strategy": "",
+      "entryDate": "2026-07-08T10:59",
+      "netPnL": -40.33,
+      "preTrade": "",
+      "duringTrade": "",
+      "postTrade": "",
+      "notes": {
+        "entryImage": null,
+        "exitImage": null,
+        "preTrade": "",
+        "duringTrade": "",
+        "postTrade": "",
+        "detailedNotes": "อยากเอาคืน",
+        "selfAssessment": 1
+      },
+      "selfAssessment": 1,
+      "id": "zt4j4wbu4",
+      "financials": {
+        "grossPnL": null,
+        "commission": 0,
+        "swap": 0,
+        "currency": "USD",
+        "netPnL": -40.33
+      },
+      "analysis": {
+        "strategy": "",
+        "plannedRR": 3,
+        "actualRR": -1
+      },
+      "exitDate": "2026-07-08T10:59:55.072Z",
+      "accountId": "acc-001"
+    },
+    {
+      "instrument": "XAUUSD",
+      "direction": "LONG",
+      "lotSize": 0.05,
+      "status": "LOSS",
+      "entryPrice": 4150.249,
+      "stopLoss": 4144.517,
+      "takeProfit": 4165.367,
+      "exitPrice": 4144.517,
+      "strategy": "SMC",
+      "entryDate": "2026-07-07T10:58",
+      "netPnL": -28.66,
+      "preTrade": "",
+      "duringTrade": "",
+      "postTrade": "",
+      "notes": {
+        "entryImage": null,
+        "exitImage": null,
+        "preTrade": "",
+        "duringTrade": "",
+        "postTrade": "",
+        "detailedNotes": "",
+        "selfAssessment": 4
+      },
+      "selfAssessment": 4,
+      "id": "ul82cpmp9",
+      "financials": {
+        "grossPnL": null,
+        "commission": 0,
+        "swap": 0,
+        "currency": "USD",
+        "netPnL": -28.66
+      },
+      "analysis": {
+        "strategy": "SMC",
+        "plannedRR": 2.64,
+        "actualRR": -1
+      },
+      "exitDate": "2026-07-08T10:59:18.139Z",
+      "accountId": "acc-001"
+    },
+    {
+      "instrument": "XAUUSD",
+      "direction": "LONG",
+      "lotSize": 0.05,
+      "status": "LOSS",
+      "entryPrice": 4155.402,
+      "stopLoss": 4149.937,
+      "takeProfit": 4165.441,
+      "exitPrice": 4149.937,
+      "strategy": "SMC",
+      "entryDate": "2026-07-07T10:57",
+      "netPnL": -27.33,
+      "preTrade": "",
+      "duringTrade": "",
+      "postTrade": "",
+      "notes": {
+        "entryImage": null,
+        "exitImage": null,
+        "preTrade": "",
+        "duringTrade": "",
+        "postTrade": "",
+        "detailedNotes": "",
+        "selfAssessment": 5
+      },
+      "selfAssessment": 5,
+      "id": "m54h99oms",
+      "financials": {
+        "grossPnL": null,
+        "commission": 0,
+        "swap": 0,
+        "currency": "USD",
+        "netPnL": -27.33
+      },
+      "analysis": {
+        "strategy": "SMC",
+        "plannedRR": 1.84,
+        "actualRR": -1
+      },
+      "exitDate": "2026-07-08T10:57:57.289Z",
+      "accountId": "acc-001"
+    },
+    {
+      "instrument": "XAUUSD",
+      "direction": "SHORT",
+      "lotSize": 0.01,
+      "status": "WIN",
+      "entryPrice": 4177.668,
+      "stopLoss": 4183.135,
+      "takeProfit": 4169.866,
+      "exitPrice": 4169.866,
+      "strategy": "SMC",
+      "entryDate": "2026-07-07T10:56",
+      "netPnL": 7.8,
+      "preTrade": "มั่นใจ",
+      "duringTrade": "อดทน",
+      "postTrade": "พอใจ",
+      "notes": {
+        "entryImage": null,
+        "exitImage": null,
+        "preTrade": "มั่นใจ",
+        "duringTrade": "อดทน",
+        "postTrade": "พอใจ",
+        "detailedNotes": "",
+        "selfAssessment": 5
+      },
+      "selfAssessment": 5,
+      "id": "klio8pvwm",
+      "financials": {
+        "grossPnL": null,
+        "commission": 0,
+        "swap": 0,
+        "currency": "USD",
+        "netPnL": 7.8
+      },
+      "analysis": {
+        "strategy": "SMC",
+        "plannedRR": 1.43,
+        "actualRR": 1.43
+      },
+      "exitDate": "2026-07-08T10:57:08.707Z",
+      "accountId": "acc-001"
+    },
+    {
+      "instrument": "XAUUSD",
+      "direction": "SHORT",
+      "lotSize": 0.1,
+      "status": "LOSS",
+      "entryPrice": 4128.049,
+      "stopLoss": 4130.715,
+      "takeProfit": 4120.862,
+      "exitPrice": 4130.715,
+      "strategy": "SMC",
+      "entryDate": "2026-07-07T10:24",
+      "netPnL": -26.66,
+      "preTrade": "มั่นใจ",
+      "duringTrade": "อดทน",
+      "postTrade": "พอใจ",
+      "notes": {
+        "entryImage": null,
+        "exitImage": null,
+        "preTrade": "มั่นใจ",
+        "duringTrade": "อดทน",
+        "postTrade": "พอใจ",
+        "detailedNotes": "ผิดกฏ",
+        "selfAssessment": 1
+      },
+      "selfAssessment": 1,
+      "id": "u7iagybii",
+      "financials": {
+        "grossPnL": null,
+        "commission": 0,
+        "swap": 0,
+        "currency": "USD",
+        "netPnL": -26.66
+      },
+      "analysis": {
+        "strategy": "SMC",
+        "plannedRR": 2.7,
+        "actualRR": -1
+      },
+      "exitDate": "2026-07-07T10:25:11.567Z",
+      "accountId": "acc-001"
+    },
+    {
+      "instrument": "XAUUSD",
+      "direction": "LONG",
+      "lotSize": 0.01,
+      "status": "WIN",
+      "entryPrice": 4126.91,
+      "stopLoss": 4122.96,
+      "takeProfit": 4138.875,
+      "exitPrice": 4138.875,
+      "strategy": "โซนอุปสงค์/อุปทาน (S/D)",
+      "entryDate": "2026-07-07T07:56",
+      "netPnL": 100,
+      "preTrade": "กลัว",
+      "duringTrade": "อดทน",
+      "postTrade": "ได้เรียนรู้",
+      "notes": {
+        "entryImage": null,
+        "exitImage": null,
+        "preTrade": "กลัว",
+        "duringTrade": "อดทน",
+        "postTrade": "ได้เรียนรู้",
+        "detailedNotes": "ผิดกฏ เทรดเกิน",
+        "selfAssessment": 3
+      },
+      "selfAssessment": 3,
+      "id": "tdvpiha77",
+      "financials": {
+        "grossPnL": null,
+        "commission": 0,
+        "swap": 0,
+        "currency": "USD",
+        "netPnL": 100
+      },
+      "analysis": {
+        "strategy": "โซนอุปสงค์/อุปทาน (S/D)",
+        "plannedRR": 3.03,
+        "actualRR": 3.03
+      },
+      "exitDate": null,
+      "accountId": "acc-001"
+    },
+    {
+      "instrument": "XAUUSD",
+      "direction": "SHORT",
+      "lotSize": 0.05,
+      "status": "LOSS",
+      "entryPrice": 4125.337,
+      "stopLoss": 4130.28,
+      "takeProfit": 4115.257,
+      "exitPrice": 4130.28,
+      "strategy": "โซนอุปสงค์/อุปทาน (S/D)",
+      "entryDate": "2026-07-07T06:16",
+      "netPnL": 25,
+      "preTrade": "สงบนิ่ง",
+      "duringTrade": "อดทน",
+      "postTrade": "พอใจ",
+      "notes": {
+        "entryImage": null,
+        "exitImage": null,
+        "preTrade": "สงบนิ่ง",
+        "duringTrade": "อดทน",
+        "postTrade": "พอใจ",
+        "detailedNotes": "",
+        "selfAssessment": 5
+      },
+      "selfAssessment": 5,
+      "id": "686x5eif9",
+      "financials": {
+        "grossPnL": null,
+        "commission": 0,
+        "swap": 0,
+        "currency": "USD",
+        "netPnL": -25
+      },
+      "analysis": {
+        "strategy": "โซนอุปสงค์/อุปทาน (S/D)",
+        "plannedRR": 2.04,
+        "actualRR": -1
+      },
+      "exitDate": null,
+      "accountId": "acc-001"
+    },
+    {
+      "instrument": "XAUUSD",
+      "direction": "SHORT",
+      "lotSize": 0.05,
+      "status": "LOSS",
+      "entryPrice": 4122.906,
+      "stopLoss": 4127.9,
+      "takeProfit": 4112.9,
+      "exitPrice": 4127.9,
+      "strategy": "SMC",
+      "entryDate": "2026-07-07T05:46",
+      "netPnL": -25,
+      "preTrade": "สงบนิ่ง",
+      "duringTrade": "อดทน",
+      "postTrade": "พอใจ",
+      "notes": {
+        "entryImage": null,
+        "exitImage": null,
+        "preTrade": "สงบนิ่ง",
+        "duringTrade": "อดทน",
+        "postTrade": "พอใจ",
+        "detailedNotes": "รอ มีอาการอยากแก้ SL แต่ ไม่ครับ ผมทำตามแผน ขอบคุณ สำหรับ ความเอ่ตัวรอด\n\nhttps://www.tradingview.com/x/rlGPFhhU/",
+        "selfAssessment": 5
+      },
+      "selfAssessment": 5,
+      "id": "ahg2c6qsy",
+      "financials": {
+        "grossPnL": null,
+        "commission": 0,
+        "swap": 0,
+        "currency": "USD",
+        "netPnL": -25
+      },
+      "analysis": {
+        "strategy": "SMC",
+        "plannedRR": 2,
+        "actualRR": -1
+      },
+      "exitDate": null,
+      "accountId": "acc-001"
+    },
+    {
+      "instrument": "XAUUSD",
+      "direction": "SHORT",
+      "lotSize": 0.05,
+      "status": "LOSS",
+      "entryPrice": 4124.309,
+      "stopLoss": 4119.3,
+      "takeProfit": 4134.309,
+      "exitPrice": 4119.3,
+      "strategy": "SMC",
+      "entryDate": "2026-07-07T05:36",
+      "netPnL": -25,
+      "preTrade": "สงบนิ่ง",
+      "duringTrade": "อดทน",
+      "postTrade": "พอใจ",
+      "notes": {
+        "entryImage": null,
+        "exitImage": null,
+        "preTrade": "สงบนิ่ง",
+        "duringTrade": "อดทน",
+        "postTrade": "พอใจ",
+        "detailedNotes": "ใช้ความเสี่ยง 0.5%  เยี่ยมมาก อดทดรอ ให้ระบบทำงาน ",
+        "selfAssessment": 5
+      },
+      "selfAssessment": 5,
+      "id": "cbuk6wpk6",
+      "financials": {
+        "grossPnL": null,
+        "commission": 0,
+        "swap": 0,
+        "currency": "USD",
+        "netPnL": -25
+      },
+      "analysis": {
+        "strategy": "SMC",
+        "plannedRR": 2,
+        "actualRR": -1
+      },
+      "exitDate": null,
+      "accountId": "acc-001"
+    },
+    {
+      "instrument": "ทดสอบ",
+      "direction": "LONG",
+      "lotSize": 0.01,
+      "status": "WIN",
+      "entryPrice": 5000,
+      "stopLoss": 4990,
+      "takeProfit": 5050,
+      "exitPrice": 5050,
+      "strategy": "จุดตัดเส้นแนวโน้ม",
+      "entryDate": "2026-07-06T17:26",
+      "netPnL": 50,
+      "preTrade": "",
+      "duringTrade": "",
+      "postTrade": "",
+      "notes": {
+        "entryImage": null,
+        "exitImage": null,
+        "preTrade": "",
+        "duringTrade": "",
+        "postTrade": "",
+        "detailedNotes": "",
+        "selfAssessment": 5
+      },
+      "selfAssessment": 5,
+      "id": "bznijuoxj",
+      "financials": {
+        "grossPnL": null,
+        "commission": 0,
+        "swap": 0,
+        "currency": "USD",
+        "netPnL": 50
+      },
+      "analysis": {
+        "strategy": "จุดตัดเส้นแนวโน้ม",
+        "plannedRR": 5,
+        "actualRR": 5
+      },
+      "exitDate": "2026-07-06T17:27:17.490Z",
+      "accountId": "acc-002"
+    },
+    {
+      "instrument": "XAUUSD",
+      "direction": "LONG",
+      "lotSize": 0.05,
+      "status": "WIN",
+      "entryPrice": 4139.988,
+      "stopLoss": 4136.41,
+      "takeProfit": 4150.158,
+      "exitPrice": 4150.158,
+      "strategy": "โซนอุปสงค์/อุปทาน (S/D)",
+      "entryDate": "2026-07-06T13:27",
+      "netPnL": 50,
+      "preTrade": "มั่นใจ",
+      "duringTrade": "อดทน",
+      "postTrade": "ได้เรียนรู้",
+      "notes": {
+        "entryImage": null,
+        "exitImage": null,
+        "preTrade": "มั่นใจ",
+        "duringTrade": "อดทน",
+        "postTrade": "ได้เรียนรู้",
+        "detailedNotes": "รอ TP SL เข้าแค่ความเสี่ยง 0.5% ของพอร์ต.  \nResult : ตามแผนจบงาน เข้าแ้วเลิก ใช้ความเสี่ยงน้อยๆ\nhttps://www.tradingview.com/x/gVaAssNJ/",
+        "selfAssessment": 5
+      },
+      "id": "ve4y0fxg3",
+      "financials": {
+        "grossPnL": null,
+        "commission": 0,
+        "swap": 0,
+        "currency": "USD",
+        "netPnL": 50
+      },
+      "analysis": {
+        "strategy": "โซนอุปสงค์/อุปทาน (S/D)",
+        "plannedRR": 2.84,
+        "actualRR": 2.84
+      },
+      "exitDate": null,
+      "accountId": "acc-001",
+      "selfAssessment": 5
+    },
+    {
+      "instrument": "XAUUSD",
+      "direction": "SHORT",
+      "lotSize": 0.05,
+      "status": "WIN",
+      "entryPrice": 4145,
+      "stopLoss": 0,
+      "takeProfit": 0,
+      "exitPrice": 4139.5,
+      "strategy": "SMC",
+      "entryDate": "2026-07-06T13:26",
+      "netPnL": 20,
+      "preTrade": "สงบนิ่ง",
+      "duringTrade": "อดทน",
+      "postTrade": "พอใจ",
+      "notes": {
+        "entryImage": null,
+        "exitImage": null,
+        "preTrade": "สงบนิ่ง",
+        "duringTrade": "อดทน",
+        "postTrade": "พอใจ",
+        "detailedNotes": "ตามแผน\n\nhttps://www.tradingview.com/x/gVaAssNJ/",
+        "selfAssessment": 5
+      },
+      "id": "8pa82agld",
+      "financials": {
+        "grossPnL": null,
+        "commission": 0,
+        "swap": 0,
+        "currency": "USD",
+        "netPnL": 20
+      },
+      "analysis": {
+        "strategy": "SMC",
+        "plannedRR": null,
+        "actualRR": null
+      },
+      "exitDate": "2026-07-06T13:27:00.183Z",
+      "accountId": "acc-001",
+      "selfAssessment": 5
+    },
+    {
+      "instrument": "XAUUSD",
+      "direction": "SHORT",
+      "lotSize": 0.3,
+      "status": "LOSS",
+      "entryPrice": 4344,
+      "stopLoss": 4348.75,
+      "takeProfit": 4314.26,
+      "exitPrice": 4348.75,
+      "strategy": "SMC",
+      "entryDate": "2026-06-16T11:04",
+      "netPnL": 124.97,
+      "preTrade": "กลัว",
+      "duringTrade": "วอกแวก",
+      "postTrade": "อยากเอาคืน",
+      "notes": {
+        "entryImage": null,
+        "exitImage": null,
+        "preTrade": "กลัว",
+        "duringTrade": "วอกแวก",
+        "postTrade": "อยากเอาคืน",
+        "detailedNotes": "อยากเอาคืนกดไม้เพิ่ม ต้องหยุดแล้ว"
+      },
+      "id": "m2umkl1ll",
+      "financials": {
+        "grossPnL": null,
+        "commission": 0,
+        "swap": 0,
+        "currency": "USD",
+        "netPnL": -124.97
+      },
+      "analysis": {
+        "strategy": "SMC",
+        "plannedRR": 6.26,
+        "actualRR": -1
+      },
+      "exitDate": "2026-06-16T11:08:29.296Z",
+      "accountId": "acc-001"
+    },
+    {
+      "instrument": "XAUUSD",
+      "direction": "SHORT",
+      "lotSize": 0.35,
+      "status": "LOSS",
+      "entryPrice": 4330.91,
+      "stopLoss": 4334.38398,
+      "takeProfit": 4307.827,
+      "exitPrice": 4334.38398,
+      "strategy": "",
+      "entryDate": "2026-06-16T07:58",
+      "netPnL": -121,
+      "preTrade": "สงบนิ่ง",
+      "duringTrade": "อดทน",
+      "postTrade": "โล่งอก",
+      "id": "bpzywp6dw",
+      "financials": {
+        "grossPnL": null,
+        "commission": 0,
+        "swap": 0,
+        "currency": "USD",
+        "netPnL": -121
+      },
+      "analysis": {
+        "strategy": "",
+        "plannedRR": 6.64,
+        "actualRR": -1
+      },
+      "notes": {
+        "entryImage": null,
+        "exitImage": null,
+        "preTrade": "สงบนิ่ง",
+        "duringTrade": "อดทน",
+        "postTrade": "โล่งอก",
+        "detailedNotes": "การแพ้เป็นส่วนนึงของการเทรด มันคือก้าวเล็กๆ ที่ทำให้เราเดินต่อ จงทำในสิ่งที่ต้องทำ แล้วความสำเร็จมันจะมาหาเรา โดยที่เราไม่ได้ทำอะไร\n"
+      },
+      "exitDate": "2026-06-16T07:59:32.777Z",
+      "accountId": "acc-001"
+    },
+    {
+      "instrument": "XAUUSD",
+      "direction": "SHORT",
+      "lotSize": 0.35,
+      "status": "LOSS",
+      "entryPrice": 4326.92,
+      "stopLoss": 4330,
+      "takeProfit": 4315,
+      "strategy": "SMC",
+      "entryDate": "2026-06-16T07:31",
+      "netPnL": -100,
+      "preTrade": "มั่นใจ",
+      "duringTrade": "อดทน",
+      "postTrade": "ทำตามแผน",
+      "id": "obpjqkcqt",
+      "financials": {
+        "grossPnL": null,
+        "commission": 0,
+        "swap": 0,
+        "currency": "USD",
+        "netPnL": -100
+      },
+      "analysis": {
+        "strategy": "SMC",
+        "plannedRR": 3.87,
+        "actualRR": -1
+      },
+      "notes": {
+        "entryImage": null,
+        "exitImage": null,
+        "preTrade": "มั่นใจ",
+        "duringTrade": "อดทน",
+        "postTrade": "ทำตามแผน"
+      },
+      "exitDate": "2026-06-16T07:33:03.100Z",
+      "exitPrice": 4330,
+      "accountId": "acc-001"
+    },
+    {
+      "id": "trade-001",
+      "accountId": "acc-001",
+      "instrument": "XAUUSD",
+      "direction": "LONG",
+      "lotSize": 0.2,
+      "status": "WIN",
+      "entryDate": "2024-03-20T10:00",
+      "exitDate": "2024-03-20T14:30:00Z",
+      "entryPrice": 4305,
+      "exitPrice": 4325.467,
+      "stopLoss": 4300,
+      "takeProfit": 4325,
+      "financials": {
+        "grossPnL": 147,
+        "commission": 7,
+        "swap": 0,
+        "netPnL": 400.05,
+        "currency": "USD"
+      },
+      "analysis": {
+        "strategy": "Supply/Demand Zone",
+        "timeframe": "H1",
+        "plannedRR": 4,
+        "actualRR": 4.09
+      },
+      "notes": {
+        "preTrade": "Price bounced from H1 demand zone with strong rejection.",
+        "postTrade": "Exited early before TP due to high impact news coming up.",
+        "entryImage": "https://example.com/charts/entry-001.png",
+        "exitImage": "https://example.com/charts/exit-001.png",
+        "duringTrade": "อดทน",
+        "detailedNotes": "การชนะเป็นเรื่องปกติ อย่าไปเหลิงกับมัน\n"
+      },
+      "strategy": "Supply/Demand Zone",
+      "netPnL": 400.05,
+      "preTrade": "Price bounced from H1 demand zone with strong rejection.",
+      "duringTrade": "อดทน",
+      "postTrade": "Exited early before TP due to high impact news coming up."
+    }
+  ]
+}

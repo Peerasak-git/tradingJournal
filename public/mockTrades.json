@@ -1,0 +1,100 @@
+{
+  "trades": [
+    {
+      "id": "trade-001",
+      "instrument": "XAUUSD",
+      "direction": "LONG",
+      "lotSize": 0.1,
+      "status": "WIN",
+      "entryDate": "2024-03-20T10:00:00Z",
+      "exitDate": "2024-03-20T14:30:00Z",
+      "entryPrice": 2150.5,
+      "exitPrice": 2165.2,
+      "stopLoss": 2145.0,
+      "takeProfit": 2170.0,
+      "financials": {
+        "grossPnL": 147.0,
+        "commission": 7.0,
+        "swap": 0.0,
+        "netPnL": 140.0,
+        "currency": "USD"
+      },
+      "analysis": {
+        "strategy": "Supply/Demand Zone",
+        "timeframe": "H1",
+        "plannedRR": 3.5,
+        "actualRR": 2.67
+      },
+      "notes": {
+        "preTrade": "Price bounced from H1 demand zone with strong rejection.",
+        "postTrade": "Exited early before TP due to high impact news coming up.",
+        "entryImage": "https://example.com/charts/entry-001.png",
+        "exitImage": "https://example.com/charts/exit-001.png"
+      }
+    },
+    {
+      "id": "trade-002",
+      "instrument": "EURUSD",
+      "direction": "SHORT",
+      "lotSize": 0.5,
+      "status": "LOSS",
+      "entryDate": "2024-03-21T08:15:00Z",
+      "exitDate": "2024-03-21T09:00:00Z",
+      "entryPrice": 1.0854,
+      "exitPrice": 1.0874,
+      "stopLoss": 1.0874,
+      "takeProfit": 1.0814,
+      "financials": {
+        "grossPnL": -100.0,
+        "commission": 5.0,
+        "swap": -0.5,
+        "netPnL": -105.5,
+        "currency": "USD"
+      },
+      "analysis": {
+        "strategy": "Breakout",
+        "timeframe": "M15",
+        "plannedRR": 2.0,
+        "actualRR": -1.0
+      },
+      "notes": {
+        "preTrade": "Double top formation at resistance, looking for breakout.",
+        "postTrade": "Fakeout occurred. Should have waited for retest.",
+        "entryImage": null,
+        "exitImage": null
+      }
+    },
+    {
+      "id": "trade-003",
+      "instrument": "BTCUSD",
+      "direction": "LONG",
+      "lotSize": 0.01,
+      "status": "OPEN",
+      "entryDate": "2024-03-22T12:00:00Z",
+      "exitDate": null,
+      "entryPrice": 65000.0,
+      "exitPrice": null,
+      "stopLoss": 63000.0,
+      "takeProfit": 70000.0,
+      "financials": {
+        "grossPnL": 45.0,
+        "commission": 2.0,
+        "swap": -1.2,
+        "netPnL": null,
+        "currency": "USD"
+      },
+      "analysis": {
+        "strategy": "Trend Following",
+        "timeframe": "H4",
+        "plannedRR": 2.5,
+        "actualRR": null
+      },
+      "notes": {
+        "preTrade": "Bullish trend continues on Daily timeframe.",
+        "postTrade": null,
+        "entryImage": "https://example.com/charts/entry-003.png",
+        "exitImage": null
+      }
+    }
+  ]
+}

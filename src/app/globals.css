@@ -1,26 +1,79 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+
+  --animate-fade-in: fade-in 0.4s ease-out;
+  @keyframes fade-in {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  /* Dynamic Win / Loss Colors with fallbacks to Emerald and Rose */
+  --color-win-50: var(--win-50, #ecfdf5);
+  --color-win-100: var(--win-100, #d1fae5);
+  --color-win-200: var(--win-200, #a7f3d0);
+  --color-win-300: var(--win-300, #6ee7b7);
+  --color-win-400: var(--win-400, #34d399);
+  --color-win-500: var(--win-500, #10b981);
+  --color-win-600: var(--win-600, #059669);
+  --color-win-700: var(--win-700, #047857);
+  --color-win-800: var(--win-800, #065f46);
+  --color-win-900: var(--win-900, #064e3b);
+  --color-win-950: var(--win-950, #022c22);
+
+  --color-loss-50: var(--loss-50, #fff1f2);
+  --color-loss-100: var(--loss-100, #ffe4e6);
+  --color-loss-200: var(--loss-200, #fecdd3);
+  --color-loss-300: var(--loss-300, #fda4af);
+  --color-loss-400: var(--loss-400, #fb7185);
+  --color-loss-500: var(--loss-500, #f43f5e);
+  --color-loss-600: var(--loss-600, #e11d48);
+  --color-loss-700: var(--loss-700, #be123c);
+  --color-loss-800: var(--loss-800, #9f1239);
+  --color-loss-900: var(--loss-900, #881337);
+  --color-loss-950: var(--loss-950, #4c0519);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+/* Configure Dark Mode to use .dark class */
+@custom-variant dark (&:where(.dark, .dark *));
+
+:root {
+  --background: #f1f5f9;
+  --foreground: #0f172a;
+}
+
+.dark {
+  --background: #121212;
+  --foreground: #f3f4f6;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  min-height: 100vh;
 }
+
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(148, 163, 184, 0.2); border-radius: 10px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(148, 163, 184, 0.35); }
+
+@layer components {
+  .glass-card {
+    @apply bg-white dark:bg-[#1c1c1e] border border-slate-200/60 dark:border-white/[0.06] shadow-lg;
+  }
+
+  .animate-fade-in {
+    animation: var(--animate-fade-in);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-fade-in { animation: none; }
+  * { transition-duration: 0ms !important; }
+}
+/* force rebuild */

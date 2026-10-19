@@ -1,0 +1,22 @@
+{
+  "finances": [
+    {
+      "type": "EXPENSE",
+      "amount": 70,
+      "date": "2026-07-05",
+      "description": "อาหาร",
+      "category": "อาหาร ",
+      "id": "1783235056938",
+      "accountId": "acc-001"
+    },
+    {
+      "type": "INCOME",
+      "amount": 15000,
+      "date": "2026-07-05",
+      "description": "เงินเก็บสำรอง",
+      "category": "เงินเก็บสำรอง",
+      "id": "1783235013688",
+      "accountId": "acc-001"
+    }
+  ]
+}

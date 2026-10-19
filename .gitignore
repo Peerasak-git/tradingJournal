@@ -39,3 +39,10 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# scratch / dev experiments
+eng.traineddata
+test-ocr*.js
+test-theme.html
+transaction-modal.html
+replace_colors.py

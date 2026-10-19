@@ -1,0 +1,26 @@
+{
+  "accounts": [
+    {
+      "id": "acc-001",
+      "userId": "u-001",
+      "name": "Personal Standard",
+      "type": "STANDARD",
+      "broker": "IC Markets",
+      "balance": 685.569999999999,
+      "currency": "USD",
+      "leverage": "1:500",
+      "createdAt": "2024-01-01T00:00:00Z"
+    },
+    {
+      "id": "acc-002",
+      "userId": "u-001",
+      "name": "Small Cent Account",
+      "type": "CENT",
+      "broker": "Exness",
+      "balance": 6854.900000000001,
+      "currency": "USC",
+      "leverage": "1:2000",
+      "createdAt": "2024-01-15T00:00:00Z"
+    }
+  ]
+}
