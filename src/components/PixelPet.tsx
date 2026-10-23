@@ -1,6 +1,8 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
+import { getTrades, getReviews } from '@/lib/clientStorage';
+import { evaluateDiscipline, DisciplineMetrics } from '@/lib/discipline';
 
 type PetState = 'WALK' | 'SIT' | 'IDLE' | 'SLEEP' | 'RUN' | 'EAT' | 'PLAY';
 
@@ -20,6 +22,10 @@ export default function PixelPet() {
   const [energy, setEnergy] = useState(100); // Replenished by SLEEP
   const [hunger, setHunger] = useState(100); // Replenished by EAT
   const [fun, setFun] = useState(100);       // Replenished by PLAY
+
+  // Discipline State
+  const [discipline, setDiscipline] = useState<DisciplineMetrics | null>(null);
+  const [showDisciplineBubble, setShowDisciplineBubble] = useState(false);
   
   const containerRef = useRef<HTMLDivElement>(null);
   const positionRef = useRef(position);
@@ -40,6 +46,31 @@ export default function PixelPet() {
 
     window.addEventListener('petToggle', handleToggle);
     return () => window.removeEventListener('petToggle', handleToggle);
+  }, []);
+
+  useEffect(() => {
+    const checkDiscipline = async () => {
+      try {
+        const [trades, reviews] = await Promise.all([getTrades(), getReviews()]);
+        const metrics = evaluateDiscipline(trades, reviews);
+        setDiscipline(metrics);
+        if (metrics.mood === 'WARNING' || metrics.mood === 'TILT') {
+          setShowDisciplineBubble(true);
+        }
+      } catch (e) {
+        console.error('Error checking discipline:', e);
+      }
+    };
+
+    checkDiscipline();
+    const interval = setInterval(checkDiscipline, 15000);
+    window.addEventListener('storage', checkDiscipline);
+    window.addEventListener('disciplineCheck', checkDiscipline);
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('storage', checkDiscipline);
+      window.removeEventListener('disciplineCheck', checkDiscipline);
+    };
   }, []);
 
   const frames = [
@@ -332,14 +363,90 @@ export default function PixelPet() {
       className="fixed bottom-10 z-[9999] select-none transition-all duration-300 ease-linear flex flex-col items-center gap-2 group pointer-events-none"
       style={{ left: position.x }}
     >
+      {/* Discipline Speech Bubble (Centered above cat, un-mirrored) */}
+      {discipline && showDisciplineBubble && (
+        <div 
+          onClick={(e) => e.stopPropagation()}
+          className={`pointer-events-auto mb-2 w-72 p-3.5 rounded-2xl shadow-2xl border backdrop-blur-md transition-all duration-300 animate-fade-in ${
+            discipline.mood === 'TILT'
+              ? 'bg-rose-50/95 dark:bg-rose-950/95 border-rose-500 shadow-rose-500/30 text-rose-900 dark:text-rose-100 ring-2 ring-rose-500/40 animate-pulse'
+              : discipline.mood === 'WARNING'
+              ? 'bg-amber-50/95 dark:bg-amber-950/95 border-amber-400 shadow-amber-500/30 text-amber-900 dark:text-amber-100 ring-1 ring-amber-400/30'
+              : discipline.mood === 'HAPPY'
+              ? 'bg-emerald-50/95 dark:bg-emerald-950/95 border-emerald-400 shadow-emerald-500/20 text-emerald-900 dark:text-emerald-100'
+              : 'bg-white/95 dark:bg-slate-900/95 border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100'
+          }`}
+        >
+          <div className="flex items-center justify-between gap-2 mb-1.5">
+            <span className="text-[11px] font-black tracking-tight flex items-center gap-1.5">
+              <span>{discipline.mood === 'HAPPY' ? '😺' : discipline.mood === 'WARNING' ? '⚠️' : discipline.mood === 'TILT' ? '🛑' : '🐱'}</span>
+              <span>{discipline.title}</span>
+            </span>
+            <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full ${
+              discipline.score >= 80 ? 'bg-emerald-200 dark:bg-emerald-900 text-emerald-800 dark:text-emerald-200' :
+              discipline.score >= 60 ? 'bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300' :
+              discipline.score >= 40 ? 'bg-amber-200 dark:bg-amber-900 text-amber-800 dark:text-amber-200' :
+              'bg-rose-200 dark:bg-rose-900 text-rose-800 dark:text-rose-200'
+            }`}>
+              วินัย {discipline.score}%
+            </span>
+          </div>
+
+          <p className="text-xs leading-relaxed font-medium mb-2.5">
+            {discipline.message}
+          </p>
+
+          <div className="flex items-center justify-between gap-2 pt-1 border-t border-black/5 dark:border-white/10 text-[10px]">
+            <span className="text-slate-500 dark:text-slate-400 font-medium truncate max-w-[170px]">
+              {discipline.advice}
+            </span>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setShowDisciplineBubble(false);
+              }}
+              className="text-[10px] font-bold px-2.5 py-1 rounded-lg bg-black/5 dark:bg-white/10 hover:bg-black/10 dark:hover:bg-white/20 transition cursor-pointer shrink-0"
+            >
+              รับทราบ
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* HUD - Shows on hover */}
       <div className="flex gap-3 bg-white/95 dark:bg-slate-900/95 backdrop-blur-sm px-3 py-2.5 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-2xl opacity-0 group-hover:opacity-100 transition-all duration-300 pointer-events-auto cursor-default transform translate-y-2 group-hover:translate-y-0">
         <StatBar label="Energy" value={energy} colorClass={energy > 30 ? 'bg-win-500' : 'bg-loss-500'} />
         <StatBar label="Hunger" value={hunger} colorClass={hunger > 30 ? 'bg-amber-500' : 'bg-loss-500'} />
         <StatBar label="Fun" value={fun} colorClass={fun > 30 ? 'bg-violet-500' : 'bg-loss-500'} />
+        <StatBar 
+          label="Discipline" 
+          value={discipline?.score ?? 100} 
+          colorClass={
+            (discipline?.score ?? 100) >= 80 ? 'bg-emerald-500' :
+            (discipline?.score ?? 100) >= 50 ? 'bg-amber-500' : 'bg-rose-500'
+          } 
+        />
       </div>
 
-      <div className="relative pointer-events-auto cursor-pointer" style={{ transform: `scaleX(${direction === 'RIGHT' ? 1 : -1})` }}>
+      <div 
+        onClick={() => setShowDisciplineBubble(prev => !prev)}
+        title="คลิกเพื่อคุยกับน้องแมวเรื่องวินัยการเทรด"
+        className="relative pointer-events-auto cursor-pointer" 
+        style={{ transform: `scaleX(${direction === 'RIGHT' ? 1 : -1})` }}
+      >
+        {/* Tilt / Warning alert pill floating right on top of cat */}
+        {discipline?.mood === 'TILT' && !showDisciplineBubble && (
+          <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-rose-600 text-white text-[9px] font-black px-1.5 py-0.5 rounded-full shadow-lg animate-bounce flex items-center gap-1 z-10">
+            <span>🛑 TILT!</span>
+          </div>
+        )}
+        {discipline?.mood === 'WARNING' && !showDisciplineBubble && (
+          <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-amber-500 text-white text-[9px] font-black px-1.5 py-0.5 rounded-full shadow-lg animate-bounce flex items-center gap-1 z-10">
+            <span>⚠️</span>
+          </div>
+        )}
+
         <div 
           className="flex flex-col"
           style={{ 
@@ -354,8 +461,8 @@ export default function PixelPet() {
           ))}
         </div>
 
-        {/* Speech Bubble */}
-        {bubbleText && (
+        {/* Small Action Speech Bubble (when discipline bubble is not open) */}
+        {bubbleText && !showDisciplineBubble && (
           <div className={`absolute -top-10 left-1/2 -translate-x-1/2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-3 py-1 rounded-full text-[10px] font-black shadow-lg ${state === 'SLEEP' ? 'animate-pulse' : 'animate-bounce'}`}>
             <span style={{ display: 'inline-block', transform: `scaleX(${direction === 'RIGHT' ? 1 : -1})` }}>
               {bubbleText}

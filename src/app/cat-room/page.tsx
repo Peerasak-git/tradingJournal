@@ -1,9 +1,25 @@
 'use client';
 
+import React, { useEffect, useState } from 'react';
 import PixelObject from '@/components/PixelObject';
-import { Cat } from 'lucide-react';
+import { Cat, Sparkles, ShieldCheck, AlertTriangle, CheckCircle2, XCircle, Heart } from 'lucide-react';
+import { getTrades, getReviews } from '@/lib/clientStorage';
+import { evaluateDiscipline, DisciplineMetrics } from '@/lib/discipline';
 
 export default function CatRoom() {
+  const [discipline, setDiscipline] = useState<DisciplineMetrics | null>(null);
+
+  useEffect(() => {
+    const loadDiscipline = async () => {
+      try {
+        const [trades, reviews] = await Promise.all([getTrades(), getReviews()]);
+        setDiscipline(evaluateDiscipline(trades, reviews));
+      } catch (err) {
+        console.error('Error loading discipline in CatRoom:', err);
+      }
+    };
+    loadDiscipline();
+  }, []);
   const foodBowlFrames = [
     "                ",
     "                ",
@@ -92,14 +108,166 @@ export default function CatRoom() {
         </p>
       </div>
 
-      <div className="glass-card mt-12 p-8 rounded-3xl border border-amber-200/50 dark:border-amber-900/30 max-w-2xl bg-amber-50/30 dark:bg-amber-900/10">
-        <h2 className="text-xl font-black text-slate-900 dark:text-white mb-4">ยินดีต้อนรับสู่ Cat Room!</h2>
-        <p className="text-slate-600 dark:text-slate-300 mb-4 leading-relaxed font-medium">
-          น้องแมวจะเดินมาเยี่ยมคุณในหน้านี้ (และหน้าอื่นๆ) คุณสามารถนั่งดูน้องกินข้าว นอนหลับ หรือวิ่งเล่นไปมาได้ เป็นการคลายเครียดหลังจากเทรดมาทั้งวัน 
-        </p>
-        <p className="text-slate-500 dark:text-slate-400 text-sm italic">
-          * ปล่อยให้น้องเดินเล่นได้อย่างอิสระ ข้าวและกระบะทรายจะอยู่ด้านล่างสุดของจอ *
-        </p>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 max-w-5xl mb-12 relative z-10">
+        {/* Today's Discipline Card */}
+        {discipline && (
+          <div className={`lg:col-span-2 glass-card p-6 md:p-8 rounded-3xl border shadow-xl transition-all duration-300 ${
+            discipline.mood === 'TILT'
+              ? 'border-rose-400 bg-rose-50/40 dark:bg-rose-950/20'
+              : discipline.mood === 'WARNING'
+              ? 'border-amber-400 bg-amber-50/40 dark:bg-amber-950/20'
+              : discipline.mood === 'HAPPY'
+              ? 'border-emerald-400 bg-emerald-50/40 dark:bg-emerald-950/20'
+              : 'border-slate-200 dark:border-slate-800 bg-white/40 dark:bg-slate-900/40'
+          }`}>
+            <div className="flex flex-wrap items-center justify-between gap-3 mb-5 border-b border-black/5 dark:border-white/10 pb-4">
+              <div className="flex items-center gap-3">
+                <span className="text-3xl">
+                  {discipline.mood === 'HAPPY' ? '😺' : discipline.mood === 'WARNING' ? '😿' : discipline.mood === 'TILT' ? '🛑' : '🐱'}
+                </span>
+                <div>
+                  <h2 className="text-xl font-black text-slate-900 dark:text-white">
+                    {discipline.title}
+                  </h2>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 font-medium mt-0.5">
+                    ประเมินวินัยและการคุมอารมณ์ของการเทรดประจำวันนี้
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">คะแนนวินัย:</span>
+                <span className={`text-xl font-black px-3 py-1 rounded-xl ${
+                  discipline.score >= 80 ? 'bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-300' :
+                  discipline.score >= 60 ? 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300' :
+                  discipline.score >= 40 ? 'bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-300' :
+                  'bg-rose-100 dark:bg-rose-900/50 text-rose-700 dark:text-rose-300'
+                }`}>
+                  {discipline.score}/100
+                </span>
+              </div>
+            </div>
+
+            {/* Progress Bar */}
+            <div className="w-full bg-slate-200 dark:bg-slate-800 h-2.5 rounded-full overflow-hidden mb-6">
+              <div 
+                className={`h-full transition-all duration-700 rounded-full ${
+                  discipline.score >= 80 ? 'bg-emerald-500' :
+                  discipline.score >= 60 ? 'bg-blue-500' :
+                  discipline.score >= 40 ? 'bg-amber-500' : 'bg-rose-500'
+                }`}
+                style={{ width: `${discipline.score}%` }}
+              />
+            </div>
+
+            {/* Cat Speech Balloon */}
+            <div className="p-4 rounded-2xl bg-white/80 dark:bg-slate-900/80 border border-slate-200/80 dark:border-white/10 mb-6 relative">
+              <div className="flex items-start gap-3">
+                <div className="w-8 h-8 rounded-full bg-amber-100 dark:bg-amber-900/40 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0 font-bold text-sm">
+                  🐾
+                </div>
+                <div>
+                  <div className="text-xs font-black uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-1">
+                    คำพูดจากน้องแมว ณ ตอนนี้
+                  </div>
+                  <p className="text-sm font-semibold text-slate-800 dark:text-slate-200 leading-relaxed">
+                    &ldquo;{discipline.message}&rdquo;
+                  </p>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 font-medium mt-1.5 flex items-center gap-1.5">
+                    <Sparkles size={13} className="text-amber-500 shrink-0" />
+                    <span>คำแนะนำ: {discipline.advice}</span>
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Checklist Matrix */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              {/* Metric 1 */}
+              <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-900/40 border border-slate-200/60 dark:border-white/[0.06]">
+                <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">ไม้เทรดวันนี้</div>
+                <div className="text-sm font-black text-slate-900 dark:text-white flex items-center gap-1.5">
+                  <span>{discipline.todayTradeCount} ไม้</span>
+                  {discipline.isOvertrading ? (
+                    <span className="text-[10px] text-rose-500 font-bold">(Overtrade)</span>
+                  ) : (
+                    <CheckCircle2 size={14} className="text-emerald-500" />
+                  )}
+                </div>
+              </div>
+
+              {/* Metric 2 */}
+              <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-900/40 border border-slate-200/60 dark:border-white/[0.06]">
+                <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">การตั้ง SL</div>
+                <div className="text-sm font-black text-slate-900 dark:text-white flex items-center gap-1.5">
+                  {discipline.noSlTradesCount === 0 ? (
+                    <>
+                      <CheckCircle2 size={14} className="text-emerald-500" />
+                      <span>ตั้งครบทุกไม้</span>
+                    </>
+                  ) : (
+                    <>
+                      <XCircle size={14} className="text-rose-500" />
+                      <span className="text-rose-500">{discipline.noSlTradesCount} ไม้ไร้ SL</span>
+                    </>
+                  )}
+                </div>
+              </div>
+
+              {/* Metric 3 */}
+              <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-900/40 border border-slate-200/60 dark:border-white/[0.06]">
+                <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">สภาวะจิตใจ</div>
+                <div className="text-sm font-black text-slate-900 dark:text-white flex items-center gap-1.5">
+                  {discipline.isRevengeTrading ? (
+                    <>
+                      <AlertTriangle size={14} className="text-rose-500" />
+                      <span className="text-rose-500">เสี่ยง Tilt</span>
+                    </>
+                  ) : (
+                    <>
+                      <ShieldCheck size={14} className="text-emerald-500" />
+                      <span>สงบนิ่งดี</span>
+                    </>
+                  )}
+                </div>
+              </div>
+
+              {/* Metric 4 */}
+              <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-900/40 border border-slate-200/60 dark:border-white/[0.06]">
+                <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">ทำตามแผน</div>
+                <div className="text-sm font-black text-slate-900 dark:text-white flex items-center gap-1.5">
+                  {discipline.followedRules ? (
+                    <>
+                      <CheckCircle2 size={14} className="text-emerald-500" />
+                      <span>ตามกฎ</span>
+                    </>
+                  ) : (
+                    <>
+                      <XCircle size={14} className="text-rose-500" />
+                      <span className="text-rose-500">ฝ่าฝืนกฎ</span>
+                    </>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Welcome & Info Card */}
+        <div className="glass-card p-6 md:p-8 rounded-3xl border border-amber-200/50 dark:border-amber-900/30 bg-amber-50/30 dark:bg-amber-900/10 flex flex-col justify-between">
+          <div>
+            <div className="flex items-center gap-2 text-amber-600 dark:text-amber-400 font-black text-lg mb-3">
+              <Heart size={20} className="fill-amber-500 text-amber-500" />
+              <span>ยินดีต้อนรับสู่ Cat Room!</span>
+            </div>
+            <p className="text-slate-600 dark:text-slate-300 text-sm mb-4 leading-relaxed font-medium">
+              น้องแมวตัวนี้เป็น **Trading Buddy** ประจำตัวคุณ จะคอยเดินเล่นและจับตาดูวินัยการเทรด หากคุณรักษาวินัยดี น้องจะคอยให้กำลังใจ แต่ถ้าเริ่มใจร้อน น้องจะคอยร้องเตือนสติครับ
+            </p>
+          </div>
+          <p className="text-slate-400 dark:text-slate-500 text-xs italic border-t border-amber-200/40 dark:border-amber-800/30 pt-3">
+            * คลิกที่ตัวน้องแมวที่กำลังเดินเล่นด้านล่าง เพื่อเปิด/ปิดกล่องคำพูดเตือนสติได้ตลอดเวลา *
+          </p>
+        </div>
       </div>
 
       {/* Room Scenery (Floor and baseboard) */}
