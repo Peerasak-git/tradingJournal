@@ -14,6 +14,7 @@ export default function ConfigPage() {
   const { hasPin, setPin, removePin, lockSession } = useAuth();
   const [isPinModalOpen, setIsPinModalOpen] = useState(false);
   const [isSyncModalOpen, setIsSyncModalOpen] = useState(false);
+  const [syncModalTab, setSyncModalTab] = useState<'sync' | 'storage' | 'backup'>('sync');
   const [pinInput, setPinInput] = useState('');
   const [pinConfirm, setPinConfirm] = useState('');
   const [pinError, setPinError] = useState('');
@@ -62,11 +63,11 @@ export default function ConfigPage() {
     const file = e.target.files?.[0];
     if (!file) return;
     const reader = new FileReader();
-    reader.onload = (event) => {
+    reader.onload = async (event) => {
       const content = event.target?.result as string;
-      const res = importAllData(content);
+      const res = await importAllData(content);
       if (res.success) {
-        alert('Import successful! Reloading data...');
+        alert(res.message || 'Import successful! Reloading data...');
         window.location.reload();
       } else {
         alert('Import failed: ' + res.message);
@@ -320,13 +321,28 @@ export default function ConfigPage() {
               </div>
             </div>
 
-            <button
-              onClick={() => setIsSyncModalOpen(true)}
-              className="py-2.5 px-5 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-white font-bold text-xs rounded-xl transition flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/20 cursor-pointer self-start md:self-auto"
-            >
-              <Cloud size={15} />
-              <span>{isSupabaseConfigured() ? 'จัดการการซิงค์ Cloud' : 'เชื่อมต่อ Supabase'}</span>
-            </button>
+            <div className="flex flex-wrap items-center gap-2 self-start md:self-auto">
+              <button
+                onClick={() => {
+                  setSyncModalTab('storage');
+                  setIsSyncModalOpen(true);
+                }}
+                className="py-2.5 px-4 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 font-bold text-xs rounded-xl transition flex items-center justify-center gap-1.5 cursor-pointer"
+              >
+                <span>จัดการพื้นที่ (ใช้ฟรี)</span>
+              </button>
+
+              <button
+                onClick={() => {
+                  setSyncModalTab('sync');
+                  setIsSyncModalOpen(true);
+                }}
+                className="py-2.5 px-5 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-white font-bold text-xs rounded-xl transition flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/20 cursor-pointer"
+              >
+                <Cloud size={15} />
+                <span>{isSupabaseConfigured() ? 'จัดการการซิงค์ Cloud' : 'เชื่อมต่อ Supabase'}</span>
+              </button>
+            </div>
           </div>
 
           <div className="p-4 rounded-2xl bg-slate-50/80 dark:bg-slate-900/40 border border-slate-200/70 dark:border-white/[0.07] flex flex-col md:flex-row md:items-center justify-between gap-3">
@@ -339,7 +355,10 @@ export default function ConfigPage() {
               )}
             </div>
             <button
-              onClick={() => setIsSyncModalOpen(true)}
+              onClick={() => {
+                setSyncModalTab('sync');
+                setIsSyncModalOpen(true);
+              }}
               className="text-xs font-bold text-emerald-600 dark:text-emerald-400 hover:underline flex items-center gap-1 cursor-pointer shrink-0"
             >
               ดูรายละเอียด &amp; วิธีตั้งค่า &rarr;
@@ -515,6 +534,7 @@ export default function ConfigPage() {
       <SupabaseSyncModal
         isOpen={isSyncModalOpen}
         onClose={() => setIsSyncModalOpen(false)}
+        defaultTab={syncModalTab}
       />
     </main>
   );

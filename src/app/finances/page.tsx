@@ -4,7 +4,7 @@ import { useEffect, useState, useMemo } from 'react';
 import { FinanceEntry, FinanceType } from '@/types/finance';
 import { useAccount } from '@/context/AccountContext';
 import { useLanguage } from '@/context/LanguageContext';
-import { getFinances, addFinance } from '@/lib/clientStorage';
+import { getFinances, addFinance, getAppState, setAppState } from '@/lib/clientStorage';
 import {
   ArrowUpRight,
   ArrowDownLeft,
@@ -49,12 +49,12 @@ export default function FinancesPage() {
         setLoading(false);
       });
 
-    const storedCats = localStorage.getItem('financeCategories');
-    if (storedCats) {
-      setSavedCategories(JSON.parse(storedCats));
-    } else {
-      setSavedCategories(['Salary', 'Food', 'Transport', 'Utilities', 'Entertainment']);
-    }
+    getAppState<string[]>('financeCategories', ['Salary', 'Food', 'Transport', 'Utilities', 'Entertainment'])
+      .then(cats => {
+        if (cats && Array.isArray(cats)) {
+          setSavedCategories(cats);
+        }
+      });
   }, []);
 
   const handleSave = async (e: React.FormEvent) => {
@@ -450,7 +450,7 @@ export default function FinancesPage() {
                           if (newCategory.trim()) {
                             const updated = [...new Set([...savedCategories, newCategory.trim()])];
                             setSavedCategories(updated);
-                            localStorage.setItem('financeCategories', JSON.stringify(updated));
+                            setAppState('financeCategories', updated);
                             setFormData({ ...formData, category: newCategory.trim() });
                             setNewCategory('');
                           }
@@ -465,7 +465,7 @@ export default function FinancesPage() {
                           if (newCategory.trim()) {
                             const updated = [...new Set([...savedCategories, newCategory.trim()])];
                             setSavedCategories(updated);
-                            localStorage.setItem('financeCategories', JSON.stringify(updated));
+                            setAppState('financeCategories', updated);
                             setFormData({ ...formData, category: newCategory.trim() });
                             setNewCategory('');
                           }

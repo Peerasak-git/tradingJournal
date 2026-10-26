@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { X, Plus, Trash2, ListChecks } from 'lucide-react';
 import { useLanguage } from '@/context/LanguageContext';
+import { getAppState, setAppState } from '@/lib/clientStorage';
 
 interface ChecklistModalProps {
   isOpen: boolean;
@@ -16,20 +17,17 @@ export default function ChecklistModal({ isOpen, onClose }: ChecklistModalProps)
 
   useEffect(() => {
     if (isOpen) {
-      const saved = localStorage.getItem('tradeChecklist');
-      if (saved) {
-        try {
-          setItems(JSON.parse(saved));
-        } catch (e) {
-          console.error('Error loading checklist', e);
+      getAppState<string[]>('tradeChecklist', []).then(saved => {
+        if (saved && Array.isArray(saved)) {
+          setItems(saved);
         }
-      }
+      });
     }
   }, [isOpen]);
 
   const handleSave = (newItems: string[]) => {
     setItems(newItems);
-    localStorage.setItem('tradeChecklist', JSON.stringify(newItems));
+    setAppState('tradeChecklist', newItems);
   };
 
   const handleAdd = (e: React.FormEvent) => {

@@ -777,6 +777,71 @@ export async function removeCloudPin(): Promise<void> {
   }
 }
 
+// ---------------- App State Helpers (Sync All Settings & UI Preferences) ----------------
+const APP_STATE_SYNC_KEYS = [
+  'tradeChecklist',
+  'financeCategories',
+  'theme',
+  'journal-color-scheme',
+  'journal-win-color',
+  'journal-loss-color',
+  'petEnabled',
+  'selectedAccountId',
+];
+
+export async function getAppState<T = any>(key: string, defaultValue?: T): Promise<T | null> {
+  if (!isClient()) return defaultValue ?? null;
+
+  const supabase = getSupabase();
+  if (supabase) {
+    try {
+      const { data, error } = await supabase
+        .from('app_state')
+        .select('value')
+        .eq('key', key)
+        .maybeSingle();
+
+      if (!error && data?.value !== undefined) {
+        const val = data.value;
+        const serialized = typeof val === 'string' ? val : JSON.stringify(val);
+        localStorage.setItem(key, serialized);
+        return val as T;
+      }
+    } catch {
+      // ignore
+    }
+  }
+
+  const local = localStorage.getItem(key);
+  if (local !== null) {
+    try {
+      return JSON.parse(local) as T;
+    } catch {
+      return local as unknown as T;
+    }
+  }
+
+  return defaultValue ?? null;
+}
+
+export async function setAppState(key: string, value: any): Promise<void> {
+  if (!isClient()) return;
+
+  const serialized = typeof value === 'string' ? value : JSON.stringify(value);
+  localStorage.setItem(key, serialized);
+
+  const supabase = getSupabase();
+  if (supabase) {
+    Promise.resolve(
+      supabase.from('app_state').upsert({
+        key,
+        value,
+        updated_at: new Date().toISOString(),
+      })
+    ).catch(console.error);
+  }
+}
+
 // ---------------- Two-Way Complete Sync Helpers ----------------
 export async function syncAllLocalToSupabase(): Promise<{ success: boolean; count: number; error?: string }> {
   const supabase = getSupabase();
@@ -801,9 +866,28 @@ export async function syncAllLocalToSupabase(): Promise<{ success: boolean; coun
       reviews.length > 0 ? syncReviewsToSupabase(reviews) : Promise.resolve(),
     ]);
 
+    // Sync PIN
     const pin = localStorage.getItem(KEYS.PIN);
     if (pin) {
       await setCloudPin(pin);
+    }
+
+    // Sync all App States & settings (Checklist, Categories, Theme, Pet, Colors)
+    for (const key of APP_STATE_SYNC_KEYS) {
+      const v = localStorage.getItem(key);
+      if (v !== null) {
+        let valParsed: any = v;
+        try {
+          valParsed = JSON.parse(v);
+        } catch {
+          // string is fine
+        }
+        await supabase.from('app_state').upsert({
+          key,
+          value: valParsed,
+          updated_at: new Date().toISOString(),
+        });
+      }
     }
 
     const totalCount = trades.length + accounts.length + journals.length + finances.length + reviews.length;
@@ -821,13 +905,13 @@ export async function syncAllSupabaseToLocal(): Promise<{ success: boolean; erro
 
   try {
     // Force re-fetch from Supabase and cache
-    const [tradesRes, accountsRes, journalsRes, financesRes, reviewsRes, pinRes] = await Promise.all([
+    const [tradesRes, accountsRes, journalsRes, financesRes, reviewsRes, appStateRes] = await Promise.all([
       supabase.from('trades').select('*'),
       supabase.from('accounts').select('*'),
       supabase.from('journals').select('*'),
       supabase.from('finances').select('*'),
       supabase.from('reviews').select('*'),
-      supabase.from('app_state').select('value').eq('key', 'security_pin').maybeSingle(),
+      supabase.from('app_state').select('*'),
     ]);
 
     if (tradesRes.data) {
@@ -850,9 +934,19 @@ export async function syncAllSupabaseToLocal(): Promise<{ success: boolean; erro
       const reviews = reviewsRes.data.map((r: any) => r.data as Review);
       localStorage.setItem(KEYS.REVIEWS, JSON.stringify(reviews));
     }
-    if (pinRes.data?.value) {
-      const pin = String(pinRes.data.value.pin || pinRes.data.value);
-      localStorage.setItem(KEYS.PIN, pin);
+
+    if (appStateRes.data) {
+      for (const row of appStateRes.data) {
+        if (row.key === 'security_pin') {
+          const pin = String(row.value.pin || row.value);
+          localStorage.setItem(KEYS.PIN, pin);
+        } else if (row.key === 'user_profile') {
+          localStorage.setItem(KEYS.USER, JSON.stringify(row.value));
+        } else {
+          const val = typeof row.value === 'string' ? row.value : JSON.stringify(row.value);
+          localStorage.setItem(row.key, val);
+        }
+      }
     }
 
     return { success: true };
@@ -861,7 +955,161 @@ export async function syncAllSupabaseToLocal(): Promise<{ success: boolean; erro
   }
 }
 
-// ---------------- Backup & Restore (JSON File) ----------------
+// ---------------- Storage Statistics & Free Tier Manager ----------------
+export interface StorageStats {
+  tradesCount: number;
+  openTradesCount: number;
+  closedTradesCount: number;
+  tradesWithImagesCount: number;
+  accountsCount: number;
+  journalsCount: number;
+  financesCount: number;
+  reviewsCount: number;
+  estimatedBytes: number;
+  isCloudConnected: boolean;
+}
+
+export async function getStorageStats(): Promise<StorageStats> {
+  const [trades, accounts, journals, finances, reviews] = await Promise.all([
+    getTrades(),
+    getAccounts(),
+    getJournals(),
+    getFinances(),
+    getReviews()
+  ]);
+
+  const openTradesCount = trades.filter(t => t.status === 'OPEN').length;
+  const closedTradesCount = trades.filter(t => t.status !== 'OPEN').length;
+  const tradesWithImagesCount = trades.filter(t => Boolean(t.notes?.entryImage || t.notes?.exitImage)).length;
+
+  const rawJson = JSON.stringify({ trades, accounts, journals, finances, reviews });
+  const estimatedBytes = typeof Blob !== 'undefined' ? new Blob([rawJson]).size : rawJson.length;
+
+  return {
+    tradesCount: trades.length,
+    openTradesCount,
+    closedTradesCount,
+    tradesWithImagesCount,
+    accountsCount: accounts.length,
+    journalsCount: journals.length,
+    financesCount: finances.length,
+    reviewsCount: reviews.length,
+    estimatedBytes,
+    isCloudConnected: Boolean(getSupabase()),
+  };
+}
+
+// Strip screenshots (base64) from all trades to reclaim up to 90% DB space
+export async function stripTradeScreenshots(): Promise<{ cleanedCount: number; savedBytesEstimate: number }> {
+  const trades = await getTrades();
+  let cleanedCount = 0;
+  const initialJson = JSON.stringify(trades);
+  const initialBytes = typeof Blob !== 'undefined' ? new Blob([initialJson]).size : initialJson.length;
+
+  const updatedTrades = trades.map(t => {
+    if (t.notes && (t.notes.entryImage || t.notes.exitImage)) {
+      cleanedCount++;
+      return {
+        ...t,
+        notes: {
+          ...t.notes,
+          entryImage: null,
+          exitImage: null,
+        }
+      };
+    }
+    return t;
+  });
+
+  if (cleanedCount > 0) {
+    saveTrades(updatedTrades);
+    const newJson = JSON.stringify(updatedTrades);
+    const newBytes = typeof Blob !== 'undefined' ? new Blob([newJson]).size : newJson.length;
+    return { cleanedCount, savedBytesEstimate: Math.max(0, initialBytes - newBytes) };
+  }
+
+  return { cleanedCount: 0, savedBytesEstimate: 0 };
+}
+
+// Purge closed trades older than X days (preserving all open positions and account balances)
+export async function purgeOldClosedTrades(olderThanDays?: number): Promise<{ purgedCount: number; remainingCount: number }> {
+  const trades = await getTrades();
+  const now = Date.now();
+  const thresholdMs = olderThanDays ? olderThanDays * 24 * 60 * 60 * 1000 : null;
+
+  const toKeep: Trade[] = [];
+  const toPurge: Trade[] = [];
+
+  for (const t of trades) {
+    if (t.status === 'OPEN') {
+      toKeep.push(t);
+      continue;
+    }
+
+    if (thresholdMs) {
+      const tradeTime = new Date(t.exitDate || t.entryDate).getTime();
+      if (!isNaN(tradeTime) && now - tradeTime > thresholdMs) {
+        toPurge.push(t);
+      } else {
+        toKeep.push(t);
+      }
+    } else {
+      toPurge.push(t);
+    }
+  }
+
+  saveTrades(toKeep);
+
+  const supabase = getSupabase();
+  if (supabase && toPurge.length > 0) {
+    const ids = toPurge.map(t => t.id);
+    for (let i = 0; i < ids.length; i += 100) {
+      const chunk = ids.slice(i, i + 100);
+      await supabase.from('trades').delete().in('id', chunk);
+    }
+  }
+
+  return { purgedCount: toPurge.length, remainingCount: toKeep.length };
+}
+
+// Clear specific collection from local and cloud
+export async function clearCollection(
+  collection: 'trades' | 'journals' | 'finances' | 'reviews' | 'all'
+): Promise<{ success: boolean; message: string }> {
+  const supabase = getSupabase();
+
+  if (collection === 'trades' || collection === 'all') {
+    if (isClient()) localStorage.removeItem(KEYS.TRADES);
+    if (supabase) {
+      await supabase.from('trades').delete().neq('id', '___force_delete_all___');
+    }
+  }
+
+  if (collection === 'journals' || collection === 'all') {
+    if (isClient()) localStorage.removeItem(KEYS.JOURNALS);
+    if (supabase) {
+      await supabase.from('journals').delete().neq('id', '___force_delete_all___');
+    }
+  }
+
+  if (collection === 'finances' || collection === 'all') {
+    if (isClient()) localStorage.removeItem(KEYS.FINANCES);
+    if (supabase) {
+      await supabase.from('finances').delete().neq('id', '___force_delete_all___');
+    }
+  }
+
+  if (collection === 'reviews' || collection === 'all') {
+    if (isClient()) localStorage.removeItem(KEYS.REVIEWS);
+    if (supabase) {
+      await supabase.from('reviews').delete().neq('id', '___force_delete_all___');
+    }
+  }
+
+  return { success: true, message: `ล้างข้อมูล ${collection} สำเร็จ` };
+}
+
+// ---------------- Comprehensive Backup & Restore (JSON File) ----------------
 export async function exportAllData(): Promise<string> {
   const [trades, accounts, journals, finances, reviews, user] = await Promise.all([
     getTrades(),
@@ -872,48 +1120,164 @@ export async function exportAllData(): Promise<string> {
     getUser()
   ]);
 
+  const appState: Record<string, any> = {};
+  if (isClient()) {
+    APP_STATE_SYNC_KEYS.concat([KEYS.PIN]).forEach(k => {
+      const v = localStorage.getItem(k);
+      if (v !== null) {
+        try {
+          appState[k] = JSON.parse(v);
+        } catch {
+          appState[k] = v;
+        }
+      }
+    });
+  }
+
   const backup = {
-    version: '2.0',
+    version: '3.0',
     exportDate: new Date().toISOString(),
+    generator: 'CFD Trading Journal Cloud Backup',
+    summary: {
+      tradesCount: trades.length,
+      openTradesCount: trades.filter(t => t.status === 'OPEN').length,
+      closedTradesCount: trades.filter(t => t.status !== 'OPEN').length,
+      accountsCount: accounts.length,
+      journalsCount: journals.length,
+      financesCount: finances.length,
+      reviewsCount: reviews.length,
+    },
     data: {
       trades,
       accounts,
       journals,
       finances,
       reviews,
-      user
+      user,
+      appState
     }
   };
 
   return JSON.stringify(backup, null, 2);
 }
 
-export function importAllData(jsonString: string): { success: boolean; message?: string } {
+export async function importAllData(
+  jsonString: string,
+  options: { mode?: 'replace' | 'merge' } = { mode: 'replace' }
+): Promise<{
+  success: boolean;
+  message: string;
+  counts?: { trades: number; accounts: number; journals: number; finances: number; reviews: number };
+}> {
   if (!isClient()) return { success: false, message: 'Not on client side' };
+
   try {
     const parsed = JSON.parse(jsonString);
     const data = parsed.data || parsed;
+    const mode = options.mode || 'replace';
 
-    if (data.trades && Array.isArray(data.trades)) {
-      saveTrades(data.trades);
+    let finalTrades: Trade[] = [];
+    let finalAccounts: Account[] = [];
+    let finalJournals: JournalEntry[] = [];
+    let finalFinances: FinanceEntry[] = [];
+    let finalReviews: Review[] = [];
+
+    if (mode === 'replace') {
+      finalTrades = Array.isArray(data.trades) ? data.trades : [];
+      finalAccounts = Array.isArray(data.accounts) ? data.accounts : [];
+      finalJournals = Array.isArray(data.journals) ? data.journals : [];
+      finalFinances = Array.isArray(data.finances) ? data.finances : [];
+      finalReviews = Array.isArray(data.reviews) ? data.reviews : [];
+    } else {
+      // Merge mode
+      const [existingTrades, existingAccs, existingJournals, existingFinances, existingReviews] = await Promise.all([
+        getTrades(),
+        getAccounts(),
+        getJournals(),
+        getFinances(),
+        getReviews()
+      ]);
+
+      const tradeMap = new Map<string, Trade>();
+      existingTrades.forEach(t => tradeMap.set(t.id, t));
+      (data.trades || []).forEach((t: Trade) => tradeMap.set(t.id, t));
+      finalTrades = Array.from(tradeMap.values());
+
+      const accMap = new Map<string, Account>();
+      existingAccs.forEach(a => accMap.set(a.id, a));
+      (data.accounts || []).forEach((a: Account) => accMap.set(a.id, a));
+      finalAccounts = Array.from(accMap.values());
+
+      const journalMap = new Map<string, JournalEntry>();
+      existingJournals.forEach(j => journalMap.set(j.id, j));
+      (data.journals || []).forEach((j: JournalEntry) => journalMap.set(j.id, j));
+      finalJournals = Array.from(journalMap.values());
+
+      const financeMap = new Map<string, FinanceEntry>();
+      existingFinances.forEach(f => financeMap.set(f.id, f));
+      (data.finances || []).forEach((f: FinanceEntry) => financeMap.set(f.id, f));
+      finalFinances = Array.from(financeMap.values());
+
+      const reviewMap = new Map<string, Review>();
+      existingReviews.forEach(r => reviewMap.set(r.id, r));
+      (data.reviews || []).forEach((r: Review) => reviewMap.set(r.id, r));
+      finalReviews = Array.from(reviewMap.values());
     }
-    if (data.accounts && Array.isArray(data.accounts)) {
-      saveAccounts(data.accounts);
-    }
-    if (data.journals && Array.isArray(data.journals)) {
-      saveJournals(data.journals);
-    }
-    if (data.finances && Array.isArray(data.finances)) {
-      saveFinances(data.finances);
-    }
-    if (data.reviews && Array.isArray(data.reviews)) {
-      saveReviews(data.reviews);
-    }
+
+    // Save locally
+    saveTrades(finalTrades);
+    saveAccounts(finalAccounts);
+    saveJournals(finalJournals);
+    saveFinances(finalFinances);
+    saveReviews(finalReviews);
+
     if (data.user) {
       localStorage.setItem(KEYS.USER, JSON.stringify(data.user));
     }
 
-    return { success: true };
+    // Restore appState
+    if (data.appState && typeof data.appState === 'object') {
+      for (const [k, v] of Object.entries(data.appState)) {
+        if (v !== undefined) {
+          const serialized = typeof v === 'string' ? v : JSON.stringify(v);
+          localStorage.setItem(k, serialized);
+        }
+      }
+    }
+
+    // Sync to Supabase directly if connected
+    const supabase = getSupabase();
+    if (supabase) {
+      await Promise.all([
+        finalTrades.length > 0 ? syncTradesToSupabase(finalTrades) : Promise.resolve(),
+        finalAccounts.length > 0 ? syncAccountsToSupabase(finalAccounts) : Promise.resolve(),
+        finalJournals.length > 0 ? syncJournalsToSupabase(finalJournals) : Promise.resolve(),
+        finalFinances.length > 0 ? syncFinancesToSupabase(finalFinances) : Promise.resolve(),
+        finalReviews.length > 0 ? syncReviewsToSupabase(finalReviews) : Promise.resolve(),
+      ]);
+
+      if (data.appState) {
+        for (const [k, v] of Object.entries(data.appState)) {
+          await supabase.from('app_state').upsert({
+            key: k,
+            value: v,
+            updated_at: new Date().toISOString()
+          });
+        }
+      }
+    }
+
+    return {
+      success: true,
+      message: `นำเข้าข้อมูลสำเร็จ (${mode === 'merge' ? 'รวมข้อมูลเดิม' : 'เขียนทับ'})!`,
+      counts: {
+        trades: finalTrades.length,
+        accounts: finalAccounts.length,
+        journals: finalJournals.length,
+        finances: finalFinances.length,
+        reviews: finalReviews.length,
+      }
+    };
   } catch (error: any) {
     return { success: false, message: error?.message || 'Invalid JSON format' };
   }
