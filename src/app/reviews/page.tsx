@@ -63,7 +63,7 @@ export default function ReviewsPage() {
   const [selectedDate, setSelectedDate] = useState(today);
   const [calYear, setCalYear] = useState(new Date().getFullYear());
   const [calMonth, setCalMonth] = useState(new Date().getMonth());
-  const [viewMode, setViewMode] = useState<'day' | 'week' | 'month'>('day');
+  const [viewMode, setViewMode] = useState<'all' | 'day' | 'week' | 'month'>('all');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [formData, setFormData] = useState({ ...EMPTY_FORM, date: today });
@@ -94,10 +94,21 @@ export default function ReviewsPage() {
     }
   };
 
-  const reviewByDate = useMemo(() => {
-    const map: Record<string, Review> = {};
-    reviews.forEach(r => { map[r.date] = r; });
+  const reviewsByDate = useMemo(() => {
+    const map: Record<string, Review[]> = {};
+    reviews.forEach(r => {
+      if (!map[r.date]) map[r.date] = [];
+      map[r.date].push(r);
+    });
     return map;
+  }, [reviews]);
+
+  const allReviewsSorted = useMemo(() => {
+    return [...reviews].sort((a, b) => {
+      const dDiff = b.date.localeCompare(a.date);
+      if (dDiff !== 0) return dDiff;
+      return (b.createdAt || '').localeCompare(a.createdAt || '');
+    });
   }, [reviews]);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -118,7 +129,8 @@ export default function ReviewsPage() {
       await addOrUpdateReview(payload);
       setIsModalOpen(false);
       setEditingId(null);
-      fetchReviews();
+      selectDate(payload.date);
+      await fetchReviews();
     } catch (error) {
       console.error('Failed to save review:', error);
     }
@@ -190,8 +202,7 @@ export default function ReviewsPage() {
     ? monthReviews.reduce((s, r) => s + r.rating, 0) / monthReviews.length
     : 0;
 
-  const selectedReview = reviewByDate[selectedDate];
-  const selectedEmotion = EMOTIONS.find(e => e.key === selectedReview?.emotion);
+  const selectedReviews = reviewsByDate[selectedDate] || [];
 
   const formatDate = (dateStr: string, opts: Intl.DateTimeFormatOptions) =>
     new Date(dateStr + 'T12:00:00').toLocaleDateString(locale, opts);
@@ -255,14 +266,14 @@ export default function ReviewsPage() {
                 {Array.from({ length: calDays }).map((_, i) => {
                   const day = i + 1;
                   const dateStr = `${calYear}-${String(calMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-                  const review = reviewByDate[dateStr];
+                  const dayReviews = reviewsByDate[dateStr] || [];
                   const isSelected = dateStr === selectedDate;
                   const isToday = dateStr === today;
 
                   return (
                     <button
                       key={day}
-                      onClick={() => selectDate(dateStr)}
+                      onClick={() => { selectDate(dateStr); setViewMode('day'); }}
                       className={`
                         relative flex flex-col items-center justify-center h-8 rounded-lg text-xs font-bold transition-all
                         ${isSelected
@@ -274,10 +285,10 @@ export default function ReviewsPage() {
                       style={isSelected ? { background: 'linear-gradient(135deg, #3b82f6 0%, #6366f1 100%)' } : {}}
                     >
                       {day}
-                      {review && !isSelected && (
+                      {dayReviews.length > 0 && !isSelected && (
                         <div
-                          className="absolute bottom-0.5 w-1 h-1 rounded-full"
-                          style={{ backgroundColor: RATING_COLORS[review.rating] || '#94a3b8' }}
+                          className="absolute bottom-0.5 w-1.5 h-1.5 rounded-full"
+                          style={{ backgroundColor: RATING_COLORS[dayReviews[0].rating] || '#94a3b8' }}
                         />
                       )}
                     </button>
@@ -322,6 +333,7 @@ export default function ReviewsPage() {
             {/* View Tabs */}
             <div className="flex gap-1 p-1 bg-slate-100 dark:bg-[#1a1a1a] rounded-xl border border-slate-200 dark:border-zinc-800 w-fit">
               {([
+                { mode: 'all', label: t('viewAll') },
                 { mode: 'day', label: t('viewDay') },
                 { mode: 'week', label: t('viewWeek') },
                 { mode: 'month', label: t('viewMonth') },
@@ -340,10 +352,141 @@ export default function ReviewsPage() {
               ))}
             </div>
 
+            {/* ─── ALL VIEW ─── */}
+            {viewMode === 'all' && (
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <p className="text-lg font-black text-slate-900 dark:text-white">{t('dailyReviews')}</p>
+                    <span className="px-2.5 py-0.5 bg-blue-50 dark:bg-blue-500/10 text-blue-500 rounded-lg text-xs font-bold">
+                      {allReviewsSorted.length} {t('reviewsCount')}
+                    </span>
+                  </div>
+                  <button
+                    onClick={() => openModal(undefined, today)}
+                    className="flex items-center gap-2 px-3.5 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-xl text-sm font-bold transition-all shadow-md shadow-blue-500/20"
+                  >
+                    <PlusCircle size={15} />
+                    {t('addReview')}
+                  </button>
+                </div>
+
+                {allReviewsSorted.length === 0 ? (
+                  <div className="p-16 text-center bg-white dark:bg-[#1a1a1a] rounded-2xl border border-slate-200 dark:border-zinc-800 space-y-3">
+                    <div className="w-14 h-14 mx-auto rounded-2xl bg-slate-100 dark:bg-zinc-800 flex items-center justify-center">
+                      <BookOpen size={24} className="text-slate-400" />
+                    </div>
+                    <p className="text-slate-500 dark:text-slate-400 font-medium">{t('noReviewsAll')}</p>
+                    <button
+                      onClick={() => openModal(undefined, today)}
+                      className="inline-flex items-center gap-2 px-4 py-2.5 bg-blue-500 hover:bg-blue-600 text-white rounded-xl font-bold transition-all text-sm shadow-lg shadow-blue-500/30"
+                    >
+                      <PlusCircle size={16} />
+                      {t('writeReview')}
+                    </button>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {allReviewsSorted.map((rev) => {
+                      const revEmotion = EMOTIONS.find(e => e.key === rev.emotion);
+                      return (
+                        <div
+                          key={rev.id}
+                          className="bg-white dark:bg-[#1a1a1a] rounded-2xl border border-slate-200 dark:border-zinc-800 p-5 space-y-4 transition-all hover:border-blue-300 dark:hover:border-blue-700/60"
+                        >
+                          <div className="flex items-center justify-between flex-wrap gap-2 pb-3 border-b border-slate-100 dark:border-zinc-800">
+                            <div className="flex items-center gap-3 flex-wrap">
+                              <button
+                                onClick={() => { selectDate(rev.date); setViewMode('day'); }}
+                                className="font-black text-slate-900 dark:text-white text-base hover:text-blue-500 transition-colors"
+                              >
+                                {formatDate(rev.date, { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })}
+                              </button>
+                              {rev.date === today && (
+                                <span className="text-xs font-bold text-blue-500 px-2 py-0.5 bg-blue-50 dark:bg-blue-500/10 rounded-md">
+                                  {t('todayLabel')}
+                                </span>
+                              )}
+                              <div className="flex gap-1 items-center">
+                                {[1, 2, 3, 4, 5].map(i => (
+                                  <Star
+                                    key={i}
+                                    size={16}
+                                    className={i <= rev.rating ? 'text-yellow-400 fill-yellow-400' : 'text-slate-200 dark:text-zinc-700'}
+                                  />
+                                ))}
+                                <span className="text-xs text-slate-400 ml-1 font-bold">{rev.rating}/5</span>
+                              </div>
+                              {revEmotion && (
+                                <span className="px-2.5 py-1 bg-slate-100 dark:bg-zinc-800 rounded-full text-xs font-bold text-slate-600 dark:text-slate-300">
+                                  {revEmotion.emoji} {t(revEmotion.tKey)}
+                                </span>
+                              )}
+                              {typeof rev.followedRules === 'boolean' && (
+                                <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full ${
+                                  rev.followedRules
+                                    ? 'bg-green-50 dark:bg-green-500/10 text-green-600 dark:text-green-400'
+                                    : 'bg-red-50 dark:bg-red-500/10 text-red-500'
+                                }`}>
+                                  {rev.followedRules ? t('followedRulesLabel') : t('brokeRulesLabel')}
+                                </span>
+                              )}
+                            </div>
+                            <div className="flex gap-1">
+                              <button
+                                onClick={() => openModal(rev)}
+                                className="p-2 text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-500/10 rounded-lg transition-colors"
+                                title={t('editReview')}
+                              >
+                                <Edit2 size={15} />
+                              </button>
+                              <button
+                                onClick={() => handleDelete(rev.id)}
+                                className="p-2 text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-lg transition-colors"
+                                title={t('deleteReview')}
+                              >
+                                <Trash2 size={15} />
+                              </button>
+                            </div>
+                          </div>
+
+                          {/* Notes */}
+                          {rev.notes && (
+                            <div>
+                              <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">{t('notesSection')}</p>
+                              <p className="text-slate-700 dark:text-slate-300 whitespace-pre-wrap leading-relaxed text-sm">{rev.notes}</p>
+                            </div>
+                          )}
+
+                          {/* Mistakes & Lessons */}
+                          {(rev.mistakes || rev.lessons) && (
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1">
+                              {rev.mistakes && (
+                                <div className="p-3 bg-red-50 dark:bg-red-500/5 rounded-xl border border-red-100 dark:border-red-500/20">
+                                  <p className="text-[10px] font-black uppercase tracking-widest text-red-400 mb-1">{t('mistakesSection')}</p>
+                                  <p className="text-slate-700 dark:text-slate-300 whitespace-pre-wrap leading-relaxed text-xs">{rev.mistakes}</p>
+                                </div>
+                              )}
+                              {rev.lessons && (
+                                <div className="p-3 bg-green-50 dark:bg-green-500/5 rounded-xl border border-green-100 dark:border-green-500/20">
+                                  <p className="text-[10px] font-black uppercase tracking-widest text-green-500 mb-1">{t('lessonsSection')}</p>
+                                  <p className="text-slate-700 dark:text-slate-300 whitespace-pre-wrap leading-relaxed text-xs">{rev.lessons}</p>
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* ─── DAY VIEW ─── */}
             {viewMode === 'day' && (
               <div className="bg-white dark:bg-[#1a1a1a] rounded-2xl border border-slate-200 dark:border-zinc-800">
-                <div className="p-5 border-b border-slate-100 dark:border-zinc-800 flex items-center justify-between">
+                <div className="p-5 border-b border-slate-100 dark:border-zinc-800 flex items-center justify-between flex-wrap gap-2">
                   <div className="flex items-center gap-2">
                     <button
                       onClick={() => {
@@ -375,77 +518,93 @@ export default function ReviewsPage() {
                     </button>
                   </div>
 
-                  {selectedReview ? (
-                    <div className="flex gap-2">
-                      <button onClick={() => openModal(selectedReview)} className="p-2 text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-500/10 rounded-lg transition-colors">
-                        <Edit2 size={16} />
-                      </button>
-                      <button onClick={() => handleDelete(selectedReview.id)} className="p-2 text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-lg transition-colors">
-                        <Trash2 size={16} />
-                      </button>
-                    </div>
-                  ) : (
-                    <button
-                      onClick={() => openModal(undefined, selectedDate)}
-                      className="flex items-center gap-2 px-3 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-xl text-sm font-bold transition-all"
-                    >
-                      <PlusCircle size={14} />
-                      {t('addReview')}
-                    </button>
-                  )}
+                  <button
+                    onClick={() => openModal(undefined, selectedDate)}
+                    className="flex items-center gap-2 px-3.5 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-xl text-sm font-bold transition-all shadow-md shadow-blue-500/20"
+                  >
+                    <PlusCircle size={14} />
+                    {t('addReview')}
+                  </button>
                 </div>
 
-                {selectedReview ? (
-                  <div className="p-5 space-y-5">
-                    {/* Rating + Emotion */}
-                    <div className="flex items-center gap-3 flex-wrap">
-                      <div className="flex gap-1">
-                        {[1, 2, 3, 4, 5].map(i => (
-                          <Star key={i} size={22}
-                            className={i <= selectedReview.rating ? 'text-yellow-400 fill-yellow-400' : 'text-slate-200 dark:text-zinc-700'}
-                          />
-                        ))}
-                      </div>
-                      <span className="text-sm text-slate-400">{selectedReview.rating}/5</span>
-                      {selectedEmotion && (
-                        <span className="ml-auto px-3 py-1 bg-slate-100 dark:bg-zinc-800 rounded-full text-sm font-bold text-slate-600 dark:text-slate-300">
-                          {selectedEmotion.emoji} {t(selectedEmotion.tKey)}
-                        </span>
-                      )}
-                    </div>
+                {selectedReviews.length > 0 ? (
+                  <div className="p-5 space-y-4">
+                    {selectedReviews.map((rev) => {
+                      const revEmotion = EMOTIONS.find(e => e.key === rev.emotion);
+                      return (
+                        <div
+                          key={rev.id}
+                          className="p-5 rounded-2xl border border-slate-100 dark:border-zinc-800 bg-slate-50/50 dark:bg-[#141414] space-y-4"
+                        >
+                          <div className="flex items-center justify-between flex-wrap gap-2">
+                            <div className="flex items-center gap-3 flex-wrap">
+                              <div className="flex gap-1">
+                                {[1, 2, 3, 4, 5].map(i => (
+                                  <Star
+                                    key={i}
+                                    size={20}
+                                    className={i <= rev.rating ? 'text-yellow-400 fill-yellow-400' : 'text-slate-200 dark:text-zinc-700'}
+                                  />
+                                ))}
+                              </div>
+                              <span className="text-sm font-bold text-slate-700 dark:text-slate-300">{rev.rating}/5</span>
+                              {revEmotion && (
+                                <span className="px-2.5 py-1 bg-white dark:bg-zinc-800 rounded-full text-xs font-bold text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-zinc-700">
+                                  {revEmotion.emoji} {t(revEmotion.tKey)}
+                                </span>
+                              )}
+                              {typeof rev.followedRules === 'boolean' && (
+                                <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold ${
+                                  rev.followedRules
+                                    ? 'bg-green-50 dark:bg-green-500/10 text-green-600 dark:text-green-400'
+                                    : 'bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400'
+                                }`}>
+                                  {rev.followedRules ? t('followedRulesLabel') : t('brokeRulesLabel')}
+                                </div>
+                              )}
+                            </div>
+                            <div className="flex gap-1">
+                              <button
+                                onClick={() => openModal(rev)}
+                                className="p-2 text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-500/10 rounded-lg transition-colors"
+                              >
+                                <Edit2 size={16} />
+                              </button>
+                              <button
+                                onClick={() => handleDelete(rev.id)}
+                                className="p-2 text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-lg transition-colors"
+                              >
+                                <Trash2 size={16} />
+                              </button>
+                            </div>
+                          </div>
 
-                    {/* Discipline badge */}
-                    {typeof selectedReview.followedRules === 'boolean' && (
-                      <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-xl text-sm font-bold ${
-                        selectedReview.followedRules
-                          ? 'bg-green-50 dark:bg-green-500/10 text-green-600 dark:text-green-400'
-                          : 'bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400'
-                      }`}>
-                        {selectedReview.followedRules ? t('followedRulesLabel') : t('brokeRulesLabel')}
-                      </div>
-                    )}
+                          {/* Notes */}
+                          {rev.notes && (
+                            <div>
+                              <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">{t('notesSection')}</p>
+                              <p className="text-slate-700 dark:text-slate-300 whitespace-pre-wrap leading-relaxed text-sm">{rev.notes}</p>
+                            </div>
+                          )}
 
-                    {/* Notes */}
-                    <div>
-                      <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">{t('notesSection')}</p>
-                      <p className="text-slate-700 dark:text-slate-300 whitespace-pre-wrap leading-relaxed">{selectedReview.notes}</p>
-                    </div>
+                          {/* Mistakes */}
+                          {rev.mistakes && (
+                            <div className="p-3.5 bg-red-50 dark:bg-red-500/5 rounded-xl border border-red-100 dark:border-red-500/20">
+                              <p className="text-[10px] font-black uppercase tracking-widest text-red-400 mb-1">{t('mistakesSection')}</p>
+                              <p className="text-slate-700 dark:text-slate-300 whitespace-pre-wrap leading-relaxed text-sm">{rev.mistakes}</p>
+                            </div>
+                          )}
 
-                    {/* Mistakes */}
-                    {selectedReview.mistakes && (
-                      <div className="p-4 bg-red-50 dark:bg-red-500/5 rounded-xl border border-red-100 dark:border-red-500/20">
-                        <p className="text-[10px] font-black uppercase tracking-widest text-red-400 mb-2">{t('mistakesSection')}</p>
-                        <p className="text-slate-700 dark:text-slate-300 whitespace-pre-wrap leading-relaxed text-sm">{selectedReview.mistakes}</p>
-                      </div>
-                    )}
-
-                    {/* Lessons */}
-                    {selectedReview.lessons && (
-                      <div className="p-4 bg-green-50 dark:bg-green-500/5 rounded-xl border border-green-100 dark:border-green-500/20">
-                        <p className="text-[10px] font-black uppercase tracking-widest text-green-500 mb-2">{t('lessonsSection')}</p>
-                        <p className="text-slate-700 dark:text-slate-300 whitespace-pre-wrap leading-relaxed text-sm">{selectedReview.lessons}</p>
-                      </div>
-                    )}
+                          {/* Lessons */}
+                          {rev.lessons && (
+                            <div className="p-3.5 bg-green-50 dark:bg-green-500/5 rounded-xl border border-green-100 dark:border-green-500/20">
+                              <p className="text-[10px] font-black uppercase tracking-widest text-green-500 mb-1">{t('lessonsSection')}</p>
+                              <p className="text-slate-700 dark:text-slate-300 whitespace-pre-wrap leading-relaxed text-sm">{rev.lessons}</p>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
                 ) : (
                   <div className="p-16 text-center space-y-3">
@@ -498,7 +657,8 @@ export default function ReviewsPage() {
 
                 <div className="grid grid-cols-7 gap-2">
                   {weekDays.map((dateStr, i) => {
-                    const review = reviewByDate[dateStr];
+                    const dayReviews = reviewsByDate[dateStr] || [];
+                    const review = dayReviews[0];
                     const isToday = dateStr === today;
                     const isSelected = dateStr === selectedDate;
                     const dayNum = new Date(dateStr + 'T12:00:00').getDate();
@@ -518,9 +678,16 @@ export default function ReviewsPage() {
                         <p className={`text-[10px] font-black uppercase tracking-widest mb-0.5 ${isToday ? 'text-blue-500' : 'text-slate-400'}`}>
                           {weekDayNames[i]}
                         </p>
-                        <p className={`text-xl font-black mb-2 ${isToday ? 'text-blue-500' : 'text-slate-900 dark:text-white'}`}>
-                          {dayNum}
-                        </p>
+                        <div className="flex items-center justify-between mb-2">
+                          <p className={`text-xl font-black ${isToday ? 'text-blue-500' : 'text-slate-900 dark:text-white'}`}>
+                            {dayNum}
+                          </p>
+                          {dayReviews.length > 1 && (
+                            <span className="text-[9px] font-bold px-1.5 py-0.5 bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400 rounded-md">
+                              {dayReviews.length}
+                            </span>
+                          )}
+                        </div>
                         {review ? (
                           <div className="space-y-1.5">
                             <div className="flex gap-0.5">
