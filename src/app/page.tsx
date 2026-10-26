@@ -8,6 +8,7 @@ import {
   ArrowUpRight,
   ArrowDownLeft,
   Calendar,
+  ExternalLink,
 } from 'lucide-react';
 
 import { getTrades } from '@/lib/clientStorage';
@@ -377,7 +378,21 @@ export default function Dashboard() {
                     {String(index + 1).padStart(2, '0')}
                   </td>
                   <td className="px-5 py-3.5">
-                    <span className="text-sm font-semibold text-slate-900 dark:text-white">{trade.instrument}</span>
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-sm font-semibold text-slate-900 dark:text-white">{trade.instrument}</span>
+                      {(trade.notes?.tradingViewUrl || trade.notes?.exitTradingViewUrl) && (
+                        <a
+                          href={trade.notes.tradingViewUrl || trade.notes.exitTradingViewUrl || '#'}
+                          target="_blank"
+                          rel="noreferrer"
+                          onClick={(e) => e.stopPropagation()}
+                          title="เปิดดูกราฟ TradingView"
+                          className="inline-flex items-center gap-0.5 text-[9px] font-black px-1.5 py-0.5 rounded bg-blue-50 text-blue-600 dark:bg-blue-950/40 dark:text-blue-400 border border-blue-200 dark:border-blue-900/40 hover:bg-blue-100 transition"
+                        >
+                          TV <ExternalLink size={7} />
+                        </a>
+                      )}
+                    </div>
                   </td>
                   <td className="px-5 py-3.5">
                     <span className={`inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-md ${

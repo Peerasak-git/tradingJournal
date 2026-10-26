@@ -23,6 +23,8 @@ export interface TradeNotes {
   detailedNotes: string | null;
   entryImage: string | null;
   exitImage: string | null;
+  tradingViewUrl?: string | null;
+  exitTradingViewUrl?: string | null;
   selfAssessment?: number | null;
 }
 

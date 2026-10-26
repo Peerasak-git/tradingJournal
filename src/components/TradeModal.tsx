@@ -1,6 +1,6 @@
 'use client';
 
-import { X, Save, TrendingUp, TrendingDown, Clock, Target, ShieldCheck, Info, BarChart3, Calendar, Plus, Minus, Brain, Smile, Activity, ChevronDown, Search, FileText, ListChecks, CheckCircle2, AlertTriangle, Star, ClipboardPaste, Camera, Loader2 } from 'lucide-react';
+import { X, Save, TrendingUp, TrendingDown, Clock, Target, ShieldCheck, Info, BarChart3, Calendar, Plus, Minus, Brain, Smile, Activity, ChevronDown, Search, FileText, ListChecks, CheckCircle2, AlertTriangle, Star, ClipboardPaste, Camera, Loader2, Link2, ExternalLink } from 'lucide-react';
 import { Direction, TradeStatus, Trade } from '@/types/trade';
 import { useLanguage } from '@/context/LanguageContext';
 import { useAccount } from '@/context/AccountContext';
@@ -62,6 +62,8 @@ export default function TradeModal({ isOpen, onClose, onSave, initialData }: Tra
     postTrade: '',
     notes: '',
     selfAssessment: 0,
+    tradingViewUrl: '',
+    exitTradingViewUrl: '',
   });
 
   useEffect(() => {
@@ -163,6 +165,8 @@ export default function TradeModal({ isOpen, onClose, onSave, initialData }: Tra
         postTrade: initialData.notes.postTrade || '',
         notes: initialData.notes.detailedNotes || '',
         selfAssessment: initialData.notes.selfAssessment || 0,
+        tradingViewUrl: initialData.notes.tradingViewUrl || initialData.notes.entryImage || '',
+        exitTradingViewUrl: initialData.notes.exitTradingViewUrl || initialData.notes.exitImage || '',
       });
     } else {
       setFormData({
@@ -182,6 +186,8 @@ export default function TradeModal({ isOpen, onClose, onSave, initialData }: Tra
         postTrade: '',
         notes: '',
         selfAssessment: 0,
+        tradingViewUrl: '',
+        exitTradingViewUrl: '',
       });
     }
   }, [initialData, isOpen]);
@@ -307,6 +313,10 @@ export default function TradeModal({ isOpen, onClose, onSave, initialData }: Tra
         postTrade: formData.postTrade,
         detailedNotes: formData.notes,
         selfAssessment: formData.selfAssessment > 0 ? formData.selfAssessment : null,
+        tradingViewUrl: formData.tradingViewUrl?.trim() || null,
+        exitTradingViewUrl: formData.exitTradingViewUrl?.trim() || null,
+        entryImage: formData.tradingViewUrl?.trim() || initialData?.notes?.entryImage || null,
+        exitImage: formData.exitTradingViewUrl?.trim() || initialData?.notes?.exitImage || null,
       },
       exitDate: initialData ? initialData.exitDate : (formData.status !== 'OPEN' ? new Date().toISOString() : null),
       exitPrice: formData.status === 'OPEN' ? null : formData.exitPrice
@@ -1144,6 +1154,72 @@ export default function TradeModal({ isOpen, onClose, onSave, initialData }: Tra
               </div>
             </div>
           )}
+
+          {/* TradingView Charts Section (Zero Cloud Storage) */}
+          <div className="mt-8 pt-6 border-t border-slate-100 dark:border-white/[0.06]">
+            <div className={sectionHeaderClasses}>
+              <Link2 size={12} strokeWidth={2} />
+              TradingView Charts (คลาวด์ลิงก์ - ไม่กินพื้นที่ DB)
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className={labelClasses}>ลิงก์กราฟจุดเข้า (Entry Chart)</label>
+                  {formData.tradingViewUrl && (
+                    <a
+                      href={formData.tradingViewUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-[11px] font-bold text-blue-500 hover:text-blue-600 flex items-center gap-1"
+                    >
+                      เปิดดูกราฟ <ExternalLink size={10} />
+                    </a>
+                  )}
+                </div>
+                <div className="relative group">
+                  <Link2 size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-blue-500" />
+                  <input
+                    type="url"
+                    className={`${inputClasses} pl-10 text-xs font-mono`}
+                    placeholder="https://www.tradingview.com/x/.../"
+                    value={formData.tradingViewUrl}
+                    onChange={e => setFormData({ ...formData, tradingViewUrl: e.target.value })}
+                  />
+                </div>
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className={labelClasses}>ลิงก์กราฟจุดออก / ผลลัพธ์ (Exit Chart)</label>
+                  {formData.exitTradingViewUrl && (
+                    <a
+                      href={formData.exitTradingViewUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-[11px] font-bold text-blue-500 hover:text-blue-600 flex items-center gap-1"
+                    >
+                      เปิดดูกราฟ <ExternalLink size={10} />
+                    </a>
+                  )}
+                </div>
+                <div className="relative group">
+                  <Link2 size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-blue-500" />
+                  <input
+                    type="url"
+                    className={`${inputClasses} pl-10 text-xs font-mono`}
+                    placeholder="https://www.tradingview.com/x/.../"
+                    value={formData.exitTradingViewUrl}
+                    onChange={e => setFormData({ ...formData, exitTradingViewUrl: e.target.value })}
+                  />
+                </div>
+              </div>
+            </div>
+
+            <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-2.5">
+              💡 <strong>วิธีแชร์:</strong> ใน TradingView กดปุ่มรูปกล้องถ่ายรูปมุมขวาบน ➔ เลือก <strong>&quot;Copy link to the chart image&quot;</strong> แล้วนำมาวางได้เลยครับ (ประหยัดพื้นที่ Cloud 100%)
+            </p>
+          </div>
 
           {/* Journal Section */}
           <div className="mt-8 pt-6 border-t border-slate-100 dark:border-white/[0.06]">

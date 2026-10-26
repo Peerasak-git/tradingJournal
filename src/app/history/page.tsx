@@ -13,7 +13,8 @@ import {
   PlusCircle,
   Edit2,
   Trash2,
-  ListChecks
+  ListChecks,
+  ExternalLink
 } from 'lucide-react';
 import ChecklistModal from '@/components/ChecklistModal';
 import DatePicker from '@/components/DatePicker';
@@ -362,7 +363,21 @@ export default function HistoryPage() {
                     {String(index + 1).padStart(2, '0')}
                   </td>
                   <td className="px-5 py-4">
-                    <span className="font-black text-slate-900 dark:text-white">{trade.instrument}</span>
+                    <div className="flex items-center gap-2">
+                      <span className="font-black text-slate-900 dark:text-white">{trade.instrument}</span>
+                      {(trade.notes?.tradingViewUrl || trade.notes?.exitTradingViewUrl) && (
+                        <a
+                          href={trade.notes.tradingViewUrl || trade.notes.exitTradingViewUrl || '#'}
+                          target="_blank"
+                          rel="noreferrer"
+                          onClick={(e) => e.stopPropagation()}
+                          title="เปิดดูกราฟ TradingView"
+                          className="inline-flex items-center gap-1 text-[10px] font-black px-1.5 py-0.5 rounded-md bg-blue-50 text-blue-600 dark:bg-blue-950/40 dark:text-blue-400 border border-blue-200 dark:border-blue-900/40 hover:bg-blue-100 transition"
+                        >
+                          TV <ExternalLink size={9} />
+                        </a>
+                      )}
+                    </div>
                   </td>
                   <td className="px-5 py-4">
                     <span className={`inline-flex items-center gap-1 text-xs font-bold px-2.5 py-1 rounded-lg
@@ -446,6 +461,18 @@ export default function HistoryPage() {
                   </td>
                   <td className="px-5 py-4 text-right pr-6">
                     <div className="flex items-center justify-end gap-1">
+                      {(trade.notes?.tradingViewUrl || trade.notes?.exitTradingViewUrl) && (
+                        <a 
+                          href={trade.notes.tradingViewUrl || trade.notes.exitTradingViewUrl || '#'}
+                          target="_blank"
+                          rel="noreferrer"
+                          onClick={(e) => e.stopPropagation()}
+                          title="เปิดดูกราฟ TradingView"
+                          className="p-1.5 rounded-lg text-blue-500 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-500/10 transition-all flex items-center"
+                        >
+                          <ExternalLink size={13} />
+                        </a>
+                      )}
                       <button 
                         onClick={(e) => { e.stopPropagation(); openEditModal(trade); }}
                         className="p-1.5 rounded-lg text-slate-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-500/10 transition-all"
