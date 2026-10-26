@@ -279,15 +279,13 @@ export default function Sidebar() {
               <Cat size={14} />
               PET: {petEnabled ? 'ON' : 'OFF'}
             </button>
-            {hasPin && (
-              <button
-                onClick={lockSession}
-                className="w-full flex items-center justify-center gap-2 py-2 rounded-xl text-xs font-bold border border-amber-200 dark:border-amber-900/40 text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/20 transition-all cursor-pointer"
-              >
-                <Lock size={14} />
-                LOCK SCREEN
-              </button>
-            )}
+            <button
+              onClick={lockSession}
+              className="w-full flex items-center justify-center gap-2 py-2 rounded-xl text-xs font-bold border border-amber-200 dark:border-amber-900/40 text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/20 transition-all cursor-pointer"
+            >
+              <Lock size={14} />
+              {hasPin ? 'LOCK SCREEN' : 'SET PIN LOCK'}
+            </button>
           </div>
 
           {/* New Trade Button */}

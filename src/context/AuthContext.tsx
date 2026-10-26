@@ -14,6 +14,7 @@ interface AuthContextType {
   removePin: () => void;
   unlockWithPin: (pin: string) => boolean;
   lockSession: () => void;
+  skipPinSetup: () => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -34,15 +35,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setLoading(false);
       });
 
-    // Check PIN status
+    // Check PIN status on load
     if (typeof window !== 'undefined') {
       const savedPin = localStorage.getItem('tj_security_pin');
+      const isSkipped = sessionStorage.getItem('tj_pin_skipped') === 'true';
+
       if (savedPin) {
         setHasPin(true);
         const isSessionUnlocked = sessionStorage.getItem('tj_unlocked') === 'true';
-        if (!isSessionUnlocked) {
-          setIsLocked(true);
-        }
+        setIsLocked(!isSessionUnlocked);
+      } else if (!isSkipped) {
+        // If no PIN set and user hasn't explicitly skipped in this session, show setup login screen!
+        setHasPin(false);
+        setIsLocked(true);
       }
     }
   }, []);
@@ -77,7 +82,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const lockSession = () => {
     if (typeof window === 'undefined') return;
     sessionStorage.removeItem('tj_unlocked');
+    sessionStorage.removeItem('tj_pin_skipped');
     setIsLocked(true);
+  };
+
+  const skipPinSetup = () => {
+    if (typeof window === 'undefined') return;
+    sessionStorage.setItem('tj_pin_skipped', 'true');
+    setIsLocked(false);
   };
 
   const isAdmin = user?.role === 'ADMIN';
@@ -92,7 +104,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setPin,
       removePin,
       unlockWithPin,
-      lockSession
+      lockSession,
+      skipPinSetup
     }}>
       {children}
     </AuthContext.Provider>
