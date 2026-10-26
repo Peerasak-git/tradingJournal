@@ -6,6 +6,7 @@ import { JournalEntry } from '@/types/journal';
 import { FinanceEntry } from '@/types/finance';
 import { Review } from '@/types/review';
 import { User } from '@/types/user';
+import { getSupabase } from './supabase';
 
 const KEYS = {
   TRADES: 'tj_trades',
@@ -14,6 +15,7 @@ const KEYS = {
   FINANCES: 'tj_finances',
   REVIEWS: 'tj_reviews',
   USER: 'tj_user',
+  PIN: 'tj_security_pin',
 };
 
 function isClient(): boolean {
@@ -23,6 +25,46 @@ function isClient(): boolean {
 // ---------------- Trades ----------------
 export async function getTrades(): Promise<Trade[]> {
   if (!isClient()) return [];
+
+  const supabase = getSupabase();
+
+  if (supabase) {
+    try {
+      const { data, error } = await supabase
+        .from('trades')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (!error && data) {
+        if (data.length > 0) {
+          const trades: Trade[] = data.map((row: any) => row.data as Trade);
+          localStorage.setItem(KEYS.TRADES, JSON.stringify(trades));
+          return trades;
+        }
+
+        // If Supabase table is empty, check if we have local trades to push to cloud
+        const local = localStorage.getItem(KEYS.TRADES);
+        if (local) {
+          try {
+            const localTrades: Trade[] = JSON.parse(local);
+            if (localTrades.length > 0) {
+              // Auto-seed cloud from local
+              syncTradesToSupabase(localTrades).catch(console.error);
+              return localTrades;
+            }
+          } catch (e) {
+            console.error('Error parsing local trades for cloud seed', e);
+          }
+        }
+      } else if (error) {
+        console.warn('Supabase getTrades error, falling back to local cache:', error.message);
+      }
+    } catch (err) {
+      console.warn('Supabase fetch failed, falling back to local cache:', err);
+    }
+  }
+
+  // Local fallback
   const local = localStorage.getItem(KEYS.TRADES);
   if (local) {
     try {
@@ -39,6 +81,11 @@ export async function getTrades(): Promise<Trade[]> {
       const data = await res.json();
       const trades: Trade[] = data.trades || [];
       localStorage.setItem(KEYS.TRADES, JSON.stringify(trades));
+
+      if (supabase && trades.length > 0) {
+        syncTradesToSupabase(trades).catch(console.error);
+      }
+
       return trades;
     }
   } catch (err) {
@@ -50,6 +97,11 @@ export async function getTrades(): Promise<Trade[]> {
 export function saveTrades(trades: Trade[]): void {
   if (!isClient()) return;
   localStorage.setItem(KEYS.TRADES, JSON.stringify(trades));
+
+  const supabase = getSupabase();
+  if (supabase) {
+    syncTradesToSupabase(trades).catch(console.error);
+  }
 }
 
 export async function addOrUpdateTrade(trade: Trade): Promise<Trade> {
@@ -81,7 +133,35 @@ export async function addOrUpdateTrade(trade: Trade): Promise<Trade> {
     }
   }
 
-  saveTrades(trades);
+  // Save to local cache
+  if (isClient()) {
+    localStorage.setItem(KEYS.TRADES, JSON.stringify(trades));
+  }
+
+  // Sync to Supabase
+  const supabase = getSupabase();
+  if (supabase) {
+    Promise.resolve(
+      supabase
+        .from('trades')
+        .upsert({
+          id: trade.id,
+          account_id: trade.accountId || null,
+          instrument: trade.instrument || null,
+          direction: trade.direction || null,
+          status: trade.status || null,
+          pnl: trade.financials?.netPnL ?? null,
+          entry_date: trade.entryDate || null,
+          data: trade,
+          updated_at: new Date().toISOString(),
+        })
+    )
+      .then(({ error }) => {
+        if (error) console.error('Supabase trade upsert error:', error);
+      })
+      .catch(console.error);
+  }
+
   return trade;
 }
 
@@ -92,7 +172,10 @@ export async function deleteTrade(id: string): Promise<boolean> {
 
   const oldTrade = trades[index];
   const filtered = trades.filter(t => t.id !== id);
-  saveTrades(filtered);
+
+  if (isClient()) {
+    localStorage.setItem(KEYS.TRADES, JSON.stringify(filtered));
+  }
 
   // Revert balance if closed
   if (oldTrade.status !== 'OPEN' && oldTrade.financials.netPnL != null) {
@@ -104,12 +187,78 @@ export async function deleteTrade(id: string): Promise<boolean> {
     }
   }
 
+  // Delete from Supabase
+  const supabase = getSupabase();
+  if (supabase) {
+    Promise.resolve(supabase.from('trades').delete().eq('id', id))
+      .then(({ error }) => {
+        if (error) console.error('Supabase trade delete error:', error);
+      })
+      .catch(console.error);
+  }
+
   return true;
+}
+
+async function syncTradesToSupabase(trades: Trade[]): Promise<void> {
+  const supabase = getSupabase();
+  if (!supabase || trades.length === 0) return;
+
+  const rows = trades.map(t => ({
+    id: t.id,
+    account_id: t.accountId || null,
+    instrument: t.instrument || null,
+    direction: t.direction || null,
+    status: t.status || null,
+    pnl: t.financials?.netPnL ?? null,
+    entry_date: t.entryDate || null,
+    data: t,
+    updated_at: new Date().toISOString(),
+  }));
+
+  const { error } = await supabase.from('trades').upsert(rows);
+  if (error) {
+    console.warn('Failed to sync trades to Supabase:', error.message);
+  }
 }
 
 // ---------------- Accounts ----------------
 export async function getAccounts(): Promise<Account[]> {
   if (!isClient()) return [];
+
+  const supabase = getSupabase();
+  if (supabase) {
+    try {
+      const { data, error } = await supabase
+        .from('accounts')
+        .select('*')
+        .order('created_at', { ascending: true });
+
+      if (!error && data) {
+        if (data.length > 0) {
+          const accounts: Account[] = data.map((row: any) => row.data as Account);
+          localStorage.setItem(KEYS.ACCOUNTS, JSON.stringify(accounts));
+          return accounts;
+        }
+
+        const local = localStorage.getItem(KEYS.ACCOUNTS);
+        if (local) {
+          try {
+            const localAccs: Account[] = JSON.parse(local);
+            if (localAccs.length > 0) {
+              syncAccountsToSupabase(localAccs).catch(console.error);
+              return localAccs;
+            }
+          } catch (e) {
+            console.error('Error parsing local accounts', e);
+          }
+        }
+      }
+    } catch (err) {
+      console.warn('Supabase getAccounts error, falling back to local cache:', err);
+    }
+  }
+
   const local = localStorage.getItem(KEYS.ACCOUNTS);
   if (local) {
     try {
@@ -125,6 +274,9 @@ export async function getAccounts(): Promise<Account[]> {
       const data = await res.json();
       const accounts: Account[] = data.accounts || [];
       localStorage.setItem(KEYS.ACCOUNTS, JSON.stringify(accounts));
+      if (supabase && accounts.length > 0) {
+        syncAccountsToSupabase(accounts).catch(console.error);
+      }
       return accounts;
     }
   } catch (err) {
@@ -136,6 +288,30 @@ export async function getAccounts(): Promise<Account[]> {
 export function saveAccounts(accounts: Account[]): void {
   if (!isClient()) return;
   localStorage.setItem(KEYS.ACCOUNTS, JSON.stringify(accounts));
+
+  const supabase = getSupabase();
+  if (supabase) {
+    syncAccountsToSupabase(accounts).catch(console.error);
+  }
+}
+
+async function syncAccountsToSupabase(accounts: Account[]): Promise<void> {
+  const supabase = getSupabase();
+  if (!supabase || accounts.length === 0) return;
+
+  const rows = accounts.map(a => ({
+    id: a.id,
+    name: a.name || null,
+    balance: a.balance ?? 0,
+    currency: a.currency || null,
+    data: a,
+    updated_at: new Date().toISOString(),
+  }));
+
+  const { error } = await supabase.from('accounts').upsert(rows);
+  if (error) {
+    console.warn('Failed to sync accounts to Supabase:', error.message);
+  }
 }
 
 export async function addAccount(account: Account): Promise<Account> {
@@ -159,12 +335,51 @@ export async function deleteAccount(id: string): Promise<boolean> {
   const accounts = await getAccounts();
   const filtered = accounts.filter(a => a.id !== id);
   saveAccounts(filtered);
+
+  const supabase = getSupabase();
+  if (supabase) {
+    Promise.resolve(supabase.from('accounts').delete().eq('id', id)).catch(console.error);
+  }
   return true;
 }
 
 // ---------------- Journals ----------------
 export async function getJournals(): Promise<JournalEntry[]> {
   if (!isClient()) return [];
+
+  const supabase = getSupabase();
+  if (supabase) {
+    try {
+      const { data, error } = await supabase
+        .from('journals')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (!error && data) {
+        if (data.length > 0) {
+          const journals: JournalEntry[] = data.map((row: any) => row.data as JournalEntry);
+          localStorage.setItem(KEYS.JOURNALS, JSON.stringify(journals));
+          return journals;
+        }
+
+        const local = localStorage.getItem(KEYS.JOURNALS);
+        if (local) {
+          try {
+            const localJ: JournalEntry[] = JSON.parse(local);
+            if (localJ.length > 0) {
+              syncJournalsToSupabase(localJ).catch(console.error);
+              return localJ;
+            }
+          } catch (e) {
+            console.error('Error parsing local journals', e);
+          }
+        }
+      }
+    } catch (err) {
+      console.warn('Supabase getJournals error:', err);
+    }
+  }
+
   const local = localStorage.getItem(KEYS.JOURNALS);
   if (local) {
     try {
@@ -180,6 +395,9 @@ export async function getJournals(): Promise<JournalEntry[]> {
       const data = await res.json();
       const journals: JournalEntry[] = data.journals || [];
       localStorage.setItem(KEYS.JOURNALS, JSON.stringify(journals));
+      if (supabase && journals.length > 0) {
+        syncJournalsToSupabase(journals).catch(console.error);
+      }
       return journals;
     }
   } catch (err) {
@@ -191,6 +409,26 @@ export async function getJournals(): Promise<JournalEntry[]> {
 export function saveJournals(journals: JournalEntry[]): void {
   if (!isClient()) return;
   localStorage.setItem(KEYS.JOURNALS, JSON.stringify(journals));
+
+  const supabase = getSupabase();
+  if (supabase) {
+    syncJournalsToSupabase(journals).catch(console.error);
+  }
+}
+
+async function syncJournalsToSupabase(journals: JournalEntry[]): Promise<void> {
+  const supabase = getSupabase();
+  if (!supabase || journals.length === 0) return;
+
+  const rows = journals.map(j => ({
+    id: j.id,
+    date: j.date || null,
+    data: j,
+    updated_at: new Date().toISOString(),
+  }));
+
+  const { error } = await supabase.from('journals').upsert(rows);
+  if (error) console.warn('Failed to sync journals to Supabase:', error.message);
 }
 
 export async function addOrUpdateJournal(entry: JournalEntry): Promise<JournalEntry> {
@@ -209,12 +447,51 @@ export async function deleteJournal(id: string): Promise<boolean> {
   const journals = await getJournals();
   const filtered = journals.filter(j => j.id !== id);
   saveJournals(filtered);
+
+  const supabase = getSupabase();
+  if (supabase) {
+    Promise.resolve(supabase.from('journals').delete().eq('id', id)).catch(console.error);
+  }
   return true;
 }
 
 // ---------------- Finances ----------------
 export async function getFinances(): Promise<FinanceEntry[]> {
   if (!isClient()) return [];
+
+  const supabase = getSupabase();
+  if (supabase) {
+    try {
+      const { data, error } = await supabase
+        .from('finances')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (!error && data) {
+        if (data.length > 0) {
+          const finances: FinanceEntry[] = data.map((row: any) => row.data as FinanceEntry);
+          localStorage.setItem(KEYS.FINANCES, JSON.stringify(finances));
+          return finances;
+        }
+
+        const local = localStorage.getItem(KEYS.FINANCES);
+        if (local) {
+          try {
+            const localF: FinanceEntry[] = JSON.parse(local);
+            if (localF.length > 0) {
+              syncFinancesToSupabase(localF).catch(console.error);
+              return localF;
+            }
+          } catch (e) {
+            console.error('Error parsing local finances', e);
+          }
+        }
+      }
+    } catch (err) {
+      console.warn('Supabase getFinances error:', err);
+    }
+  }
+
   const local = localStorage.getItem(KEYS.FINANCES);
   if (local) {
     try {
@@ -230,6 +507,9 @@ export async function getFinances(): Promise<FinanceEntry[]> {
       const data = await res.json();
       const finances: FinanceEntry[] = data.finances || [];
       localStorage.setItem(KEYS.FINANCES, JSON.stringify(finances));
+      if (supabase && finances.length > 0) {
+        syncFinancesToSupabase(finances).catch(console.error);
+      }
       return finances;
     }
   } catch (err) {
@@ -241,6 +521,29 @@ export async function getFinances(): Promise<FinanceEntry[]> {
 export function saveFinances(finances: FinanceEntry[]): void {
   if (!isClient()) return;
   localStorage.setItem(KEYS.FINANCES, JSON.stringify(finances));
+
+  const supabase = getSupabase();
+  if (supabase) {
+    syncFinancesToSupabase(finances).catch(console.error);
+  }
+}
+
+async function syncFinancesToSupabase(finances: FinanceEntry[]): Promise<void> {
+  const supabase = getSupabase();
+  if (!supabase || finances.length === 0) return;
+
+  const rows = finances.map(f => ({
+    id: f.id,
+    date: f.date || null,
+    type: f.type || null,
+    amount: f.amount ?? 0,
+    account_id: f.accountId || null,
+    data: f,
+    updated_at: new Date().toISOString(),
+  }));
+
+  const { error } = await supabase.from('finances').upsert(rows);
+  if (error) console.warn('Failed to sync finances to Supabase:', error.message);
 }
 
 export async function addFinance(entry: FinanceEntry): Promise<FinanceEntry> {
@@ -253,6 +556,40 @@ export async function addFinance(entry: FinanceEntry): Promise<FinanceEntry> {
 // ---------------- Reviews ----------------
 export async function getReviews(): Promise<Review[]> {
   if (!isClient()) return [];
+
+  const supabase = getSupabase();
+  if (supabase) {
+    try {
+      const { data, error } = await supabase
+        .from('reviews')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (!error && data) {
+        if (data.length > 0) {
+          const reviews: Review[] = data.map((row: any) => row.data as Review);
+          localStorage.setItem(KEYS.REVIEWS, JSON.stringify(reviews));
+          return reviews;
+        }
+
+        const local = localStorage.getItem(KEYS.REVIEWS);
+        if (local) {
+          try {
+            const localR: Review[] = JSON.parse(local);
+            if (localR.length > 0) {
+              syncReviewsToSupabase(localR).catch(console.error);
+              return localR;
+            }
+          } catch (e) {
+            console.error('Error parsing local reviews', e);
+          }
+        }
+      }
+    } catch (err) {
+      console.warn('Supabase getReviews error:', err);
+    }
+  }
+
   const local = localStorage.getItem(KEYS.REVIEWS);
   if (local) {
     try {
@@ -268,6 +605,9 @@ export async function getReviews(): Promise<Review[]> {
       const data = await res.json();
       const reviews: Review[] = data.reviews || [];
       localStorage.setItem(KEYS.REVIEWS, JSON.stringify(reviews));
+      if (supabase && reviews.length > 0) {
+        syncReviewsToSupabase(reviews).catch(console.error);
+      }
       return reviews;
     }
   } catch (err) {
@@ -279,6 +619,27 @@ export async function getReviews(): Promise<Review[]> {
 export function saveReviews(reviews: Review[]): void {
   if (!isClient()) return;
   localStorage.setItem(KEYS.REVIEWS, JSON.stringify(reviews));
+
+  const supabase = getSupabase();
+  if (supabase) {
+    syncReviewsToSupabase(reviews).catch(console.error);
+  }
+}
+
+async function syncReviewsToSupabase(reviews: Review[]): Promise<void> {
+  const supabase = getSupabase();
+  if (!supabase || reviews.length === 0) return;
+
+  const rows = reviews.map(r => ({
+    id: r.id,
+    date: r.date || null,
+    rating: r.rating ?? null,
+    data: r,
+    updated_at: new Date().toISOString(),
+  }));
+
+  const { error } = await supabase.from('reviews').upsert(rows);
+  if (error) console.warn('Failed to sync reviews to Supabase:', error.message);
 }
 
 export async function addOrUpdateReview(review: Review): Promise<Review> {
@@ -297,12 +658,37 @@ export async function deleteReview(id: string): Promise<boolean> {
   const reviews = await getReviews();
   const filtered = reviews.filter(r => r.id !== id);
   saveReviews(filtered);
+
+  const supabase = getSupabase();
+  if (supabase) {
+    Promise.resolve(supabase.from('reviews').delete().eq('id', id)).catch(console.error);
+  }
   return true;
 }
 
-// ---------------- User ----------------
+// ---------------- User Profile ----------------
 export async function getUser(): Promise<User | null> {
   if (!isClient()) return null;
+
+  const supabase = getSupabase();
+  if (supabase) {
+    try {
+      const { data, error } = await supabase
+        .from('app_state')
+        .select('value')
+        .eq('key', 'user_profile')
+        .single();
+
+      if (!error && data?.value) {
+        const u = data.value as User;
+        localStorage.setItem(KEYS.USER, JSON.stringify(u));
+        return u;
+      }
+    } catch {
+      // ignore
+    }
+  }
+
   const local = localStorage.getItem(KEYS.USER);
   if (local) {
     try {
@@ -318,6 +704,17 @@ export async function getUser(): Promise<User | null> {
       const data = await res.json();
       const user: User = data.user;
       localStorage.setItem(KEYS.USER, JSON.stringify(user));
+
+      if (supabase && user) {
+        Promise.resolve(
+          supabase.from('app_state').upsert({
+            key: 'user_profile',
+            value: user,
+            updated_at: new Date().toISOString()
+          })
+        ).catch(console.error);
+      }
+
       return user;
     }
   } catch (err) {
@@ -326,7 +723,145 @@ export async function getUser(): Promise<User | null> {
   return null;
 }
 
-// ---------------- Backup & Restore ----------------
+// ---------------- Cloud Security PIN ----------------
+export async function getCloudPin(): Promise<string | null> {
+  if (!isClient()) return null;
+
+  const supabase = getSupabase();
+  if (supabase) {
+    try {
+      const { data, error } = await supabase
+        .from('app_state')
+        .select('value')
+        .eq('key', 'security_pin')
+        .single();
+
+      if (!error && data?.value) {
+        const pin = String(data.value.pin || data.value);
+        localStorage.setItem(KEYS.PIN, pin);
+        return pin;
+      }
+    } catch {
+      // ignore
+    }
+  }
+
+  return localStorage.getItem(KEYS.PIN);
+}
+
+export async function setCloudPin(pin: string): Promise<void> {
+  if (!isClient()) return;
+  localStorage.setItem(KEYS.PIN, pin);
+
+  const supabase = getSupabase();
+  if (supabase) {
+    Promise.resolve(
+      supabase.from('app_state').upsert({
+        key: 'security_pin',
+        value: { pin },
+        updated_at: new Date().toISOString(),
+      })
+    ).catch(console.error);
+  }
+}
+
+export async function removeCloudPin(): Promise<void> {
+  if (!isClient()) return;
+  localStorage.removeItem(KEYS.PIN);
+
+  const supabase = getSupabase();
+  if (supabase) {
+    Promise.resolve(
+      supabase.from('app_state').delete().eq('key', 'security_pin')
+    ).catch(console.error);
+  }
+}
+
+// ---------------- Two-Way Complete Sync Helpers ----------------
+export async function syncAllLocalToSupabase(): Promise<{ success: boolean; count: number; error?: string }> {
+  const supabase = getSupabase();
+  if (!supabase) {
+    return { success: false, count: 0, error: 'Supabase is not configured yet.' };
+  }
+
+  try {
+    const [trades, accounts, journals, finances, reviews] = await Promise.all([
+      getTrades(),
+      getAccounts(),
+      getJournals(),
+      getFinances(),
+      getReviews()
+    ]);
+
+    await Promise.all([
+      trades.length > 0 ? syncTradesToSupabase(trades) : Promise.resolve(),
+      accounts.length > 0 ? syncAccountsToSupabase(accounts) : Promise.resolve(),
+      journals.length > 0 ? syncJournalsToSupabase(journals) : Promise.resolve(),
+      finances.length > 0 ? syncFinancesToSupabase(finances) : Promise.resolve(),
+      reviews.length > 0 ? syncReviewsToSupabase(reviews) : Promise.resolve(),
+    ]);
+
+    const pin = localStorage.getItem(KEYS.PIN);
+    if (pin) {
+      await setCloudPin(pin);
+    }
+
+    const totalCount = trades.length + accounts.length + journals.length + finances.length + reviews.length;
+    return { success: true, count: totalCount };
+  } catch (err: any) {
+    return { success: false, count: 0, error: err?.message || 'Sync failed.' };
+  }
+}
+
+export async function syncAllSupabaseToLocal(): Promise<{ success: boolean; error?: string }> {
+  const supabase = getSupabase();
+  if (!supabase) {
+    return { success: false, error: 'Supabase is not configured yet.' };
+  }
+
+  try {
+    // Force re-fetch from Supabase and cache
+    const [tradesRes, accountsRes, journalsRes, financesRes, reviewsRes, pinRes] = await Promise.all([
+      supabase.from('trades').select('*'),
+      supabase.from('accounts').select('*'),
+      supabase.from('journals').select('*'),
+      supabase.from('finances').select('*'),
+      supabase.from('reviews').select('*'),
+      supabase.from('app_state').select('value').eq('key', 'security_pin').maybeSingle(),
+    ]);
+
+    if (tradesRes.data) {
+      const trades = tradesRes.data.map((r: any) => r.data as Trade);
+      localStorage.setItem(KEYS.TRADES, JSON.stringify(trades));
+    }
+    if (accountsRes.data) {
+      const accounts = accountsRes.data.map((r: any) => r.data as Account);
+      localStorage.setItem(KEYS.ACCOUNTS, JSON.stringify(accounts));
+    }
+    if (journalsRes.data) {
+      const journals = journalsRes.data.map((r: any) => r.data as JournalEntry);
+      localStorage.setItem(KEYS.JOURNALS, JSON.stringify(journals));
+    }
+    if (financesRes.data) {
+      const finances = financesRes.data.map((r: any) => r.data as FinanceEntry);
+      localStorage.setItem(KEYS.FINANCES, JSON.stringify(finances));
+    }
+    if (reviewsRes.data) {
+      const reviews = reviewsRes.data.map((r: any) => r.data as Review);
+      localStorage.setItem(KEYS.REVIEWS, JSON.stringify(reviews));
+    }
+    if (pinRes.data?.value) {
+      const pin = String(pinRes.data.value.pin || pinRes.data.value);
+      localStorage.setItem(KEYS.PIN, pin);
+    }
+
+    return { success: true };
+  } catch (err: any) {
+    return { success: false, error: err?.message || 'Download sync failed.' };
+  }
+}
+
+// ---------------- Backup & Restore (JSON File) ----------------
 export async function exportAllData(): Promise<string> {
   const [trades, accounts, journals, finances, reviews, user] = await Promise.all([
     getTrades(),
@@ -338,7 +873,7 @@ export async function exportAllData(): Promise<string> {
   ]);
 
   const backup = {
-    version: '1.0',
+    version: '2.0',
     exportDate: new Date().toISOString(),
     data: {
       trades,
@@ -360,19 +895,19 @@ export function importAllData(jsonString: string): { success: boolean; message?:
     const data = parsed.data || parsed;
 
     if (data.trades && Array.isArray(data.trades)) {
-      localStorage.setItem(KEYS.TRADES, JSON.stringify(data.trades));
+      saveTrades(data.trades);
     }
     if (data.accounts && Array.isArray(data.accounts)) {
-      localStorage.setItem(KEYS.ACCOUNTS, JSON.stringify(data.accounts));
+      saveAccounts(data.accounts);
     }
     if (data.journals && Array.isArray(data.journals)) {
-      localStorage.setItem(KEYS.JOURNALS, JSON.stringify(data.journals));
+      saveJournals(data.journals);
     }
     if (data.finances && Array.isArray(data.finances)) {
-      localStorage.setItem(KEYS.FINANCES, JSON.stringify(data.finances));
+      saveFinances(data.finances);
     }
     if (data.reviews && Array.isArray(data.reviews)) {
-      localStorage.setItem(KEYS.REVIEWS, JSON.stringify(data.reviews));
+      saveReviews(data.reviews);
     }
     if (data.user) {
       localStorage.setItem(KEYS.USER, JSON.stringify(data.user));

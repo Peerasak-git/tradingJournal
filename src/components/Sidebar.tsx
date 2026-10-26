@@ -29,13 +29,18 @@ import {
   Cat,
   Banknote,
   Star,
-  Lock
+  Lock,
+  Cloud
 } from 'lucide-react';
+import { isSupabaseConfigured } from '@/lib/supabase';
+import SupabaseSyncModal from './SupabaseSyncModal';
 
 export default function Sidebar() {
   const pathname = usePathname();
   const [isOpen, setIsOpen] = useState(false);
   const [isAccountOpen, setIsAccountOpen] = useState(false);
+  const [isSyncModalOpen, setIsSyncModalOpen] = useState(false);
+  const [isCloudConnected, setIsCloudConnected] = useState(false);
   const { theme, toggleTheme } = useTheme();
   const { language, setLanguage, t } = useLanguage();
   const { user, hasPin, lockSession } = useAuth();
@@ -43,6 +48,7 @@ export default function Sidebar() {
   const [petEnabled, setPetEnabled] = useState(true);
 
   useEffect(() => {
+    setIsCloudConnected(isSupabaseConfigured());
     const saved = localStorage.getItem('petEnabled');
     if (saved === 'false') setPetEnabled(false);
 
@@ -268,6 +274,19 @@ export default function Sidebar() {
               </button>
             </div>
             <button
+              onClick={() => setIsSyncModalOpen(true)}
+              className="w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-bold border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all cursor-pointer"
+            >
+              <span className="flex items-center gap-2">
+                <Cloud size={14} className={isCloudConnected ? 'text-emerald-500' : 'text-slate-400'} />
+                CLOUD SYNC
+              </span>
+              <span className="flex items-center gap-1.5 text-[10px] font-black uppercase">
+                <span className={`w-1.5 h-1.5 rounded-full ${isCloudConnected ? 'bg-emerald-500 animate-pulse' : 'bg-amber-400'}`} />
+                {isCloudConnected ? 'CONNECTED' : 'LOCAL'}
+              </span>
+            </button>
+            <button
               onClick={() => {
                 const newState = !petEnabled;
                 localStorage.setItem('petEnabled', newState ? 'true' : 'false');
@@ -308,6 +327,15 @@ export default function Sidebar() {
           </div>
         </div>
       </aside>
+
+      {/* Supabase Sync Modal */}
+      <SupabaseSyncModal
+        isOpen={isSyncModalOpen}
+        onClose={() => {
+          setIsSyncModalOpen(false);
+          setIsCloudConnected(isSupabaseConfigured());
+        }}
+      />
     </>
   );
 }

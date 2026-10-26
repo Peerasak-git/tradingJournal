@@ -105,7 +105,12 @@ export const translations = {
     emotionGreedy: 'Greedy',
     emotionFearful: 'Fearful',
     emotionImpulsive: 'Impulsive',
-    emotionDisciplined: 'Disciplined'
+    emotionDisciplined: 'Disciplined',
+    cloudSync: 'Cloud Sync (Supabase)',
+    syncStatus: 'Sync Status',
+    connected: 'Connected',
+    disconnected: 'Not Connected',
+    localMode: 'Local Mode (Browser Storage)'
   },
   th: {
     dashboard: 'แดชบอร์ดการเทรด',
@@ -211,7 +216,12 @@ export const translations = {
     emotionGreedy: 'โลภ',
     emotionFearful: 'กลัว',
     emotionImpulsive: 'หุนหันพลันแล่น',
-    emotionDisciplined: 'มีวินัย'
+    emotionDisciplined: 'มีวินัย',
+    cloudSync: 'คลาวด์ซิงค์ (Supabase)',
+    syncStatus: 'สถานะการเชื่อมต่อ',
+    connected: 'เชื่อมต่อแล้ว',
+    disconnected: 'ยังไม่ได้เชื่อมต่อ',
+    localMode: 'โหมดในเครื่อง (Local Storage)'
   }
 };
 

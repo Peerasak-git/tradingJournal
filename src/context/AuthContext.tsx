@@ -2,7 +2,7 @@
 
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { User } from '@/types/user';
-import { getUser } from '@/lib/clientStorage';
+import { getUser, getCloudPin, setCloudPin, removeCloudPin } from '@/lib/clientStorage';
 
 interface AuthContextType {
   user: User | null;
@@ -35,20 +35,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setLoading(false);
       });
 
-    // Check PIN status on load
+    // Check PIN status on load (local + cloud sync)
     if (typeof window !== 'undefined') {
-      const savedPin = localStorage.getItem('tj_security_pin');
       const isSkipped = sessionStorage.getItem('tj_pin_skipped') === 'true';
+      const isSessionUnlocked = sessionStorage.getItem('tj_unlocked') === 'true';
 
-      if (savedPin) {
+      const localPin = localStorage.getItem('tj_security_pin');
+      if (localPin) {
         setHasPin(true);
-        const isSessionUnlocked = sessionStorage.getItem('tj_unlocked') === 'true';
         setIsLocked(!isSessionUnlocked);
       } else if (!isSkipped) {
-        // If no PIN set and user hasn't explicitly skipped in this session, show setup login screen!
         setHasPin(false);
         setIsLocked(true);
       }
+
+      // Sync from Supabase in background
+      getCloudPin().then((cloudPin) => {
+        if (cloudPin) {
+          setHasPin(true);
+          const unlocked = sessionStorage.getItem('tj_unlocked') === 'true';
+          setIsLocked(!unlocked);
+        }
+      }).catch(console.error);
     }
   }, []);
 
@@ -65,7 +73,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const setPin = (newPin: string) => {
     if (typeof window === 'undefined') return;
-    localStorage.setItem('tj_security_pin', newPin);
+    setCloudPin(newPin).catch(console.error);
     sessionStorage.setItem('tj_unlocked', 'true');
     setHasPin(true);
     setIsLocked(false);
@@ -73,7 +81,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const removePin = () => {
     if (typeof window === 'undefined') return;
-    localStorage.removeItem('tj_security_pin');
+    removeCloudPin().catch(console.error);
     sessionStorage.removeItem('tj_unlocked');
     setHasPin(false);
     setIsLocked(false);

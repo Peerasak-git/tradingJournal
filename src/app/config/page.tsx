@@ -3,14 +3,17 @@
 import React, { useState } from 'react';
 import { useConfig } from '@/context/ConfigContext';
 import { useAuth } from '@/context/AuthContext';
-import { Settings2, Palette, CheckCircle2, Database, Download, Upload, RotateCcw, Lock, KeyRound, ShieldCheck, ShieldAlert, X } from 'lucide-react';
+import { Settings2, Palette, CheckCircle2, Database, Download, Upload, RotateCcw, Lock, KeyRound, ShieldCheck, ShieldAlert, X, Cloud, RefreshCw } from 'lucide-react';
 import ColorPicker from '@/components/ColorPicker';
 import { exportAllData, importAllData } from '@/lib/clientStorage';
+import { isSupabaseConfigured, getSupabaseCredentials } from '@/lib/supabase';
+import SupabaseSyncModal from '@/components/SupabaseSyncModal';
 
 export default function ConfigPage() {
   const { colorScheme, setColorScheme, customWinColor, setCustomWinColor, customLossColor, setCustomLossColor } = useConfig();
   const { hasPin, setPin, removePin, lockSession } = useAuth();
   const [isPinModalOpen, setIsPinModalOpen] = useState(false);
+  const [isSyncModalOpen, setIsSyncModalOpen] = useState(false);
   const [pinInput, setPinInput] = useState('');
   const [pinConfirm, setPinConfirm] = useState('');
   const [pinError, setPinError] = useState('');
@@ -289,6 +292,61 @@ export default function ConfigPage() {
           </div>
         </section>
 
+        {/* Supabase Cloud Database Sync Section */}
+        <section className="glass-card rounded-3xl p-6 md:p-8">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-100 dark:border-slate-800/60 pb-5 mb-6">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-emerald-500 to-teal-400 text-white flex items-center justify-center shadow-md shadow-emerald-500/20">
+                <Cloud size={20} strokeWidth={2.5} />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h2 className="text-xl font-black text-slate-900 dark:text-white">Supabase Cloud Sync</h2>
+                  {isSupabaseConfigured() ? (
+                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-400 border border-emerald-300 dark:border-emerald-800">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                      Connected
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase bg-amber-100 text-amber-700 dark:bg-amber-950/60 dark:text-amber-400 border border-amber-300 dark:border-amber-800">
+                      <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+                      Local Mode
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs text-slate-500 dark:text-slate-400 font-medium mt-0.5">
+                  เชื่อมต่อฐานข้อมูล Supabase เพื่อซิงค์ข้อมูล Trades, Accounts และ PIN ข้ามทุกโดเมนและมือถือ
+                </p>
+              </div>
+            </div>
+
+            <button
+              onClick={() => setIsSyncModalOpen(true)}
+              className="py-2.5 px-5 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-white font-bold text-xs rounded-xl transition flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/20 cursor-pointer self-start md:self-auto"
+            >
+              <Cloud size={15} />
+              <span>{isSupabaseConfigured() ? 'จัดการการซิงค์ Cloud' : 'เชื่อมต่อ Supabase'}</span>
+            </button>
+          </div>
+
+          <div className="p-4 rounded-2xl bg-slate-50/80 dark:bg-slate-900/40 border border-slate-200/70 dark:border-white/[0.07] flex flex-col md:flex-row md:items-center justify-between gap-3">
+            <div className="text-xs text-slate-600 dark:text-slate-400">
+              <span className="font-bold text-slate-900 dark:text-white">สถานะปัจจุบัน: </span>
+              {isSupabaseConfigured() ? (
+                <span>ซิงค์ข้อมูลผ่าน Supabase แบบ Real-time ข้อมูลจะอัปเดตตรงกันทุกอุปกรณ์ทันที</span>
+              ) : (
+                <span>เก็บข้อมูลเฉพาะในบราวเซอร์นี้ (Local Storage) หากต้องการให้ข้อมูลตรงกันข้ามโดเมน กรุณาเชื่อมต่อ Supabase</span>
+              )}
+            </div>
+            <button
+              onClick={() => setIsSyncModalOpen(true)}
+              className="text-xs font-bold text-emerald-600 dark:text-emerald-400 hover:underline flex items-center gap-1 cursor-pointer shrink-0"
+            >
+              ดูรายละเอียด &amp; วิธีตั้งค่า &rarr;
+            </button>
+          </div>
+        </section>
+
         {/* Data & Backup Section (Local Persistence) */}
         <section className="glass-card rounded-3xl p-6 md:p-8">
           <div className="flex items-center gap-3 mb-6 border-b border-slate-100 dark:border-slate-800/60 pb-4">
@@ -452,6 +510,12 @@ export default function ConfigPage() {
           </div>
         </div>
       )}
+
+      {/* Supabase Cloud Sync Modal */}
+      <SupabaseSyncModal
+        isOpen={isSyncModalOpen}
+        onClose={() => setIsSyncModalOpen(false)}
+      />
     </main>
   );
 }
