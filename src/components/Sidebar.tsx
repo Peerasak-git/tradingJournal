@@ -28,7 +28,8 @@ import {
   Briefcase,
   Cat,
   Banknote,
-  Star
+  Star,
+  Lock
 } from 'lucide-react';
 
 export default function Sidebar() {
@@ -37,7 +38,7 @@ export default function Sidebar() {
   const [isAccountOpen, setIsAccountOpen] = useState(false);
   const { theme, toggleTheme } = useTheme();
   const { language, setLanguage, t } = useLanguage();
-  const { user } = useAuth();
+  const { user, hasPin, lockSession } = useAuth();
   const { accounts, selectedAccount, setSelectedAccount } = useAccount();
   const [petEnabled, setPetEnabled] = useState(true);
 
@@ -278,6 +279,15 @@ export default function Sidebar() {
               <Cat size={14} />
               PET: {petEnabled ? 'ON' : 'OFF'}
             </button>
+            {hasPin && (
+              <button
+                onClick={lockSession}
+                className="w-full flex items-center justify-center gap-2 py-2 rounded-xl text-xs font-bold border border-amber-200 dark:border-amber-900/40 text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/20 transition-all cursor-pointer"
+              >
+                <Lock size={14} />
+                LOCK SCREEN
+              </button>
+            )}
           </div>
 
           {/* New Trade Button */}

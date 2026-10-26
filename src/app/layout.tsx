@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import Sidebar from "@/components/Sidebar";
 import PixelPet from "@/components/PixelPet";
+import LockScreen from "@/components/LockScreen";
 import { ThemeProvider } from "@/context/ThemeContext";
 import { LanguageProvider } from "@/context/LanguageContext";
 import { AuthProvider } from "@/context/AuthContext";
@@ -42,6 +43,7 @@ export default function RootLayout({
                     {children}
                   </div>
                   <PixelPet />
+                  <LockScreen />
                 </ConfigProvider>
               </AccountProvider>
             </AuthProvider>

@@ -1,13 +1,42 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import { useConfig } from '@/context/ConfigContext';
-import { Settings2, Palette, CheckCircle2, Database, Download, Upload, RotateCcw } from 'lucide-react';
+import { useAuth } from '@/context/AuthContext';
+import { Settings2, Palette, CheckCircle2, Database, Download, Upload, RotateCcw, Lock, KeyRound, ShieldCheck, ShieldAlert, X } from 'lucide-react';
 import ColorPicker from '@/components/ColorPicker';
 import { exportAllData, importAllData } from '@/lib/clientStorage';
 
 export default function ConfigPage() {
   const { colorScheme, setColorScheme, customWinColor, setCustomWinColor, customLossColor, setCustomLossColor } = useConfig();
+  const { hasPin, setPin, removePin, lockSession } = useAuth();
+  const [isPinModalOpen, setIsPinModalOpen] = useState(false);
+  const [pinInput, setPinInput] = useState('');
+  const [pinConfirm, setPinConfirm] = useState('');
+  const [pinError, setPinError] = useState('');
+
+  const handleSavePin = (e: React.FormEvent) => {
+    e.preventDefault();
+    setPinError('');
+    if (pinInput.length < 4 || pinInput.length > 6) {
+      setPinError('รหัส PIN ต้องมีความยาว 4 - 6 ตัวเลข');
+      return;
+    }
+    if (!/^\d+$/.test(pinInput)) {
+      setPinError('รหัส PIN ต้องเป็นตัวเลขเท่านั้น');
+      return;
+    }
+    if (pinInput !== pinConfirm) {
+      setPinError('รหัส PIN ทั้งสองช่องไม่ตรงกัน');
+      return;
+    }
+
+    setPin(pinInput);
+    setIsPinModalOpen(false);
+    setPinInput('');
+    setPinConfirm('');
+    alert('บันทึกรหัสผ่าน PIN เรียบร้อยแล้ว!');
+  };
 
   const handleExport = async () => {
     try {
@@ -178,6 +207,88 @@ export default function ConfigPage() {
           </div>
         </section>
 
+        {/* Security & Passcode Lock Section */}
+        <section className="glass-card rounded-3xl p-6 md:p-8">
+          <div className="flex items-center gap-3 mb-6 border-b border-slate-100 dark:border-slate-800/60 pb-4">
+            <div className="w-10 h-10 rounded-xl bg-amber-50 dark:bg-amber-500/10 flex items-center justify-center text-amber-600 dark:text-amber-400">
+              <Lock size={20} strokeWidth={2.5} />
+            </div>
+            <div>
+              <h2 className="text-xl font-black text-slate-900 dark:text-white">Security & Passcode Lock</h2>
+              <p className="text-xs text-slate-500 dark:text-slate-400 font-medium mt-0.5">
+                ปกป้องข้อมูลการเทรดและพอร์ตของคุณด้วยรหัสผ่าน PIN 4-6 หลัก
+              </p>
+            </div>
+          </div>
+
+          <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 p-5 rounded-2xl bg-slate-50/80 dark:bg-slate-900/40 border border-slate-200/70 dark:border-white/[0.07]">
+            <div className="flex items-center gap-3.5">
+              <div className={`w-12 h-12 rounded-2xl flex items-center justify-center ${
+                hasPin ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' : 'bg-slate-200 dark:bg-slate-800 text-slate-400'
+              }`}>
+                {hasPin ? <ShieldCheck size={24} /> : <Lock size={24} />}
+              </div>
+              <div>
+                <h3 className="font-bold text-sm text-slate-900 dark:text-white">
+                  {hasPin ? 'เปิดใช้งานรหัสผ่าน PIN แล้ว' : 'ยังไม่ได้ตั้งรหัสผ่าน PIN'}
+                </h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                  {hasPin ? 'ระบบจะล็อกหน้าจอเมื่อเปิดเบราว์เซอร์ใหม่ หรือเมื่อกดปุ่มล็อกหน้าจอ' : 'ตั้งรหัส PIN เพื่อป้องกันไม่ให้ผู้อื่นเข้าดูข้อมูลการเทรดของคุณ'}
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 w-full md:w-auto">
+              {hasPin ? (
+                <>
+                  <button
+                    onClick={lockSession}
+                    className="flex-1 md:flex-none py-2.5 px-4 bg-amber-500 hover:bg-amber-400 text-white font-bold text-xs rounded-xl transition flex items-center justify-center gap-1.5 shadow-sm cursor-pointer"
+                  >
+                    <Lock size={14} />
+                    <span>ล็อกหน้าจอทันที</span>
+                  </button>
+                  <button
+                    onClick={() => {
+                      setPinInput('');
+                      setPinConfirm('');
+                      setPinError('');
+                      setIsPinModalOpen(true);
+                    }}
+                    className="flex-1 md:flex-none py-2.5 px-4 bg-slate-200 hover:bg-slate-300 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 font-bold text-xs rounded-xl transition flex items-center justify-center gap-1.5 cursor-pointer"
+                  >
+                    <KeyRound size={14} />
+                    <span>เปลี่ยน PIN</span>
+                  </button>
+                  <button
+                    onClick={() => {
+                      if (confirm('คุณแน่ใจหรือไม่ว่าต้องการยกเลิกการล็อกหน้าจอด้วยรหัส PIN?')) {
+                        removePin();
+                      }
+                    }}
+                    className="py-2.5 px-3 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/30 rounded-xl text-xs font-bold transition cursor-pointer"
+                  >
+                    ยกเลิก PIN
+                  </button>
+                </>
+              ) : (
+                <button
+                  onClick={() => {
+                    setPinInput('');
+                    setPinConfirm('');
+                    setPinError('');
+                    setIsPinModalOpen(true);
+                  }}
+                  className="w-full md:w-auto py-2.5 px-5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl transition flex items-center justify-center gap-2 shadow-sm cursor-pointer"
+                >
+                  <KeyRound size={15} />
+                  <span>ตั้งรหัส PIN ตอนนี้</span>
+                </button>
+              )}
+            </div>
+          </div>
+        </section>
+
         {/* Data & Backup Section (Local Persistence) */}
         <section className="glass-card rounded-3xl p-6 md:p-8">
           <div className="flex items-center gap-3 mb-6 border-b border-slate-100 dark:border-slate-800/60 pb-4">
@@ -258,6 +369,89 @@ export default function ConfigPage() {
           </div>
         </section>
       </div>
+
+      {/* PIN Setup Modal */}
+      {isPinModalOpen && (
+        <div className="fixed inset-0 z-[100000] bg-black/70 backdrop-blur-md flex items-center justify-center p-4 animate-fade-in">
+          <div className="glass-card max-w-sm w-full p-6 md:p-8 rounded-3xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-2xl relative">
+            <button
+              onClick={() => setIsPinModalOpen(false)}
+              className="absolute top-5 right-5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
+            >
+              <X size={18} />
+            </button>
+
+            <div className="w-12 h-12 rounded-2xl bg-amber-50 dark:bg-amber-500/10 text-amber-500 flex items-center justify-center mb-4">
+              <KeyRound size={24} />
+            </div>
+
+            <h3 className="text-lg font-black text-slate-900 dark:text-white mb-1">
+              {hasPin ? 'เปลี่ยนรหัสผ่าน PIN' : 'ตั้งรหัสผ่าน PIN ใหม่'}
+            </h3>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mb-5 leading-relaxed font-medium">
+              กรอกรหัสตัวเลข 4 - 6 หลัก เพื่อใช้ในการปลดล็อกหน้าจอ Trading Journal
+            </p>
+
+            <form onSubmit={handleSavePin} className="space-y-4">
+              <div>
+                <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">
+                  รหัส PIN (4 - 6 ตัวเลข)
+                </label>
+                <input
+                  type="password"
+                  inputMode="numeric"
+                  maxLength={6}
+                  value={pinInput}
+                  onChange={(e) => setPinInput(e.target.value.replace(/\D/g, ''))}
+                  placeholder="เช่น 1234 หรือ 123456"
+                  className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-3 text-center text-lg tracking-widest font-black focus:outline-none focus:ring-2 focus:ring-amber-500/40"
+                  required
+                  autoFocus
+                />
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">
+                  ยืนยันรหัส PIN อีกครั้ง
+                </label>
+                <input
+                  type="password"
+                  inputMode="numeric"
+                  maxLength={6}
+                  value={pinConfirm}
+                  onChange={(e) => setPinConfirm(e.target.value.replace(/\D/g, ''))}
+                  placeholder="กรอกรหัสเดิมอีกครั้ง"
+                  className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-3 text-center text-lg tracking-widest font-black focus:outline-none focus:ring-2 focus:ring-amber-500/40"
+                  required
+                />
+              </div>
+
+              {pinError && (
+                <div className="p-3 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/50 text-rose-600 dark:text-rose-400 text-xs font-bold flex items-center gap-1.5">
+                  <ShieldAlert size={14} className="shrink-0" />
+                  <span>{pinError}</span>
+                </div>
+              )}
+
+              <div className="flex gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setIsPinModalOpen(false)}
+                  className="flex-1 py-3 px-4 rounded-xl text-xs font-bold text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer"
+                >
+                  ยกเลิก
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 py-3 px-4 rounded-xl text-xs font-bold bg-amber-500 hover:bg-amber-400 text-white transition shadow-lg shadow-amber-500/20 cursor-pointer"
+                >
+                  บันทึกรหัส PIN
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </main>
   );
 }
