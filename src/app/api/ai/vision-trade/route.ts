@@ -12,13 +12,14 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const apiKey = clientApiKey || process.env.GEMINI_API_KEY;
+    const rawKey = clientApiKey || process.env.GEMINI_API_KEY || '';
+    const apiKey = String(rawKey).trim().replace(/^["']|["']$/g, '');
     if (!apiKey) {
       return NextResponse.json(
         {
           success: false,
           error: 'NO_API_KEY',
-          message: 'กรุณาระบุ Gemini API Key (ฟรี) เพื่อใช้งานระบบ AI Vision'
+          message: 'ยังไม่ได้ระบุ Gemini API Key กรุณาใส่ Key เพื่อใช้งาน'
         },
         { status: 401 }
       );
@@ -73,6 +74,8 @@ Examine the chart carefully and follow these strict visual instructions:
    - Or the large faint watermark in the center of the chart (e.g. "XAUUSD, 1" -> instrument="XAUUSD", timeframe="1m")
    - Common symbols: XAUUSD, BTCUSDT, EURUSD, GBPUSD, USDJPY, US30, NAS100, ETHUSDT, etc.
 
+IMPORTANT: Prices in the JSON output must be pure floating point numbers without commas (e.g. 4010.302, NOT "4,010.302").
+
 Return ONLY a valid JSON object matching this schema:
 {
   "instrument": "XAUUSD",
@@ -122,13 +125,51 @@ Return ONLY a valid JSON object matching this schema:
           break;
         } else {
           const errData = await res.json().catch(() => ({}));
-          lastError = errData?.error?.message || `Model ${model} returned status ${res.status}`;
-          if (res.status === 400 && lastError.toLowerCase().includes('api_key_invalid')) {
+          const rawErrMsg = errData?.error?.message || `Model ${model} returned status ${res.status}`;
+          const reason = errData?.error?.details?.[0]?.reason || '';
+
+          const isApiKeyInvalid = 
+            res.status === 400 && (
+              reason === 'API_KEY_INVALID' ||
+              rawErrMsg.toLowerCase().includes('api key not valid') ||
+              rawErrMsg.toLowerCase().includes('api_key_invalid') ||
+              rawErrMsg.toLowerCase().includes('invalid api key')
+            );
+
+          if (isApiKeyInvalid) {
             return NextResponse.json(
-              { success: false, error: 'INVALID_API_KEY', message: 'Gemini API Key ไม่ถูกต้อง โปรดตรวจสอบอีกครั้ง' },
+              {
+                success: false,
+                error: 'INVALID_API_KEY',
+                message: 'Gemini API Key ไม่ถูกต้อง หรือถูกปิดการใช้งาน กรุณาตรวจสอบ Key ใน Google AI Studio'
+              },
               { status: 400 }
             );
           }
+
+          if (res.status === 403) {
+            return NextResponse.json(
+              {
+                success: false,
+                error: 'PERMISSION_DENIED',
+                message: `ไม่มีสิทธิ์เรียกใช้งาน Gemini API (403 Forbidden): ${rawErrMsg}`
+              },
+              { status: 403 }
+            );
+          }
+
+          if (res.status === 429) {
+            return NextResponse.json(
+              {
+                success: false,
+                error: 'QUOTA_EXCEEDED',
+                message: 'โควตาใช้งาน Gemini API เต็มชั่วคราว กรุณารอ 1-2 นาทีแล้วลองใหม่อีกครั้ง'
+              },
+              { status: 429 }
+            );
+          }
+
+          lastError = rawErrMsg;
         }
       } catch (err: any) {
         lastError = err.message;
@@ -157,10 +198,18 @@ Return ONLY a valid JSON object matching this schema:
     const cleanedText = rawText.replace(/```json/gi, '').replace(/```/g, '').trim();
     const parsedData = JSON.parse(cleanedText);
 
+    const cleanNumber = (val: any): number => {
+      if (typeof val === 'number') return val;
+      if (!val) return 0;
+      const str = String(val).replace(/,/g, '').trim();
+      const num = parseFloat(str);
+      return isNaN(num) ? 0 : num;
+    };
+
     let direction: 'LONG' | 'SHORT' = parsedData.direction === 'SHORT' ? 'SHORT' : 'LONG';
-    let entryPrice = typeof parsedData.entryPrice === 'number' ? parsedData.entryPrice : parseFloat(parsedData.entryPrice) || 0;
-    let stopLoss = typeof parsedData.stopLoss === 'number' ? parsedData.stopLoss : parseFloat(parsedData.stopLoss) || 0;
-    let takeProfit = typeof parsedData.takeProfit === 'number' ? parsedData.takeProfit : parseFloat(parsedData.takeProfit) || 0;
+    let entryPrice = cleanNumber(parsedData.entryPrice);
+    let stopLoss = cleanNumber(parsedData.stopLoss);
+    let takeProfit = cleanNumber(parsedData.takeProfit);
 
     // Geometric Sanity Check for TradingView Position Tools
     // In Long: TakeProfit > EntryPrice > StopLoss
@@ -188,7 +237,7 @@ Return ONLY a valid JSON object matching this schema:
       stopLoss,
       takeProfit,
       timeframe: parsedData.timeframe || '',
-      riskRewardRatio: typeof parsedData.riskRewardRatio === 'number' ? parsedData.riskRewardRatio : parseFloat(parsedData.riskRewardRatio) || 0,
+      riskRewardRatio: cleanNumber(parsedData.riskRewardRatio),
       notes: parsedData.notes || ''
     };
 

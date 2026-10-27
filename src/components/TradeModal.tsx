@@ -47,6 +47,8 @@ export default function TradeModal({ isOpen, onClose, onSave, initialData }: Tra
   const [isApiKeyModalOpen, setIsApiKeyModalOpen] = useState(false);
   const [geminiApiKeyInput, setGeminiApiKeyInput] = useState('');
   const [apiKeyError, setApiKeyError] = useState('');
+  const [isTestingApiKey, setIsTestingApiKey] = useState(false);
+  const [apiKeySuccess, setApiKeySuccess] = useState('');
   const [pendingImageFile, setPendingImageFile] = useState<File | null>(null);
   const [isZoomImageOpen, setIsZoomImageOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -415,6 +417,33 @@ export default function TradeModal({ isOpen, onClose, onSave, initialData }: Tra
     });
   };
 
+  const handleTestApiKey = async () => {
+    if (!geminiApiKeyInput.trim()) {
+      setApiKeyError('กรุณากรอก API Key ก่อนทดสอบ');
+      return;
+    }
+    setIsTestingApiKey(true);
+    setApiKeyError('');
+    setApiKeySuccess('');
+    try {
+      const res = await fetch('/api/ai/test-key', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ apiKey: geminiApiKeyInput.trim() })
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setApiKeySuccess(data.message || 'เชื่อมต่อ Gemini API สำเร็จ!');
+      } else {
+        setApiKeyError(data.message || 'ทดสอบ Key ไม่สำเร็จ');
+      }
+    } catch (err: any) {
+      setApiKeyError(err.message || 'เกิดข้อผิดพลาดในการเชื่อมต่อ');
+    } finally {
+      setIsTestingApiKey(false);
+    }
+  };
+
   const processImage = async (file: File, overrideKey?: string) => {
     try {
       const base64 = await fileToBase64(file);
@@ -424,15 +453,11 @@ export default function TradeModal({ isOpen, onClose, onSave, initialData }: Tra
         entryImage: base64
       }));
 
-      const key = overrideKey || (typeof window !== 'undefined' ? localStorage.getItem('gemini_api_key') : '') || '';
-      if (!key) {
-        setPendingImageFile(file);
-        setIsApiKeyModalOpen(true);
-        return;
-      }
+      const key = overrideKey !== undefined ? overrideKey : ((typeof window !== 'undefined' ? localStorage.getItem('gemini_api_key') : '') || '');
 
       setIsOcrLoading(true);
-      setScanStatusMessage('กำลังวิเคราะห์ชาร์ต TradingView ด้วย AI Vision...');
+      setScanStatusMessage('กำลังส่งภาพชาร์ต TradingView ให้ AI Gemini Vision วิเคราะห์ราคา...');
+      
       const res = await fetch('/api/ai/vision-trade', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -444,14 +469,16 @@ export default function TradeModal({ isOpen, onClose, onSave, initialData }: Tra
 
       const json = await res.json();
       if (!res.ok || !json.success) {
-        if (json.error === 'NO_API_KEY' || json.error === 'INVALID_API_KEY') {
+        if (json.error === 'NO_API_KEY' || json.error === 'INVALID_API_KEY' || json.error === 'PERMISSION_DENIED') {
           setPendingImageFile(file);
           setApiKeyError(json.message || 'Gemini API Key ไม่ถูกต้อง โปรดตรวจสอบอีกครั้ง');
+          setGeminiApiKeyInput(key);
           setIsApiKeyModalOpen(true);
           setScanStatusMessage(null);
           return;
         }
-        throw new Error(json.message || 'AI Vision ไม่สามารถวิเคราะห์รูปได้');
+        setScanStatusMessage(`❌ ${json.message || 'AI Vision ไม่สามารถวิเคราะห์รูปได้'}`);
+        return;
       }
 
       const { data } = json;
@@ -473,80 +500,15 @@ export default function TradeModal({ isOpen, onClose, onSave, initialData }: Tra
         notes: data.notes ? (prev.notes ? `${prev.notes}\n[TradingView]: ${data.notes}` : data.notes) : prev.notes
       }));
 
-      const msg = `✨ ดึงราคา TradingView สำเร็จ! [${newInstrument || 'กราฟ'} ${data.direction}] เข้า: ${data.entryPrice} | SL: ${data.stopLoss} | TP: ${data.takeProfit}`;
+      const msg = `✨ ดึงราคา TradingView สำเร็จ! [${newInstrument || 'ชาร์ต'} ${data.direction}] เข้า: ${data.entryPrice} | SL: ${data.stopLoss} | TP: ${data.takeProfit}`;
       setScanStatusMessage(msg);
       setTimeout(() => setScanStatusMessage(null), 8000);
     } catch (err: any) {
-      console.warn('AI Vision failed, trying local fallback...', err);
-      await fallbackLocalOcr(file);
+      console.error('AI Vision error:', err);
+      setScanStatusMessage(`❌ เกิดข้อผิดพลาดในการเชื่อมต่อ AI: ${err.message || 'โปรดตรวจสอบเครือข่าย'}`);
     } finally {
       setIsOcrLoading(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
-    }
-  };
-
-  const fallbackLocalOcr = async (file: File) => {
-    try {
-      const { createWorker } = await import('tesseract.js');
-      const worker = await createWorker('eng');
-      const ret = await worker.recognize(file);
-      await worker.terminate();
-      
-      const text = ret.data.text;
-      const cleanText = text.replace(/,/g, ''); 
-      
-      const tradeMatch = cleanText.match(/([A-Z0-9][A-Z0-9/\.-]{2,14})(?:[^a-zA-Z0-9]{0,5})(buy|sell)\b/i);
-      let instrument = formData.instrument;
-      let direction = formData.direction;
-      
-      if (tradeMatch) {
-        instrument = tradeMatch[1].replace(/[/]/g, '').toUpperCase();
-        direction = tradeMatch[2].toLowerCase() === 'buy' ? 'LONG' : 'SHORT';
-        if (!instruments.includes(instrument)) {
-          setInstruments(prev => [...prev, instrument]);
-        }
-      } else {
-        const symbolMatch = cleanText.match(/([A-Z]{3}\/?[A-Z]{3,4})/);
-        if (symbolMatch) {
-          instrument = symbolMatch[1].replace('/', '');
-        }
-        const dirMatch = cleanText.match(/\b(buy|sell)\b/i);
-        if (dirMatch) {
-          direction = dirMatch[1].toLowerCase() === 'buy' ? 'LONG' : 'SHORT';
-        }
-      }
-      
-      let lot = formData.lotSize;
-      let entry = formData.entryPrice;
-      let exit = formData.exitPrice;
-      let tp = formData.takeProfit;
-      let sl = formData.stopLoss;
-      let pnl = formData.netPnL;
-      
-      const numbers = cleanText.match(/-?\b\d+\.\d+\b/g);
-      if (numbers && numbers.length >= 3) {
-        entry = parseFloat(numbers[0]);
-        sl = parseFloat(numbers[1]);
-        tp = parseFloat(numbers[2]);
-      }
-      
-      setFormData(prev => ({
-        ...prev,
-        instrument: instrument || prev.instrument,
-        direction,
-        lotSize: lot,
-        entryPrice: entry,
-        exitPrice: exit > 0 ? exit : prev.exitPrice,
-        takeProfit: tp,
-        stopLoss: sl,
-        netPnL: pnl !== formData.netPnL ? pnl : prev.netPnL,
-        status: exit > 0 && pnl !== 0 ? (pnl > 0 ? 'WIN' : 'LOSS') : prev.status
-      }));
-      setScanStatusMessage('ดึงข้อมูลด้วย OCR สำเร็จ (แนะนำตรวจสอบความถูกต้อง)');
-      setTimeout(() => setScanStatusMessage(null), 5000);
-    } catch (err) {
-      console.error(err);
-      alert('อ่านรูปไม่สำเร็จ โปรดลองรูปที่ชัดเจนกว่านี้ หรือตั้งค่า Gemini API Key');
     }
   };
 
@@ -1389,7 +1351,7 @@ export default function TradeModal({ isOpen, onClose, onSave, initialData }: Tra
               <button
                 type="button"
                 onClick={() => { setIsApiKeyModalOpen(false); setPendingImageFile(null); }}
-                className="p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-white rounded-lg transition-colors"
+                className="p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-white rounded-lg transition-colors cursor-pointer"
               >
                 <X size={18} />
               </button>
@@ -1412,31 +1374,67 @@ export default function TradeModal({ isOpen, onClose, onSave, initialData }: Tra
                   </a>
                 </li>
                 <li>กดปุ่ม <b>&quot;Create API Key&quot;</b></li>
-                <li>คัดลอก Key มาวางในช่องด้านล่าง แล้วกดบันทึก</li>
+                <li>คัดลอก Key (ขึ้นต้นด้วย AIzaSy...) มาวางในช่องด้านล่าง</li>
               </ol>
             </div>
 
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
+            <div className="space-y-2">
+              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
                 Gemini API Key
               </label>
-              <input
-                type="password"
-                placeholder="AIzaSy..."
-                value={geminiApiKeyInput}
-                onChange={(e) => { setGeminiApiKeyInput(e.target.value); setApiKeyError(''); }}
-                className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-white/[0.04] border border-slate-200 dark:border-white/[0.1] text-xs font-mono text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-              {apiKeyError && (
-                <p className="text-xs text-red-500 mt-1 font-medium">{apiKeyError}</p>
+              <div className="flex gap-2">
+                <input
+                  type="password"
+                  placeholder="AIzaSy..."
+                  value={geminiApiKeyInput}
+                  onChange={(e) => { 
+                    setGeminiApiKeyInput(e.target.value); 
+                    setApiKeyError('');
+                    setApiKeySuccess('');
+                  }}
+                  className="flex-1 px-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-white/[0.04] border border-slate-200 dark:border-white/[0.1] text-xs font-mono text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+                <button
+                  type="button"
+                  onClick={handleTestApiKey}
+                  disabled={isTestingApiKey}
+                  className="px-3 py-2.5 rounded-xl text-xs font-bold text-blue-600 dark:text-blue-400 bg-blue-50 hover:bg-blue-100 dark:bg-blue-500/10 dark:hover:bg-blue-500/20 border border-blue-200 dark:border-blue-500/30 transition-colors flex items-center gap-1.5 disabled:opacity-50 cursor-pointer shrink-0"
+                >
+                  {isTestingApiKey ? (
+                    <>
+                      <Loader2 size={13} className="animate-spin" />
+                      <span>กำลังทดสอบ...</span>
+                    </>
+                  ) : (
+                    <span>ทดสอบ Key</span>
+                  )}
+                </button>
+              </div>
+
+              {apiKeySuccess && (
+                <div className="flex items-center gap-1.5 text-xs text-emerald-600 dark:text-emerald-400 font-bold bg-emerald-50 dark:bg-emerald-950/30 p-2.5 rounded-xl border border-emerald-200 dark:border-emerald-800/40 animate-fade-in">
+                  <CheckCircle2 size={14} className="shrink-0" />
+                  <span>{apiKeySuccess}</span>
+                </div>
               )}
+
+              {apiKeyError && (
+                <div className="flex items-start gap-1.5 text-xs text-red-500 font-medium bg-red-50 dark:bg-red-950/30 p-2.5 rounded-xl border border-red-200 dark:border-red-800/40 animate-fade-in">
+                  <AlertTriangle size={14} className="shrink-0 mt-0.5" />
+                  <span>{apiKeyError}</span>
+                </div>
+              )}
+
+              <p className="text-[11px] text-slate-400 dark:text-slate-500 leading-normal">
+                💡 ระบบจะเชื่อมต่อ Google Gemini Vision โดยตรงเพื่ออ่านราคา Long / Short Position บน TradingView
+              </p>
             </div>
 
             <div className="flex gap-2.5 pt-1">
               <button
                 type="button"
                 onClick={() => { setIsApiKeyModalOpen(false); setPendingImageFile(null); }}
-                className="flex-1 py-2.5 rounded-xl text-xs font-bold text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-white/[0.06] hover:bg-slate-200 dark:hover:bg-white/[0.1] transition-colors"
+                className="flex-1 py-2.5 rounded-xl text-xs font-bold text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-white/[0.06] hover:bg-slate-200 dark:hover:bg-white/[0.1] transition-colors cursor-pointer"
               >
                 ยกเลิก
               </button>
@@ -1456,7 +1454,7 @@ export default function TradeModal({ isOpen, onClose, onSave, initialData }: Tra
                     await processImage(file, key);
                   }
                 }}
-                className="flex-1 py-2.5 rounded-xl text-xs font-bold text-white bg-blue-500 hover:bg-blue-600 transition-colors shadow-lg shadow-blue-500/20"
+                className="flex-1 py-2.5 rounded-xl text-xs font-bold text-white bg-blue-500 hover:bg-blue-600 transition-colors shadow-lg shadow-blue-500/20 cursor-pointer"
               >
                 บันทึกและสแกนรูป
               </button>

@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import { useConfig } from '@/context/ConfigContext';
 import { useAuth } from '@/context/AuthContext';
-import { Settings2, Palette, CheckCircle2, Database, Download, Upload, RotateCcw, Lock, KeyRound, ShieldCheck, ShieldAlert, X, Cloud, RefreshCw, Sparkles, ExternalLink } from 'lucide-react';
+import { Settings2, Palette, CheckCircle2, Database, Download, Upload, RotateCcw, Lock, KeyRound, ShieldCheck, ShieldAlert, X, Cloud, RefreshCw, Sparkles, ExternalLink, Loader2, AlertTriangle } from 'lucide-react';
 import ColorPicker from '@/components/ColorPicker';
 import { exportAllData, importAllData } from '@/lib/clientStorage';
 import { isSupabaseConfigured, getSupabaseCredentials } from '@/lib/supabase';
@@ -25,6 +25,8 @@ export default function ConfigPage() {
     return '';
   });
   const [isSavedGeminiKey, setIsSavedGeminiKey] = useState(false);
+  const [isTestingGeminiKey, setIsTestingGeminiKey] = useState(false);
+  const [testGeminiResult, setTestGeminiResult] = useState<{ success: boolean; message: string } | null>(null);
 
   const handleSavePin = (e: React.FormEvent) => {
     e.preventDefault();
@@ -122,6 +124,33 @@ export default function ConfigPage() {
       lossColor: 'bg-slate-300 dark:bg-slate-700'
     }
   ] as const;
+
+  const handleTestGeminiKey = async () => {
+    const key = geminiApiKey.trim();
+    if (!key) {
+      alert('กรุณากรอก API Key ก่อนทดสอบ');
+      return;
+    }
+    setIsTestingGeminiKey(true);
+    setTestGeminiResult(null);
+    try {
+      const res = await fetch('/api/ai/test-key', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ apiKey: key })
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setTestGeminiResult({ success: true, message: data.message || 'เชื่อมต่อ Gemini API สำเร็จ!' });
+      } else {
+        setTestGeminiResult({ success: false, message: data.message || 'ทดสอบ Key ไม่สำเร็จ' });
+      }
+    } catch (err: any) {
+      setTestGeminiResult({ success: false, message: err.message || 'เกิดข้อผิดพลาดในการเชื่อมต่อ' });
+    } finally {
+      setIsTestingGeminiKey(false);
+    }
+  };
 
   return (
     <main className="p-6 md:p-8 animate-fade-in max-w-4xl mx-auto">
@@ -424,9 +453,25 @@ export default function ConfigPage() {
                   onChange={(e) => {
                     setGeminiApiKey(e.target.value);
                     setIsSavedGeminiKey(false);
+                    setTestGeminiResult(null);
                   }}
                   className="flex-1 px-4 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200/80 dark:border-white/[0.08] text-xs font-mono text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
+                <button
+                  type="button"
+                  onClick={handleTestGeminiKey}
+                  disabled={isTestingGeminiKey || !geminiApiKey.trim()}
+                  className="px-4 py-2.5 bg-blue-50 hover:bg-blue-100 dark:bg-blue-500/10 dark:hover:bg-blue-500/20 text-blue-600 dark:text-blue-400 font-bold text-xs rounded-xl transition border border-blue-200 dark:border-blue-500/30 flex items-center justify-center gap-1.5 disabled:opacity-50 cursor-pointer shrink-0"
+                >
+                  {isTestingGeminiKey ? (
+                    <>
+                      <Loader2 size={13} className="animate-spin" />
+                      <span>กำลังทดสอบ...</span>
+                    </>
+                  ) : (
+                    <span>ทดสอบ Key</span>
+                  )}
+                </button>
                 <button
                   type="button"
                   onClick={() => {
@@ -435,7 +480,7 @@ export default function ConfigPage() {
                     setIsSavedGeminiKey(true);
                     alert('บันทึก Gemini API Key เรียบร้อยแล้ว!');
                   }}
-                  className="px-6 py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs rounded-xl transition shadow-md shadow-blue-500/20 shrink-0"
+                  className="px-6 py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs rounded-xl transition shadow-md shadow-blue-500/20 shrink-0 cursor-pointer"
                 >
                   บันทึก Key
                 </button>
@@ -447,15 +492,34 @@ export default function ConfigPage() {
                         localStorage.removeItem('gemini_api_key');
                         setGeminiApiKey('');
                         setIsSavedGeminiKey(false);
+                        setTestGeminiResult(null);
                       }
                     }}
-                    className="px-4 py-2.5 bg-slate-100 hover:bg-red-50 text-slate-600 hover:text-red-600 dark:bg-slate-800 dark:hover:bg-red-950/40 dark:text-slate-400 dark:hover:text-red-400 font-bold text-xs rounded-xl transition shrink-0"
+                    className="px-4 py-2.5 bg-slate-100 hover:bg-red-50 text-slate-600 hover:text-red-600 dark:bg-slate-800 dark:hover:bg-red-950/40 dark:text-slate-400 dark:hover:text-red-400 font-bold text-xs rounded-xl transition shrink-0 cursor-pointer"
                   >
                     ลบ Key
                   </button>
                 )}
               </div>
-              {isSavedGeminiKey && (
+
+              {testGeminiResult && (
+                <div
+                  className={`mt-2.5 p-3 rounded-xl border flex items-center gap-2 text-xs font-semibold ${
+                    testGeminiResult.success
+                      ? 'bg-emerald-50 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-800/40 text-emerald-700 dark:text-emerald-400'
+                      : 'bg-red-50 dark:bg-red-950/30 border-red-200 dark:border-red-800/40 text-red-600 dark:text-red-400'
+                  }`}
+                >
+                  {testGeminiResult.success ? (
+                    <CheckCircle2 size={15} className="shrink-0" />
+                  ) : (
+                    <AlertTriangle size={15} className="shrink-0" />
+                  )}
+                  <span>{testGeminiResult.message}</span>
+                </div>
+              )}
+
+              {isSavedGeminiKey && !testGeminiResult && (
                 <p className="text-xs text-emerald-600 dark:text-emerald-400 font-bold mt-1.5 flex items-center gap-1">
                   ✓ บันทึก Key สำเร็จแล้ว พร้อมใช้งานในหน้าบันทึกเทรด
                 </p>
