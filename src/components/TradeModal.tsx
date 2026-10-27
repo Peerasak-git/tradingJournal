@@ -1,6 +1,6 @@
 'use client';
 
-import { X, Save, TrendingUp, TrendingDown, Clock, Target, ShieldCheck, Info, BarChart3, Calendar, Plus, Minus, Brain, Smile, Activity, ChevronDown, Search, FileText, ListChecks, CheckCircle2, AlertTriangle, Star, ClipboardPaste, Camera, Loader2, Link2, ExternalLink } from 'lucide-react';
+import { X, Save, TrendingUp, TrendingDown, Clock, Target, ShieldCheck, Info, BarChart3, Calendar, Plus, Minus, Brain, Smile, Activity, ChevronDown, Search, FileText, ListChecks, CheckCircle2, AlertTriangle, Star, ClipboardPaste, Camera, Loader2, Link2, ExternalLink, Sparkles } from 'lucide-react';
 import { Direction, TradeStatus, Trade } from '@/types/trade';
 import { useLanguage } from '@/context/LanguageContext';
 import { useAccount } from '@/context/AccountContext';
@@ -43,6 +43,11 @@ export default function TradeModal({ isOpen, onClose, onSave, initialData }: Tra
   const [pasteText, setPasteText] = useState('');
   
   const [isOcrLoading, setIsOcrLoading] = useState(false);
+  const [scanStatusMessage, setScanStatusMessage] = useState<string | null>(null);
+  const [isApiKeyModalOpen, setIsApiKeyModalOpen] = useState(false);
+  const [geminiApiKeyInput, setGeminiApiKeyInput] = useState('');
+  const [apiKeyError, setApiKeyError] = useState('');
+  const [pendingImageFile, setPendingImageFile] = useState<File | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [formData, setFormData] = useState({
@@ -397,8 +402,80 @@ export default function TradeModal({ isOpen, onClose, onSave, initialData }: Tra
     setTimeout(() => setPasteText(''), 500);
   };
 
-  const processImage = async (file: File) => {
+  const fileToBase64 = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = (err) => reject(err);
+      reader.readAsDataURL(file);
+    });
+  };
+
+  const processImage = async (file: File, overrideKey?: string) => {
+    const key = overrideKey || (typeof window !== 'undefined' ? localStorage.getItem('gemini_api_key') : '') || '';
+    if (!key) {
+      setPendingImageFile(file);
+      setIsApiKeyModalOpen(true);
+      return;
+    }
+
     setIsOcrLoading(true);
+    setScanStatusMessage('กำลังวิเคราะห์ชาร์ต TradingView ด้วย AI Vision...');
+    try {
+      const base64 = await fileToBase64(file);
+      const res = await fetch('/api/ai/vision-trade', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          imageBase64: base64,
+          apiKey: key
+        })
+      });
+
+      const json = await res.json();
+      if (!res.ok || !json.success) {
+        if (json.error === 'NO_API_KEY' || json.error === 'INVALID_API_KEY') {
+          setPendingImageFile(file);
+          setApiKeyError(json.message || 'Gemini API Key ไม่ถูกต้อง โปรดตรวจสอบอีกครั้ง');
+          setIsApiKeyModalOpen(true);
+          setScanStatusMessage(null);
+          return;
+        }
+        throw new Error(json.message || 'AI Vision ไม่สามารถวิเคราะห์รูปได้');
+      }
+
+      const { data } = json;
+      let newInstrument = data.instrument || formData.instrument;
+      if (newInstrument) {
+        newInstrument = newInstrument.toUpperCase().trim();
+        if (!instruments.includes(newInstrument)) {
+          setInstruments(prev => [...prev, newInstrument]);
+        }
+      }
+
+      setFormData(prev => ({
+        ...prev,
+        instrument: newInstrument || prev.instrument,
+        direction: (data.direction === 'SHORT' ? 'SHORT' : 'LONG') as Direction,
+        entryPrice: data.entryPrice > 0 ? data.entryPrice : prev.entryPrice,
+        stopLoss: data.stopLoss > 0 ? data.stopLoss : prev.stopLoss,
+        takeProfit: data.takeProfit > 0 ? data.takeProfit : prev.takeProfit,
+        notes: data.notes ? (prev.notes ? `${prev.notes}\n[TradingView]: ${data.notes}` : data.notes) : prev.notes
+      }));
+
+      const msg = `✨ ดึงราคา TradingView สำเร็จ! [${newInstrument || 'กราฟ'} ${data.direction}] เข้า: ${data.entryPrice} | SL: ${data.stopLoss} | TP: ${data.takeProfit}`;
+      setScanStatusMessage(msg);
+      setTimeout(() => setScanStatusMessage(null), 8000);
+    } catch (err: any) {
+      console.warn('AI Vision failed, trying local fallback...', err);
+      await fallbackLocalOcr(file);
+    } finally {
+      setIsOcrLoading(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
+  const fallbackLocalOcr = async (file: File) => {
     try {
       const { createWorker } = await import('tesseract.js');
       const worker = await createWorker('eng');
@@ -408,10 +485,7 @@ export default function TradeModal({ isOpen, onClose, onSave, initialData }: Tra
       const text = ret.data.text;
       const cleanText = text.replace(/,/g, ''); 
       
-      // Improved Symbol & Direction extraction
-      // Matches instruments like XAU/USD, US30, BTCUSDT placed near Buy/Sell
       const tradeMatch = cleanText.match(/([A-Z0-9][A-Z0-9/\.-]{2,14})(?:[^a-zA-Z0-9]{0,5})(buy|sell)\b/i);
-      
       let instrument = formData.instrument;
       let direction = formData.direction;
       
@@ -422,7 +496,6 @@ export default function TradeModal({ isOpen, onClose, onSave, initialData }: Tra
           setInstruments(prev => [...prev, instrument]);
         }
       } else {
-        // Fallback
         const symbolMatch = cleanText.match(/([A-Z]{3}\/?[A-Z]{3,4})/);
         if (symbolMatch) {
           instrument = symbolMatch[1].replace('/', '');
@@ -433,7 +506,6 @@ export default function TradeModal({ isOpen, onClose, onSave, initialData }: Tra
         }
       }
       
-      // Numbers (Lot, Open, Close, TP, SL, PnL)
       let lot = formData.lotSize;
       let entry = formData.entryPrice;
       let exit = formData.exitPrice;
@@ -441,66 +513,16 @@ export default function TradeModal({ isOpen, onClose, onSave, initialData }: Tra
       let sl = formData.stopLoss;
       let pnl = formData.netPnL;
       
-      let parsedByTokens = false;
-      const rowMatch = cleanText.match(/(buy|sell)\b(.*)/i);
-      
-      if (rowMatch) {
-        const tokens = rowMatch[2].trim().split(/\s+/);
-        if (tokens.length >= 5) {
-          const parseToken = (t: string) => {
-             if (t === '-') return 0;
-             const n = parseFloat(t);
-             return isNaN(n) ? 0 : n;
-          };
-          
-          lot = parseToken(tokens[0]);
-          entry = parseToken(tokens[1]);
-          exit = parseToken(tokens[2]);
-          tp = parseToken(tokens[3]);
-          sl = parseToken(tokens[4]);
-          
-          const lastToken = tokens[tokens.length - 1];
-          pnl = parseToken(lastToken);
-          parsedByTokens = true;
-        }
-      }
-      
-      if (!parsedByTokens) {
-        // Fallback for non-standard formats (searches for floats anywhere)
-        const numbers = cleanText.match(/-?\b\d+\.\d+\b/g);
-        if (numbers && numbers.length >= 4) {
-          lot = parseFloat(numbers[0]);
-          entry = parseFloat(numbers[1]);
-          
-          if (numbers.length >= 6) {
-            exit = parseFloat(numbers[2]);
-            tp = parseFloat(numbers[3]);
-            sl = parseFloat(numbers[4]);
-            pnl = parseFloat(numbers[numbers.length - 1]);
-          } else if (numbers.length === 5) {
-            exit = parseFloat(numbers[2]);
-            tp = parseFloat(numbers[3]);
-            sl = parseFloat(numbers[4]);
-          } else {
-            const remaining = numbers.slice(2).map(parseFloat).filter(n => n > 0);
-            if (direction === 'LONG') {
-               const potentialTP = remaining.find(n => n > entry);
-               const potentialSL = remaining.find(n => n < entry);
-               if (potentialTP) tp = potentialTP;
-               if (potentialSL) sl = potentialSL;
-            } else {
-               const potentialTP = remaining.find(n => n < entry);
-               const potentialSL = remaining.find(n => n > entry);
-               if (potentialTP) tp = potentialTP;
-               if (potentialSL) sl = potentialSL;
-            }
-          }
-        }
+      const numbers = cleanText.match(/-?\b\d+\.\d+\b/g);
+      if (numbers && numbers.length >= 3) {
+        entry = parseFloat(numbers[0]);
+        sl = parseFloat(numbers[1]);
+        tp = parseFloat(numbers[2]);
       }
       
       setFormData(prev => ({
         ...prev,
-        instrument,
+        instrument: instrument || prev.instrument,
         direction,
         lotSize: lot,
         entryPrice: entry,
@@ -510,13 +532,11 @@ export default function TradeModal({ isOpen, onClose, onSave, initialData }: Tra
         netPnL: pnl !== formData.netPnL ? pnl : prev.netPnL,
         status: exit > 0 && pnl !== 0 ? (pnl > 0 ? 'WIN' : 'LOSS') : prev.status
       }));
-      
+      setScanStatusMessage('ดึงข้อมูลด้วย OCR สำเร็จ (แนะนำตรวจสอบความถูกต้อง)');
+      setTimeout(() => setScanStatusMessage(null), 5000);
     } catch (err) {
       console.error(err);
-      alert('อ่านรูปไม่สำเร็จ โปรดลองรูปที่ชัดเจนกว่านี้ครับ');
-    } finally {
-      setIsOcrLoading(false);
-      if (fileInputRef.current) fileInputRef.current.value = '';
+      alert('อ่านรูปไม่สำเร็จ โปรดลองรูปที่ชัดเจนกว่านี้ หรือตั้งค่า Gemini API Key');
     }
   };
 
@@ -682,6 +702,19 @@ export default function TradeModal({ isOpen, onClose, onSave, initialData }: Tra
           </div>
         )}
 
+        {/* AI Scan Status Banner */}
+        {scanStatusMessage && (
+          <div className="mx-7 mt-3 px-4 py-2.5 rounded-xl bg-blue-50 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-500/30 flex items-center justify-between text-xs text-blue-700 dark:text-blue-300 animate-fade-in">
+            <div className="flex items-center gap-2">
+              <Sparkles size={14} className="text-blue-500 shrink-0 animate-pulse" />
+              <span className="font-medium">{scanStatusMessage}</span>
+            </div>
+            <button onClick={() => setScanStatusMessage(null)} className="text-slate-400 hover:text-slate-600 dark:hover:text-white">
+              <X size={14} />
+            </button>
+          </div>
+        )}
+
         {/* Form */}
         <form onSubmit={handleSubmit} className="px-7 py-6 max-h-[75vh] overflow-y-auto custom-scrollbar">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
@@ -714,8 +747,9 @@ export default function TradeModal({ isOpen, onClose, onSave, initialData }: Tra
                   <button
                     type="button"
                     onClick={() => fileInputRef.current?.click()}
-                    className="p-1.5 bg-slate-100 dark:bg-white/[0.06] hover:bg-slate-200 dark:hover:bg-white/[0.1] rounded-lg text-slate-500 dark:text-slate-400 transition-colors shrink-0"
-                    title="สแกนจากรูปภาพ (OCR)"
+                    disabled={isOcrLoading}
+                    className="p-1.5 bg-blue-50 dark:bg-blue-500/10 hover:bg-blue-100 dark:hover:bg-blue-500/20 text-blue-600 dark:text-blue-400 border border-blue-200/70 dark:border-blue-500/30 rounded-lg transition-colors shrink-0 shadow-sm"
+                    title="สแกนราคาจากรูปภาพ TradingView (AI Vision)"
                   >
                     {isOcrLoading ? <Loader2 size={14} className="animate-spin text-blue-500" /> : <Camera size={14} />}
                   </button>
@@ -1281,6 +1315,99 @@ export default function TradeModal({ isOpen, onClose, onSave, initialData }: Tra
           </div>
         </form>
       </div>
+
+      {/* Gemini API Key Modal */}
+      {isApiKeyModalOpen && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-fade-in">
+          <div className="bg-white dark:bg-[#1a1a1a] rounded-2xl max-w-md w-full border border-slate-200 dark:border-white/[0.08] shadow-2xl p-6 space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2.5 rounded-xl bg-blue-500/10 text-blue-500">
+                  <Sparkles size={20} />
+                </div>
+                <div>
+                  <h3 className="font-bold text-slate-900 dark:text-white text-base">ระบบสแกน TradingView ด้วย AI</h3>
+                  <p className="text-xs text-slate-400">ดึงราคา Entry, SL, TP และคู่เงินอัตโนมัติ</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => { setIsApiKeyModalOpen(false); setPendingImageFile(null); }}
+                className="p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-white rounded-lg transition-colors"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="p-3.5 bg-blue-50/70 dark:bg-blue-500/10 rounded-xl border border-blue-100 dark:border-blue-500/20 text-xs text-slate-600 dark:text-slate-300 space-y-2">
+              <p className="font-semibold text-blue-600 dark:text-blue-400 flex items-center gap-1.5">
+                📌 วิธีรับ Gemini API Key ฟรี (ไม่เสียค่าใช้จ่าย):
+              </p>
+              <ol className="list-decimal pl-4 space-y-1.5 text-slate-500 dark:text-slate-400 leading-relaxed">
+                <li>
+                  เปิดไปที่{' '}
+                  <a
+                    href="https://aistudio.google.com/app/apikey"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-blue-500 font-bold underline inline-flex items-center gap-0.5"
+                  >
+                    Google AI Studio <ExternalLink size={11} />
+                  </a>
+                </li>
+                <li>กดปุ่ม <b>&quot;Create API Key&quot;</b></li>
+                <li>คัดลอก Key มาวางในช่องด้านล่าง แล้วกดบันทึก</li>
+              </ol>
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
+                Gemini API Key
+              </label>
+              <input
+                type="password"
+                placeholder="AIzaSy..."
+                value={geminiApiKeyInput}
+                onChange={(e) => { setGeminiApiKeyInput(e.target.value); setApiKeyError(''); }}
+                className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-white/[0.04] border border-slate-200 dark:border-white/[0.1] text-xs font-mono text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+              {apiKeyError && (
+                <p className="text-xs text-red-500 mt-1 font-medium">{apiKeyError}</p>
+              )}
+            </div>
+
+            <div className="flex gap-2.5 pt-1">
+              <button
+                type="button"
+                onClick={() => { setIsApiKeyModalOpen(false); setPendingImageFile(null); }}
+                className="flex-1 py-2.5 rounded-xl text-xs font-bold text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-white/[0.06] hover:bg-slate-200 dark:hover:bg-white/[0.1] transition-colors"
+              >
+                ยกเลิก
+              </button>
+              <button
+                type="button"
+                onClick={async () => {
+                  if (!geminiApiKeyInput.trim()) {
+                    setApiKeyError('กรุณากรอก API Key');
+                    return;
+                  }
+                  const key = geminiApiKeyInput.trim();
+                  localStorage.setItem('gemini_api_key', key);
+                  setIsApiKeyModalOpen(false);
+                  if (pendingImageFile) {
+                    const file = pendingImageFile;
+                    setPendingImageFile(null);
+                    await processImage(file, key);
+                  }
+                }}
+                className="flex-1 py-2.5 rounded-xl text-xs font-bold text-white bg-blue-500 hover:bg-blue-600 transition-colors shadow-lg shadow-blue-500/20"
+              >
+                บันทึกและสแกนรูป
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
