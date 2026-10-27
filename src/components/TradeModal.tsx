@@ -48,6 +48,7 @@ export default function TradeModal({ isOpen, onClose, onSave, initialData }: Tra
   const [geminiApiKeyInput, setGeminiApiKeyInput] = useState('');
   const [apiKeyError, setApiKeyError] = useState('');
   const [pendingImageFile, setPendingImageFile] = useState<File | null>(null);
+  const [isZoomImageOpen, setIsZoomImageOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [formData, setFormData] = useState({
@@ -69,6 +70,7 @@ export default function TradeModal({ isOpen, onClose, onSave, initialData }: Tra
     selfAssessment: 0,
     tradingViewUrl: '',
     exitTradingViewUrl: '',
+    entryImage: '',
   });
 
   useEffect(() => {
@@ -170,8 +172,9 @@ export default function TradeModal({ isOpen, onClose, onSave, initialData }: Tra
         postTrade: initialData.notes.postTrade || '',
         notes: initialData.notes.detailedNotes || '',
         selfAssessment: initialData.notes.selfAssessment || 0,
-        tradingViewUrl: initialData.notes.tradingViewUrl || initialData.notes.entryImage || '',
-        exitTradingViewUrl: initialData.notes.exitTradingViewUrl || initialData.notes.exitImage || '',
+        tradingViewUrl: initialData.notes.tradingViewUrl || '',
+        exitTradingViewUrl: initialData.notes.exitTradingViewUrl || '',
+        entryImage: initialData.notes.entryImage || '',
       });
     } else {
       setFormData({
@@ -193,6 +196,7 @@ export default function TradeModal({ isOpen, onClose, onSave, initialData }: Tra
         selfAssessment: 0,
         tradingViewUrl: '',
         exitTradingViewUrl: '',
+        entryImage: '',
       });
     }
   }, [initialData, isOpen]);
@@ -320,7 +324,7 @@ export default function TradeModal({ isOpen, onClose, onSave, initialData }: Tra
         selfAssessment: formData.selfAssessment > 0 ? formData.selfAssessment : null,
         tradingViewUrl: formData.tradingViewUrl?.trim() || null,
         exitTradingViewUrl: formData.exitTradingViewUrl?.trim() || null,
-        entryImage: formData.tradingViewUrl?.trim() || initialData?.notes?.entryImage || null,
+        entryImage: formData.entryImage || formData.tradingViewUrl?.trim() || initialData?.notes?.entryImage || null,
         exitImage: formData.exitTradingViewUrl?.trim() || initialData?.notes?.exitImage || null,
       },
       exitDate: initialData ? initialData.exitDate : (formData.status !== 'OPEN' ? new Date().toISOString() : null),
@@ -412,17 +416,23 @@ export default function TradeModal({ isOpen, onClose, onSave, initialData }: Tra
   };
 
   const processImage = async (file: File, overrideKey?: string) => {
-    const key = overrideKey || (typeof window !== 'undefined' ? localStorage.getItem('gemini_api_key') : '') || '';
-    if (!key) {
-      setPendingImageFile(file);
-      setIsApiKeyModalOpen(true);
-      return;
-    }
-
-    setIsOcrLoading(true);
-    setScanStatusMessage('กำลังวิเคราะห์ชาร์ต TradingView ด้วย AI Vision...');
     try {
       const base64 = await fileToBase64(file);
+      // Set image preview immediately so the user sees their chart right away
+      setFormData(prev => ({
+        ...prev,
+        entryImage: base64
+      }));
+
+      const key = overrideKey || (typeof window !== 'undefined' ? localStorage.getItem('gemini_api_key') : '') || '';
+      if (!key) {
+        setPendingImageFile(file);
+        setIsApiKeyModalOpen(true);
+        return;
+      }
+
+      setIsOcrLoading(true);
+      setScanStatusMessage('กำลังวิเคราะห์ชาร์ต TradingView ด้วย AI Vision...');
       const res = await fetch('/api/ai/vision-trade', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -757,6 +767,52 @@ export default function TradeModal({ isOpen, onClose, onSave, initialData }: Tra
               </div>
 
               <div className="space-y-5">
+                {/* Image Preview if user pasted / uploaded an image */}
+                {formData.entryImage && (
+                  <div className="relative rounded-2xl overflow-hidden border border-blue-200/80 dark:border-blue-500/30 bg-blue-50/20 dark:bg-blue-950/20 p-2.5 animate-fade-in space-y-2">
+                    <div className="flex items-center justify-between px-1">
+                      <span className="flex items-center gap-1.5 text-xs font-bold text-blue-600 dark:text-blue-400">
+                        <Sparkles size={13} className="shrink-0" />
+                        รูปชาร์ต TradingView ที่นำเข้า
+                      </span>
+                      <div className="flex items-center gap-1">
+                        <button
+                          type="button"
+                          onClick={() => setIsZoomImageOpen(true)}
+                          className="px-2 py-1 text-[11px] font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-200/60 dark:hover:bg-white/[0.08] rounded-lg transition-colors flex items-center gap-1 cursor-pointer"
+                        >
+                          <Search size={11} />
+                          ดูรูปขยาย
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setFormData(prev => ({ ...prev, entryImage: '' }))}
+                          className="px-2 py-1 text-[11px] font-semibold text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-lg transition-colors flex items-center gap-1 cursor-pointer"
+                        >
+                          <X size={11} />
+                          ลบรูป
+                        </button>
+                      </div>
+                    </div>
+                    
+                    <div 
+                      onClick={() => setIsZoomImageOpen(true)}
+                      className="relative w-full max-h-48 rounded-xl overflow-hidden cursor-pointer bg-slate-900/5 dark:bg-black/40 flex items-center justify-center group"
+                    >
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={formData.entryImage}
+                        alt="TradingView Chart"
+                        className="w-full h-auto max-h-48 object-contain rounded-xl group-hover:scale-[1.01] transition-transform"
+                      />
+                      <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-xs font-semibold gap-1.5">
+                        <Search size={14} />
+                        คลิกเพื่อดูภาพขยาย
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 <div>
                   <label className={labelClasses}>{t('entryPrice')}</label>
                   <input
@@ -1405,6 +1461,30 @@ export default function TradeModal({ isOpen, onClose, onSave, initialData }: Tra
                 บันทึกและสแกนรูป
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Zoom Image Lightbox Modal */}
+      {isZoomImageOpen && formData.entryImage && (
+        <div
+          className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/90 backdrop-blur-md animate-fade-in"
+          onClick={() => setIsZoomImageOpen(false)}
+        >
+          <div className="relative max-w-5xl w-full max-h-[92vh] flex flex-col items-center">
+            <button
+              onClick={() => setIsZoomImageOpen(false)}
+              className="absolute -top-12 right-0 p-2 text-white/80 hover:text-white rounded-full bg-white/10 hover:bg-white/20 transition-colors cursor-pointer"
+            >
+              <X size={22} />
+            </button>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={formData.entryImage}
+              alt="TradingView Chart Full"
+              className="max-w-full max-h-[85vh] object-contain rounded-2xl shadow-2xl border border-white/10"
+              onClick={(e) => e.stopPropagation()}
+            />
           </div>
         </div>
       )}

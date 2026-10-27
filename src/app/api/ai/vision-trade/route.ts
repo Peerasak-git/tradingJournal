@@ -35,36 +35,58 @@ export async function POST(req: NextRequest) {
     }
 
     const promptText = `
-You are an expert financial market analyst specializing in TradingView charts.
-The user uploaded a screenshot of a TradingView chart with an order or a "Long Position" / "Short Position" tool.
+You are an expert TradingView chart analyst.
+The user uploaded a screenshot of a TradingView chart containing a "Long Position" or "Short Position" drawing tool.
 
-Examine the chart carefully and extract:
-1. "instrument": Symbol / pair name in uppercase (e.g. "XAUUSD", "BTCUSDT", "EURUSD", "US30", "NAS100", etc.). Look at the watermark text in the background, top-left chart header, or on the axis labels.
-2. "direction": Either "LONG" (Buy) or "SHORT" (Sell).
-   - If the target zone (often green/blue) is ABOVE the entry line, and stop zone is BELOW -> "LONG"
-   - If the target zone is BELOW the entry line, and stop zone is ABOVE -> "SHORT"
-3. "entryPrice": Exact price number of entry (usually the middle line separating profit and loss zones, or grey badge on the right price axis).
-4. "stopLoss": Exact stop loss price number (outer boundary of the stop loss zone, or red/grey badge on the right price axis).
-5. "takeProfit": Exact take profit target price number (outer boundary of the profit zone, or blue/green badge on the right price axis).
-6. "timeframe": Timeframe string if visible (e.g. "1m", "5m", "15m", "1h", "4h", "D").
-7. "riskRewardRatio": Number for Risk/Reward ratio if printed on the tool box (e.g. 3.76).
-8. "notes": Brief 1-sentence note of what was detected.
+Examine the chart carefully and follow these strict visual instructions:
+
+1. IDENTIFY THE POSITION TOOL:
+   - A rectangular box split into TWO colored zones:
+     a) Target / Profit zone: usually shaded light blue or green.
+     b) Stop / Loss zone: usually shaded light grey or red.
+   - The solid horizontal line dividing the two zones is the ENTRY LEVEL.
+
+2. DETERMINE DIRECTION:
+   - If the Target/Profit zone (blue/green) is on TOP, and Stop zone (grey/red) is on BOTTOM:
+     -> direction = "LONG"
+   - If the Target/Profit zone (blue/green) is on BOTTOM, and Stop zone (grey/red) is on TOP:
+     -> direction = "SHORT"
+
+3. READ THE 3 PRICE BADGES ON THE RIGHT VERTICAL PRICE AXIS:
+   TradingView draws specific badge labels on the right vertical price scale corresponding to the position tool:
+   - For a "LONG" position:
+     * "takeProfit": The badge aligned with the TOP boundary of the blue/green target box. (HIGHEST of the 3 numbers).
+     * "entryPrice": The badge aligned with the horizontal dividing line between target and stop zones. (MIDDLE of the 3 numbers).
+     * "stopLoss": The badge aligned with the BOTTOM boundary of the grey/red stop box. (LOWEST of the 3 numbers).
+   - For a "SHORT" position:
+     * "stopLoss": The badge aligned with the TOP boundary of the stop box. (HIGHEST of the 3 numbers).
+     * "entryPrice": The badge aligned with the horizontal dividing line. (MIDDLE of the 3 numbers).
+     * "takeProfit": The badge aligned with the BOTTOM boundary of the target box. (LOWEST of the 3 numbers).
+
+4. ⚠️ CRITICAL BADGES TO IGNORE (DO NOT USE THESE!):
+   - DO NOT use the black badge that has a countdown timer (e.g. "00:14", "00:49", etc.). That is the CURRENT LIVE MARKET PRICE.
+   - DO NOT use any badge connected to a dashed mouse crosshair with a (+) plus icon (e.g. at the bottom of the screen).
+   - DO NOT use the regular grey price scale grid marks (e.g. 4020.000, 4018.000, 4016.000, etc.).
+
+5. IDENTIFY INSTRUMENT & TIMEFRAME:
+   - Check the top-left text (e.g. "XAUUSD · 1 · OANDA" -> instrument="XAUUSD", timeframe="1m")
+   - Or the large faint watermark in the center of the chart (e.g. "XAUUSD, 1" -> instrument="XAUUSD", timeframe="1m")
+   - Common symbols: XAUUSD, BTCUSDT, EURUSD, GBPUSD, USDJPY, US30, NAS100, ETHUSDT, etc.
 
 Return ONLY a valid JSON object matching this schema:
 {
   "instrument": "XAUUSD",
   "direction": "LONG",
-  "entryPrice": 4006.519,
-  "stopLoss": 4003.331,
-  "takeProfit": 4018.634,
+  "entryPrice": 4010.302,
+  "stopLoss": 4007.114,
+  "takeProfit": 4017.628,
   "timeframe": "1m",
-  "riskRewardRatio": 3.76,
   "notes": "Long setup on XAUUSD"
 }
 `;
 
-    // Try models in cascade: gemini-2.5-flash, gemini-2.0-flash, gemini-1.5-flash
-    const models = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash'];
+    // Try models in cascade: gemini-2.0-flash, gemini-1.5-flash, gemini-1.5-pro
+    const models = ['gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-1.5-pro'];
     let lastError: any = null;
     let geminiResponse: any = null;
 
@@ -89,7 +111,8 @@ Return ONLY a valid JSON object matching this schema:
               }
             ],
             generationConfig: {
-              responseMimeType: 'application/json'
+              responseMimeType: 'application/json',
+              temperature: 0.1
             }
           })
         });
@@ -100,7 +123,6 @@ Return ONLY a valid JSON object matching this schema:
         } else {
           const errData = await res.json().catch(() => ({}));
           lastError = errData?.error?.message || `Model ${model} returned status ${res.status}`;
-          // If invalid API key, don't try other models
           if (res.status === 400 && lastError.toLowerCase().includes('api_key_invalid')) {
             return NextResponse.json(
               { success: false, error: 'INVALID_API_KEY', message: 'Gemini API Key ไม่ถูกต้อง โปรดตรวจสอบอีกครั้ง' },
@@ -135,13 +157,36 @@ Return ONLY a valid JSON object matching this schema:
     const cleanedText = rawText.replace(/```json/gi, '').replace(/```/g, '').trim();
     const parsedData = JSON.parse(cleanedText);
 
-    // Sanitize and coerce numbers
+    let direction: 'LONG' | 'SHORT' = parsedData.direction === 'SHORT' ? 'SHORT' : 'LONG';
+    let entryPrice = typeof parsedData.entryPrice === 'number' ? parsedData.entryPrice : parseFloat(parsedData.entryPrice) || 0;
+    let stopLoss = typeof parsedData.stopLoss === 'number' ? parsedData.stopLoss : parseFloat(parsedData.stopLoss) || 0;
+    let takeProfit = typeof parsedData.takeProfit === 'number' ? parsedData.takeProfit : parseFloat(parsedData.takeProfit) || 0;
+
+    // Geometric Sanity Check for TradingView Position Tools
+    // In Long: TakeProfit > EntryPrice > StopLoss
+    // In Short: StopLoss > EntryPrice > TakeProfit
+    const validPrices = [entryPrice, stopLoss, takeProfit].filter(p => p > 0);
+    if (validPrices.length === 3) {
+      const sorted = [...validPrices].sort((a, b) => a - b);
+      if (direction === 'LONG') {
+        // [lowest = SL, middle = Entry, highest = TP]
+        stopLoss = sorted[0];
+        entryPrice = sorted[1];
+        takeProfit = sorted[2];
+      } else {
+        // [lowest = TP, middle = Entry, highest = SL]
+        takeProfit = sorted[0];
+        entryPrice = sorted[1];
+        stopLoss = sorted[2];
+      }
+    }
+
     const result = {
       instrument: typeof parsedData.instrument === 'string' ? parsedData.instrument.replace(/[/]/g, '').toUpperCase().trim() : '',
-      direction: parsedData.direction === 'SHORT' ? 'SHORT' : 'LONG',
-      entryPrice: typeof parsedData.entryPrice === 'number' ? parsedData.entryPrice : parseFloat(parsedData.entryPrice) || 0,
-      stopLoss: typeof parsedData.stopLoss === 'number' ? parsedData.stopLoss : parseFloat(parsedData.stopLoss) || 0,
-      takeProfit: typeof parsedData.takeProfit === 'number' ? parsedData.takeProfit : parseFloat(parsedData.takeProfit) || 0,
+      direction,
+      entryPrice,
+      stopLoss,
+      takeProfit,
       timeframe: parsedData.timeframe || '',
       riskRewardRatio: typeof parsedData.riskRewardRatio === 'number' ? parsedData.riskRewardRatio : parseFloat(parsedData.riskRewardRatio) || 0,
       notes: parsedData.notes || ''
