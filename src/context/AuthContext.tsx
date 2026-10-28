@@ -14,7 +14,7 @@ interface AuthContextType {
   isPasswordRecovery: boolean;
   setIsPasswordRecovery: (value: boolean) => void;
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
-  signUp: (email: string, password: string, displayName?: string) => Promise<{ error: Error | null }>;
+  signUp: (email: string, password: string, displayName?: string) => Promise<{ error: Error | null; needsConfirmation?: boolean }>;
   signOut: () => Promise<void>;
   resetPasswordForEmail: (email: string) => Promise<{ error: Error | null }>;
   updateUserPassword: (password: string) => Promise<{ error: Error | null }>;
@@ -174,7 +174,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  const signUp = useCallback(async (email: string, password: string, displayName?: string): Promise<{ error: Error | null }> => {
+  const signUp = useCallback(async (email: string, password: string, displayName?: string): Promise<{ error: Error | null; needsConfirmation?: boolean }> => {
     const supabase = getSupabase();
     if (!supabase) {
       return { error: new Error('Supabase is not configured. Please check settings.') };
@@ -196,11 +196,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return { error: new Error(error.message) };
       }
 
-      if (data?.user) {
+      if (data?.user && data.session) {
         const mapped = mapSupabaseUserToAppUser(data.user);
         setUser(mapped);
         localStorage.setItem('tj_user', JSON.stringify(mapped));
+        return { error: null, needsConfirmation: false };
       }
+
+      if (data?.user && !data.session) {
+        return { error: null, needsConfirmation: true };
+      }
+
       return { error: null };
     } catch (err: any) {
       return { error: err instanceof Error ? err : new Error(String(err)) };

@@ -52,6 +52,23 @@ export default function LoginPage() {
     }
   }, [user, authLoading, router, mode, isPasswordRecovery]);
 
+  const formatAuthError = (msg?: string) => {
+    if (!msg) return t('loginFailed');
+    const lower = msg.toLowerCase();
+    if (lower.includes('email not confirmed')) {
+      return language === 'th'
+        ? 'อีเมลนี้ยังไม่ได้รับการยืนยัน กรุณาตรวจสอบกล่องข้อความหรือโฟลเดอร์สแปมในอีเมลของคุณ (หรือปิด "Confirm email" ใน Supabase Dashboard)'
+        : 'Email not confirmed. Please check your inbox or spam folder.';
+    }
+    if (lower.includes('invalid login credentials')) {
+      return language === 'th' ? 'อีเมลหรือรหัสผ่านไม่ถูกต้อง' : 'Invalid email or password.';
+    }
+    if (lower.includes('user already registered')) {
+      return language === 'th' ? 'อีเมลนี้ถูกลงทะเบียนไว้แล้ว กรุณาเข้าสู่ระบบ' : 'User already registered. Please sign in.';
+    }
+    return msg;
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage('');
@@ -67,12 +84,12 @@ export default function LoginPage() {
       try {
         const { error } = await resetPasswordForEmail(email);
         if (error) {
-          setErrorMessage(error.message || t('resetLinkFailed'));
+          setErrorMessage(formatAuthError(error.message));
         } else {
           setSuccessMessage(t('resetLinkSent'));
         }
       } catch (err: any) {
-        setErrorMessage(err.message || t('resetLinkFailed'));
+        setErrorMessage(formatAuthError(err.message));
       } finally {
         setSubmitting(false);
       }
@@ -93,7 +110,7 @@ export default function LoginPage() {
       try {
         const { error } = await updateUserPassword(password);
         if (error) {
-          setErrorMessage(error.message);
+          setErrorMessage(formatAuthError(error.message));
         } else {
           setSuccessMessage(t('passwordUpdatedSuccess'));
           setTimeout(() => {
@@ -131,15 +148,22 @@ export default function LoginPage() {
       if (mode === 'signin') {
         const { error } = await signIn(email, password);
         if (error) {
-          setErrorMessage(error.message || t('loginFailed'));
+          setErrorMessage(formatAuthError(error.message));
         } else {
           setSuccessMessage(t('loginSuccess'));
           setTimeout(() => router.push('/'), 400);
         }
       } else {
-        const { error } = await signUp(email, password, displayName);
+        const { error, needsConfirmation } = await signUp(email, password, displayName);
         if (error) {
-          setErrorMessage(error.message || t('registerFailed'));
+          setErrorMessage(formatAuthError(error.message));
+        } else if (needsConfirmation) {
+          setSuccessMessage(
+            language === 'th'
+              ? 'สมัครสมาชิกสำเร็จ! โปรดตรวจสอบอีเมลของคุณเพื่อกดยืนยันตัวตนก่อนเข้าสู่ระบบ'
+              : 'Registration successful! Please check your email to confirm your account before logging in.'
+          );
+          setMode('signin');
         } else {
           setSuccessMessage(t('registerSuccess'));
           setTimeout(() => router.push('/'), 600);
