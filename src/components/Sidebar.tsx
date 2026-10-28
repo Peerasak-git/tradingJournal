@@ -71,7 +71,7 @@ export default function Sidebar() {
       items: [
         { name: t('dashboard'), icon: LayoutDashboard, href: '/' },
         { name: 'Trade History', icon: History, href: '/history' },
-        { name: 'Analysis', icon: BarChart2, href: '/analysis' },
+        { name: t('analysis') || 'Analysis', icon: BarChart2, href: '/analysis' },
       ],
     },
     {
