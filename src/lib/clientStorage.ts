@@ -22,16 +22,30 @@ function isClient(): boolean {
   return typeof window !== 'undefined';
 }
 
-export function getActiveUserId(): string | null {
+export function getActiveUser(): User | null {
   if (!isClient()) return null;
   const local = localStorage.getItem(KEYS.USER);
   if (local) {
     try {
-      const u = JSON.parse(local);
-      return u?.id || null;
+      return JSON.parse(local);
     } catch {}
   }
   return null;
+}
+
+export function getActiveUserId(): string | null {
+  const u = getActiveUser();
+  return u?.id || null;
+}
+
+export function getActiveUserEmail(): string | null {
+  const u = getActiveUser();
+  return u?.email?.toLowerCase().trim() || null;
+}
+
+export function shouldMigrateAdminData(email?: string | null): boolean {
+  const targetEmail = (email || getActiveUserEmail())?.toLowerCase().trim();
+  return targetEmail === 'cs.peerasak@gmail.com';
 }
 
 export function getUserKey(baseKey: string): string {
@@ -45,6 +59,7 @@ export async function getTrades(): Promise<Trade[]> {
 
   const supabase = getSupabase();
   const currentUserId = getActiveUserId();
+  const isTargetAdmin = shouldMigrateAdminData();
 
   if (supabase) {
     try {
@@ -58,13 +73,32 @@ export async function getTrades(): Promise<Trade[]> {
           ...(row.data as Trade),
           userId: row.data?.userId || row.user_id || undefined,
         }));
-        if (currentUserId) {
+
+        if (isTargetAdmin && currentUserId) {
+          let claimed = false;
+          trades = trades.map(t => {
+            if (!t.userId || t.userId === 'u-001' || t.userId === currentUserId) {
+              if (t.userId !== currentUserId) claimed = true;
+              return { ...t, userId: currentUserId };
+            }
+            return t;
+          }).filter(t => t.userId === currentUserId);
+
+          if (claimed || trades.length > 0) {
+            localStorage.setItem(getUserKey(KEYS.TRADES), JSON.stringify(trades));
+            if (claimed) syncTradesToSupabase(trades).catch(console.error);
+            if (trades.length > 0) return trades;
+          }
+        } else if (currentUserId) {
           trades = trades.filter(t => t.userId === currentUserId);
         } else {
-          trades = trades.filter(t => !t.userId);
+          trades = trades.filter(t => !t.userId || t.userId === 'u-001');
         }
-        localStorage.setItem(getUserKey(KEYS.TRADES), JSON.stringify(trades));
-        return trades;
+
+        if (trades.length > 0) {
+          localStorage.setItem(getUserKey(KEYS.TRADES), JSON.stringify(trades));
+          return trades;
+        }
       }
     } catch (err) {
       console.warn('Supabase fetch failed, falling back to local cache:', err);
@@ -77,14 +111,53 @@ export async function getTrades(): Promise<Trade[]> {
   if (local) {
     try {
       let parsed: Trade[] = JSON.parse(local);
-      if (currentUserId) {
+      if (isTargetAdmin && currentUserId) {
+        parsed = parsed.map(t => ({ ...t, userId: currentUserId }));
+      } else if (currentUserId) {
         parsed = parsed.filter(t => t.userId === currentUserId);
       } else {
-        parsed = parsed.filter(t => !t.userId);
+        parsed = parsed.filter(t => !t.userId || t.userId === 'u-001');
       }
-      return parsed;
+      if (parsed.length > 0) return parsed;
     } catch (e) {
       console.error('Error parsing trades from localStorage', e);
+    }
+  }
+
+  // Check unscoped local cache if target admin
+  if (isTargetAdmin && currentUserId) {
+    const rawLocal = localStorage.getItem(KEYS.TRADES);
+    if (rawLocal) {
+      try {
+        let parsed: Trade[] = JSON.parse(rawLocal);
+        parsed = parsed.map(t => ({ ...t, userId: currentUserId }));
+        if (parsed.length > 0) {
+          localStorage.setItem(getUserKey(KEYS.TRADES), JSON.stringify(parsed));
+          if (supabase) syncTradesToSupabase(parsed).catch(console.error);
+          return parsed;
+        }
+      } catch {}
+    }
+  }
+
+  // Seed from API for target admin or guest
+  if (isTargetAdmin || !currentUserId) {
+    try {
+      const res = await fetch('/api/trades');
+      if (res.ok) {
+        const data = await res.json();
+        let trades: Trade[] = data.trades || [];
+        if (currentUserId && isTargetAdmin) {
+          trades = trades.map(t => ({ ...t, userId: currentUserId }));
+          localStorage.setItem(getUserKey(KEYS.TRADES), JSON.stringify(trades));
+          if (supabase) syncTradesToSupabase(trades).catch(console.error);
+        } else {
+          localStorage.setItem(KEYS.TRADES, JSON.stringify(trades));
+        }
+        return trades;
+      }
+    } catch (err) {
+      console.error('Error seeding trades from API:', err);
     }
   }
 
@@ -241,6 +314,7 @@ export async function getAccounts(): Promise<Account[]> {
 
   const supabase = getSupabase();
   const currentUserId = getActiveUserId();
+  const isTargetAdmin = shouldMigrateAdminData();
 
   if (supabase) {
     try {
@@ -254,14 +328,35 @@ export async function getAccounts(): Promise<Account[]> {
           ...(row.data as Account),
           userId: row.data?.userId || row.user_id || undefined,
         }));
-        if (currentUserId) {
+
+        if (isTargetAdmin && currentUserId) {
+          let claimed = false;
+          accounts = accounts.map(a => {
+            if (!a.userId || a.userId === 'u-001' || a.userId === currentUserId) {
+              if (a.userId !== currentUserId) claimed = true;
+              return { ...a, userId: currentUserId };
+            }
+            return a;
+          }).filter(a => a.userId === currentUserId);
+
+          // If standard acc-001 exists, prune auto-created placeholder accounts (balance 10000)
+          if (accounts.some(a => a.id === 'acc-001') && accounts.length > 1) {
+            accounts = accounts.filter(a => a.id === 'acc-001' || a.id === 'acc-002' || a.balance !== 10000);
+          }
+
+          if (claimed || accounts.length > 0) {
+            localStorage.setItem(getUserKey(KEYS.ACCOUNTS), JSON.stringify(accounts));
+            syncAccountsToSupabase(accounts).catch(console.error);
+            if (accounts.length > 0) return accounts;
+          }
+        } else if (currentUserId) {
           accounts = accounts.filter(a => a.userId === currentUserId);
         } else {
           accounts = accounts.filter(a => !a.userId || a.userId === 'u-001');
         }
 
-        // Auto-create default account if new user has none
-        if (currentUserId && accounts.length === 0) {
+        // Auto-create default account if regular new user has none
+        if (currentUserId && accounts.length === 0 && !isTargetAdmin) {
           const defaultAcc: Account = {
             id: 'acc-' + Math.random().toString(36).substr(2, 9),
             userId: currentUserId,
@@ -277,8 +372,10 @@ export async function getAccounts(): Promise<Account[]> {
           await syncAccountsToSupabase(accounts);
         }
 
-        localStorage.setItem(getUserKey(KEYS.ACCOUNTS), JSON.stringify(accounts));
-        return accounts;
+        if (accounts.length > 0) {
+          localStorage.setItem(getUserKey(KEYS.ACCOUNTS), JSON.stringify(accounts));
+          return accounts;
+        }
       }
     } catch (err) {
       console.warn('Supabase getAccounts error, falling back to local cache:', err);
@@ -289,7 +386,12 @@ export async function getAccounts(): Promise<Account[]> {
   if (local) {
     try {
       let parsed: Account[] = JSON.parse(local);
-      if (currentUserId) {
+      if (isTargetAdmin && currentUserId) {
+        parsed = parsed.map(a => ({ ...a, userId: currentUserId }));
+        if (parsed.some(a => a.id === 'acc-001') && parsed.length > 1) {
+          parsed = parsed.filter(a => a.id === 'acc-001' || a.id === 'acc-002' || a.balance !== 10000);
+        }
+      } else if (currentUserId) {
         parsed = parsed.filter(a => a.userId === currentUserId);
       } else {
         parsed = parsed.filter(a => !a.userId || a.userId === 'u-001');
@@ -300,7 +402,43 @@ export async function getAccounts(): Promise<Account[]> {
     }
   }
 
-  // Local fallback for new user
+  // Check unscoped local cache if target admin
+  if (isTargetAdmin && currentUserId) {
+    const rawLocal = localStorage.getItem(KEYS.ACCOUNTS);
+    if (rawLocal) {
+      try {
+        let parsed: Account[] = JSON.parse(rawLocal);
+        parsed = parsed.map(a => ({ ...a, userId: currentUserId }));
+        if (parsed.some(a => a.id === 'acc-001') && parsed.length > 1) {
+          parsed = parsed.filter(a => a.id === 'acc-001' || a.id === 'acc-002' || a.balance !== 10000);
+        }
+        if (parsed.length > 0) {
+          localStorage.setItem(getUserKey(KEYS.ACCOUNTS), JSON.stringify(parsed));
+          if (supabase) syncAccountsToSupabase(parsed).catch(console.error);
+          return parsed;
+        }
+      } catch {}
+    }
+  }
+
+  // Seed for admin or guests from API
+  if (isTargetAdmin || !currentUserId) {
+    try {
+      const res = await fetch('/api/accounts');
+      if (res.ok) {
+        const data = await res.json();
+        let accounts: Account[] = data.accounts || [];
+        if (currentUserId && isTargetAdmin) {
+          accounts = accounts.map(a => ({ ...a, userId: currentUserId }));
+          localStorage.setItem(getUserKey(KEYS.ACCOUNTS), JSON.stringify(accounts));
+          if (supabase) syncAccountsToSupabase(accounts).catch(console.error);
+        }
+        return accounts;
+      }
+    } catch {}
+  }
+
+  // Local fallback for regular new user
   if (currentUserId) {
     const defaultAcc: Account = {
       id: 'acc-' + Math.random().toString(36).substr(2, 9),
@@ -320,15 +458,6 @@ export async function getAccounts(): Promise<Account[]> {
     }
     return newAccs;
   }
-
-  // Seed for guests
-  try {
-    const res = await fetch('/api/accounts');
-    if (res.ok) {
-      const data = await res.json();
-      return data.accounts || [];
-    }
-  } catch {}
 
   return [];
 }
@@ -413,6 +542,7 @@ export async function getJournals(): Promise<JournalEntry[]> {
 
   const supabase = getSupabase();
   const currentUserId = getActiveUserId();
+  const isTargetAdmin = shouldMigrateAdminData();
 
   if (supabase) {
     try {
@@ -426,13 +556,32 @@ export async function getJournals(): Promise<JournalEntry[]> {
           ...(row.data as JournalEntry),
           userId: row.data?.userId || row.user_id || undefined,
         }));
-        if (currentUserId) {
+
+        if (isTargetAdmin && currentUserId) {
+          let claimed = false;
+          journals = journals.map(j => {
+            if (!j.userId || j.userId === 'u-001' || j.userId === currentUserId) {
+              if (j.userId !== currentUserId) claimed = true;
+              return { ...j, userId: currentUserId };
+            }
+            return j;
+          }).filter(j => j.userId === currentUserId);
+
+          if (claimed || journals.length > 0) {
+            localStorage.setItem(getUserKey(KEYS.JOURNALS), JSON.stringify(journals));
+            if (claimed) syncJournalsToSupabase(journals).catch(console.error);
+            if (journals.length > 0) return journals;
+          }
+        } else if (currentUserId) {
           journals = journals.filter(j => j.userId === currentUserId);
         } else {
-          journals = journals.filter(j => !j.userId);
+          journals = journals.filter(j => !j.userId || j.userId === 'u-001');
         }
-        localStorage.setItem(getUserKey(KEYS.JOURNALS), JSON.stringify(journals));
-        return journals;
+
+        if (journals.length > 0) {
+          localStorage.setItem(getUserKey(KEYS.JOURNALS), JSON.stringify(journals));
+          return journals;
+        }
       }
     } catch (err) {
       console.warn('Supabase getJournals error:', err);
@@ -444,26 +593,52 @@ export async function getJournals(): Promise<JournalEntry[]> {
   if (local) {
     try {
       let parsed: JournalEntry[] = JSON.parse(local);
-      if (currentUserId) {
+      if (isTargetAdmin && currentUserId) {
+        parsed = parsed.map(j => ({ ...j, userId: currentUserId }));
+      } else if (currentUserId) {
         parsed = parsed.filter(j => j.userId === currentUserId);
       } else {
-        parsed = parsed.filter(j => !j.userId);
+        parsed = parsed.filter(j => !j.userId || j.userId === 'u-001');
       }
-      return parsed;
+      if (parsed.length > 0) return parsed;
     } catch (e) {
       console.error('Error parsing journals from localStorage', e);
     }
   }
 
-  if (!currentUserId) {
+  // Check unscoped local cache if target admin
+  if (isTargetAdmin && currentUserId) {
+    const rawLocal = localStorage.getItem(KEYS.JOURNALS);
+    if (rawLocal) {
+      try {
+        let parsed: JournalEntry[] = JSON.parse(rawLocal);
+        parsed = parsed.map(j => ({ ...j, userId: currentUserId }));
+        if (parsed.length > 0) {
+          localStorage.setItem(getUserKey(KEYS.JOURNALS), JSON.stringify(parsed));
+          if (supabase) syncJournalsToSupabase(parsed).catch(console.error);
+          return parsed;
+        }
+      } catch {}
+    }
+  }
+
+  if (isTargetAdmin || !currentUserId) {
     try {
       const res = await fetch('/api/journals');
       if (res.ok) {
         const data = await res.json();
-        const journals: JournalEntry[] = data.journals || [];
-        localStorage.setItem(KEYS.JOURNALS, JSON.stringify(journals));
-        if (supabase && journals.length > 0) {
-          syncJournalsToSupabase(journals).catch(console.error);
+        let journals: JournalEntry[] = data.journals || [];
+        if (currentUserId && isTargetAdmin) {
+          journals = journals.map(j => ({ ...j, userId: currentUserId }));
+          localStorage.setItem(getUserKey(KEYS.JOURNALS), JSON.stringify(journals));
+          if (supabase && journals.length > 0) {
+            syncJournalsToSupabase(journals).catch(console.error);
+          }
+        } else {
+          localStorage.setItem(KEYS.JOURNALS, JSON.stringify(journals));
+          if (supabase && journals.length > 0) {
+            syncJournalsToSupabase(journals).catch(console.error);
+          }
         }
         return journals;
       }
@@ -545,6 +720,7 @@ export async function getFinances(): Promise<FinanceEntry[]> {
 
   const supabase = getSupabase();
   const currentUserId = getActiveUserId();
+  const isTargetAdmin = shouldMigrateAdminData();
 
   if (supabase) {
     try {
@@ -558,13 +734,32 @@ export async function getFinances(): Promise<FinanceEntry[]> {
           ...(row.data as FinanceEntry),
           userId: row.data?.userId || row.user_id || undefined,
         }));
-        if (currentUserId) {
+
+        if (isTargetAdmin && currentUserId) {
+          let claimed = false;
+          finances = finances.map(f => {
+            if (!f.userId || f.userId === 'u-001' || f.userId === currentUserId) {
+              if (f.userId !== currentUserId) claimed = true;
+              return { ...f, userId: currentUserId };
+            }
+            return f;
+          }).filter(f => f.userId === currentUserId);
+
+          if (claimed || finances.length > 0) {
+            localStorage.setItem(getUserKey(KEYS.FINANCES), JSON.stringify(finances));
+            if (claimed) syncFinancesToSupabase(finances).catch(console.error);
+            if (finances.length > 0) return finances;
+          }
+        } else if (currentUserId) {
           finances = finances.filter(f => f.userId === currentUserId);
         } else {
-          finances = finances.filter(f => !f.userId);
+          finances = finances.filter(f => !f.userId || f.userId === 'u-001');
         }
-        localStorage.setItem(getUserKey(KEYS.FINANCES), JSON.stringify(finances));
-        return finances;
+
+        if (finances.length > 0) {
+          localStorage.setItem(getUserKey(KEYS.FINANCES), JSON.stringify(finances));
+          return finances;
+        }
       }
     } catch (err) {
       console.warn('Supabase getFinances error:', err);
@@ -576,26 +771,52 @@ export async function getFinances(): Promise<FinanceEntry[]> {
   if (local) {
     try {
       let parsed: FinanceEntry[] = JSON.parse(local);
-      if (currentUserId) {
+      if (isTargetAdmin && currentUserId) {
+        parsed = parsed.map(f => ({ ...f, userId: currentUserId }));
+      } else if (currentUserId) {
         parsed = parsed.filter(f => f.userId === currentUserId);
       } else {
-        parsed = parsed.filter(f => !f.userId);
+        parsed = parsed.filter(f => !f.userId || f.userId === 'u-001');
       }
-      return parsed;
+      if (parsed.length > 0) return parsed;
     } catch (e) {
       console.error('Error parsing finances from localStorage', e);
     }
   }
 
-  if (!currentUserId) {
+  // Check unscoped local cache if target admin
+  if (isTargetAdmin && currentUserId) {
+    const rawLocal = localStorage.getItem(KEYS.FINANCES);
+    if (rawLocal) {
+      try {
+        let parsed: FinanceEntry[] = JSON.parse(rawLocal);
+        parsed = parsed.map(f => ({ ...f, userId: currentUserId }));
+        if (parsed.length > 0) {
+          localStorage.setItem(getUserKey(KEYS.FINANCES), JSON.stringify(parsed));
+          if (supabase) syncFinancesToSupabase(parsed).catch(console.error);
+          return parsed;
+        }
+      } catch {}
+    }
+  }
+
+  if (isTargetAdmin || !currentUserId) {
     try {
       const res = await fetch('/api/finances');
       if (res.ok) {
         const data = await res.json();
-        const finances: FinanceEntry[] = data.finances || [];
-        localStorage.setItem(KEYS.FINANCES, JSON.stringify(finances));
-        if (supabase && finances.length > 0) {
-          syncFinancesToSupabase(finances).catch(console.error);
+        let finances: FinanceEntry[] = data.finances || [];
+        if (currentUserId && isTargetAdmin) {
+          finances = finances.map(f => ({ ...f, userId: currentUserId }));
+          localStorage.setItem(getUserKey(KEYS.FINANCES), JSON.stringify(finances));
+          if (supabase && finances.length > 0) {
+            syncFinancesToSupabase(finances).catch(console.error);
+          }
+        } else {
+          localStorage.setItem(KEYS.FINANCES, JSON.stringify(finances));
+          if (supabase && finances.length > 0) {
+            syncFinancesToSupabase(finances).catch(console.error);
+          }
         }
         return finances;
       }
@@ -663,6 +884,7 @@ export async function getReviews(): Promise<Review[]> {
 
   const supabase = getSupabase();
   const currentUserId = getActiveUserId();
+  const isTargetAdmin = shouldMigrateAdminData();
 
   if (supabase) {
     try {
@@ -676,13 +898,32 @@ export async function getReviews(): Promise<Review[]> {
           ...(row.data as Review),
           userId: row.data?.userId || row.user_id || undefined,
         }));
-        if (currentUserId) {
+
+        if (isTargetAdmin && currentUserId) {
+          let claimed = false;
+          reviews = reviews.map(r => {
+            if (!r.userId || r.userId === 'u-001' || r.userId === currentUserId) {
+              if (r.userId !== currentUserId) claimed = true;
+              return { ...r, userId: currentUserId };
+            }
+            return r;
+          }).filter(r => r.userId === currentUserId);
+
+          if (claimed || reviews.length > 0) {
+            localStorage.setItem(getUserKey(KEYS.REVIEWS), JSON.stringify(reviews));
+            if (claimed) syncReviewsToSupabase(reviews).catch(console.error);
+            if (reviews.length > 0) return reviews;
+          }
+        } else if (currentUserId) {
           reviews = reviews.filter(r => r.userId === currentUserId);
         } else {
-          reviews = reviews.filter(r => !r.userId);
+          reviews = reviews.filter(r => !r.userId || r.userId === 'u-001');
         }
-        localStorage.setItem(getUserKey(KEYS.REVIEWS), JSON.stringify(reviews));
-        return reviews;
+
+        if (reviews.length > 0) {
+          localStorage.setItem(getUserKey(KEYS.REVIEWS), JSON.stringify(reviews));
+          return reviews;
+        }
       }
     } catch (err) {
       console.warn('Supabase getReviews error:', err);
@@ -694,26 +935,52 @@ export async function getReviews(): Promise<Review[]> {
   if (local) {
     try {
       let parsed: Review[] = JSON.parse(local);
-      if (currentUserId) {
+      if (isTargetAdmin && currentUserId) {
+        parsed = parsed.map(r => ({ ...r, userId: currentUserId }));
+      } else if (currentUserId) {
         parsed = parsed.filter(r => r.userId === currentUserId);
       } else {
-        parsed = parsed.filter(r => !r.userId);
+        parsed = parsed.filter(r => !r.userId || r.userId === 'u-001');
       }
-      return parsed;
+      if (parsed.length > 0) return parsed;
     } catch (e) {
       console.error('Error parsing reviews from localStorage', e);
     }
   }
 
-  if (!currentUserId) {
+  // Check unscoped local cache if target admin
+  if (isTargetAdmin && currentUserId) {
+    const rawLocal = localStorage.getItem(KEYS.REVIEWS);
+    if (rawLocal) {
+      try {
+        let parsed: Review[] = JSON.parse(rawLocal);
+        parsed = parsed.map(r => ({ ...r, userId: currentUserId }));
+        if (parsed.length > 0) {
+          localStorage.setItem(getUserKey(KEYS.REVIEWS), JSON.stringify(parsed));
+          if (supabase) syncReviewsToSupabase(parsed).catch(console.error);
+          return parsed;
+        }
+      } catch {}
+    }
+  }
+
+  if (isTargetAdmin || !currentUserId) {
     try {
       const res = await fetch('/api/reviews');
       if (res.ok) {
         const data = await res.json();
-        const reviews: Review[] = data.reviews || [];
-        localStorage.setItem(KEYS.REVIEWS, JSON.stringify(reviews));
-        if (supabase && reviews.length > 0) {
-          syncReviewsToSupabase(reviews).catch(console.error);
+        let reviews: Review[] = data.reviews || [];
+        if (currentUserId && isTargetAdmin) {
+          reviews = reviews.map(r => ({ ...r, userId: currentUserId }));
+          localStorage.setItem(getUserKey(KEYS.REVIEWS), JSON.stringify(reviews));
+          if (supabase && reviews.length > 0) {
+            syncReviewsToSupabase(reviews).catch(console.error);
+          }
+        } else {
+          localStorage.setItem(KEYS.REVIEWS, JSON.stringify(reviews));
+          if (supabase && reviews.length > 0) {
+            syncReviewsToSupabase(reviews).catch(console.error);
+          }
         }
         return reviews;
       }
@@ -1550,3 +1817,27 @@ export async function importAllData(
     return { success: false, message: error?.message || 'Invalid JSON format' };
   }
 }
+
+export async function migrateAdminDataToActiveUser(targetUserId?: string, targetEmail?: string): Promise<boolean> {
+  if (!isClient()) return false;
+  const currentUserId = targetUserId || getActiveUserId();
+  const currentEmail = targetEmail || getActiveUserEmail();
+
+  if (!currentUserId || !shouldMigrateAdminData(currentEmail)) {
+    return false;
+  }
+
+  try {
+    // Eagerly resolve and sync all admin data stores into user scope
+    await getAccounts();
+    await getTrades();
+    await getJournals();
+    await getFinances();
+    await getReviews();
+    return true;
+  } catch (err) {
+    console.error('Error during admin data migration:', err);
+    return false;
+  }
+}
+

@@ -5,7 +5,8 @@ import { User, UserRole } from '@/types/user';
 import { getSupabase } from '@/lib/supabase';
 import {
   getCloudPin, setCloudPin, removeCloudPin,
-  getMemberRecord, saveMemberRecord, verifyAndResetPasswordWithMemberInfo
+  getMemberRecord, saveMemberRecord, verifyAndResetPasswordWithMemberInfo,
+  migrateAdminDataToActiveUser
 } from '@/lib/clientStorage';
 
 interface AuthContextType {
@@ -53,6 +54,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [hasPin, setHasPin] = useState(false);
   const [isLocked, setIsLocked] = useState(false);
   const [isPasswordRecovery, setIsPasswordRecovery] = useState(false);
+
+  // Auto-migrate admin data when user logs in or session is restored
+  useEffect(() => {
+    if (user?.id && user?.email) {
+      migrateAdminDataToActiveUser(user.id, user.email).catch(console.error);
+    }
+  }, [user]);
 
   // Initialize Supabase Auth & PIN state
   useEffect(() => {

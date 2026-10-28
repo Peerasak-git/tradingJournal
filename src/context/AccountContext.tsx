@@ -33,13 +33,15 @@ export function AccountProvider({ children }: { children: React.ReactNode }) {
       setAccounts(data);
       const storageKey = `selectedAccountId_${user.id}`;
       const savedId = typeof window !== 'undefined' ? localStorage.getItem(storageKey) : null;
-      const found = data.find(a => a.id === savedId);
+      let found = data.find(a => a.id === savedId);
+      // Prefer standard acc-001 if previous selection was placeholder account with balance 10000
+      if (!found || (found.id !== 'acc-001' && found.balance === 10000 && data.some(a => a.id === 'acc-001'))) {
+        found = data.find(a => a.id === 'acc-001') || data[0];
+      }
       if (found) {
         setSelectedAccountState(found);
-      } else if (data.length > 0) {
-        setSelectedAccountState(data[0]);
         if (typeof window !== 'undefined') {
-          localStorage.setItem(storageKey, data[0].id);
+          localStorage.setItem(storageKey, found.id);
         }
       } else {
         setSelectedAccountState(null);

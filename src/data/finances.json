@@ -1,6 +1,7 @@
 {
   "finances": [
     {
+      "userId": "u-001",
       "type": "EXPENSE",
       "amount": 70,
       "date": "2026-07-05",
@@ -10,6 +11,7 @@
       "accountId": "acc-001"
     },
     {
+      "userId": "u-001",
       "type": "INCOME",
       "amount": 15000,
       "date": "2026-07-05",

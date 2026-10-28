@@ -2,10 +2,10 @@
   "users": [
     {
       "id": "u-001",
-      "name": "Dev Team",
-      "email": "dev@example.com",
+      "name": "Peerasak",
+      "email": "cs.peerasak@gmail.com",
       "role": "ADMIN",
-      "avatar": "https://api.dicebear.com/7.x/avataaars/svg?seed=Dev",
+      "avatar": "https://api.dicebear.com/7.x/avataaars/svg?seed=Peerasak",
       "createdAt": "2024-01-01T00:00:00Z"
     }
   ]
