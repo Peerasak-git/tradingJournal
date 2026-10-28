@@ -4,11 +4,14 @@ import { useState, useEffect, useMemo } from 'react';
 import { useLanguage } from '@/context/LanguageContext';
 import {
   Star, PlusCircle, Trash2, Edit2, X,
-  ChevronLeft, ChevronRight, BookOpen
+  ChevronLeft, ChevronRight, BookOpen,
+  TrendingUp, TrendingDown, Target, ExternalLink,
+  Image as ImageIcon, Search, Battery, AlertOctagon, Sparkles, Upload
 } from 'lucide-react';
 import { Review } from '@/types/review';
+import { Trade } from '@/types/trade';
 import { TranslationKey } from '@/lib/translations';
-import { getReviews, addOrUpdateReview, deleteReview } from '@/lib/clientStorage';
+import { getReviews, addOrUpdateReview, deleteReview, getTrades } from '@/lib/clientStorage';
 
 function getFirstDayOffset(year: number, month: number) {
   const day = new Date(year, month, 1).getDay();
@@ -45,6 +48,51 @@ const EMOTIONS: { key: string; tKey: TranslationKey; emoji: string }[] = [
   { key: 'tired',       tKey: 'emotionTired',       emoji: '😴' },
 ];
 
+const TRADING_SESSIONS: { key: string; tKey: TranslationKey }[] = [
+  { key: 'asia',     tKey: 'sessionAsia' },
+  { key: 'london',   tKey: 'sessionLondon' },
+  { key: 'newyork',  tKey: 'sessionNewYork' },
+];
+
+const PSYCHOLOGY_PITFALLS: { key: string; tKey: TranslationKey; emoji: string }[] = [
+  { key: 'fomo',        tKey: 'pitfallFomo',        emoji: '⚡' },
+  { key: 'revenge',     tKey: 'pitfallRevenge',     emoji: '🔥' },
+  { key: 'overtrading', tKey: 'pitfallOvertrading', emoji: '🎰' },
+  { key: 'hesitation',  tKey: 'pitfallHesitation',  emoji: '🐢' },
+  { key: 'early_exit',  tKey: 'pitfallEarlyExit',  emoji: '🏃' },
+  { key: 'moving_sl',   tKey: 'pitfallMovingSl',   emoji: '🚷' },
+];
+
+const ENERGY_LEVELS: { key: 'high' | 'normal' | 'low'; tKey: TranslationKey; emoji: string }[] = [
+  { key: 'high',   tKey: 'energyHigh',   emoji: '🔋' },
+  { key: 'normal', tKey: 'energyNormal', emoji: '⚡' },
+  { key: 'low',    tKey: 'energyLow',    emoji: '🪫' },
+];
+
+interface DayTradesStats {
+  total: number;
+  wins: number;
+  losses: number;
+  be: number;
+  open: number;
+  netPnL: number;
+  winRate: number;
+}
+
+function getStatsForDate(trades: Trade[], dateStr: string): DayTradesStats {
+  if (!dateStr || !trades) return { total: 0, wins: 0, losses: 0, be: 0, open: 0, netPnL: 0, winRate: 0 };
+  const dayTrades = trades.filter(t => (t.entryDate && t.entryDate.startsWith(dateStr)) || (t.exitDate && t.exitDate.startsWith(dateStr)));
+  const total = dayTrades.length;
+  const wins = dayTrades.filter(t => t.status === 'WIN').length;
+  const losses = dayTrades.filter(t => t.status === 'LOSS').length;
+  const be = dayTrades.filter(t => t.status === 'BREAK_EVEN').length;
+  const open = dayTrades.filter(t => t.status === 'OPEN').length;
+  const netPnL = Number(dayTrades.reduce((acc, t) => acc + (t.financials?.netPnL || 0), 0).toFixed(2));
+  const closed = wins + losses;
+  const winRate = closed > 0 ? (wins / closed) * 100 : 0;
+  return { total, wins, losses, be, open, netPnL, winRate };
+}
+
 function getReviewEmotions(review?: Review | null): { key: string; tKey: TranslationKey; emoji: string }[] {
   if (!review) return [];
   const keys: string[] = review.emotions && Array.isArray(review.emotions) && review.emotions.length > 0
@@ -68,6 +116,11 @@ const EMPTY_FORM = {
   followedRules: true as boolean | null,
   mistakes: '',
   lessons: '',
+  tradingSessions: [] as string[],
+  psychologyPitfalls: [] as string[],
+  energyLevel: 'high' as 'high' | 'normal' | 'low',
+  tomorrowPlan: '',
+  chartUrl: '',
 };
 
 export default function ReviewsPage() {
@@ -84,6 +137,8 @@ export default function ReviewsPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [formData, setFormData] = useState({ ...EMPTY_FORM, date: today });
+  const [allTrades, setAllTrades] = useState<Trade[]>([]);
+  const [previewZoomChart, setPreviewZoomChart] = useState<string | null>(null);
 
   // Locale-aware names
   const calDayNames = useMemo(() =>
@@ -98,16 +153,62 @@ export default function ReviewsPage() {
       return d.toLocaleDateString(locale, { weekday: 'short' });
     }), [locale]);
 
-  useEffect(() => { fetchReviews(); }, []);
+  useEffect(() => { 
+    fetchReviews(); 
+    getTrades().then(setAllTrades).catch(console.error);
+  }, []);
 
   const fetchReviews = async () => {
     try {
       const data = await getReviews();
       setReviews(data);
+      const trades = await getTrades();
+      setAllTrades(trades);
     } catch (error) {
       console.error('Failed to fetch reviews:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Image paste listener for Review modal
+  useEffect(() => {
+    if (!isModalOpen) return;
+    const handlePaste = (e: ClipboardEvent) => {
+      const items = e.clipboardData?.items;
+      if (!items) return;
+      for (let i = 0; i < items.length; i++) {
+        if (items[i].type.startsWith('image/')) {
+          const file = items[i].getAsFile();
+          if (file) {
+            const reader = new FileReader();
+            reader.onload = (uploadEvent) => {
+              const res = uploadEvent.target?.result as string;
+              if (res) {
+                setFormData(prev => ({ ...prev, chartUrl: res }));
+              }
+            };
+            reader.readAsDataURL(file);
+          }
+          break;
+        }
+      }
+    };
+    window.addEventListener('paste', handlePaste);
+    return () => window.removeEventListener('paste', handlePaste);
+  }, [isModalOpen]);
+
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (uploadEvent) => {
+        const res = uploadEvent.target?.result as string;
+        if (res) {
+          setFormData(prev => ({ ...prev, chartUrl: res }));
+        }
+      };
+      reader.readAsDataURL(file);
     }
   };
 
@@ -143,6 +244,11 @@ export default function ReviewsPage() {
       mistakes: formData.mistakes,
       lessons: formData.lessons,
       followedRules: formData.followedRules ?? true,
+      tradingSessions: formData.tradingSessions,
+      psychologyPitfalls: formData.psychologyPitfalls,
+      energyLevel: formData.energyLevel,
+      tomorrowPlan: formData.tomorrowPlan,
+      chartUrl: formData.chartUrl,
       createdAt: existing ? existing.createdAt : new Date().toISOString()
     };
     try {
@@ -182,10 +288,24 @@ export default function ReviewsPage() {
         followedRules: review.followedRules ?? null,
         mistakes: review.mistakes || '',
         lessons: review.lessons || '',
+        tradingSessions: review.tradingSessions || [],
+        psychologyPitfalls: review.psychologyPitfalls || [],
+        energyLevel: review.energyLevel || 'normal',
+        tomorrowPlan: review.tomorrowPlan || '',
+        chartUrl: review.chartUrl || '',
       });
       setEditingId(review.id);
     } else {
-      setFormData({ ...EMPTY_FORM, date: date || selectedDate, emotions: [] });
+      setFormData({ 
+        ...EMPTY_FORM, 
+        date: date || selectedDate, 
+        emotions: [],
+        tradingSessions: [],
+        psychologyPitfalls: [],
+        energyLevel: 'normal',
+        tomorrowPlan: '',
+        chartUrl: ''
+      });
       setEditingId(null);
     }
     setIsModalOpen(true);
@@ -456,6 +576,27 @@ export default function ReviewsPage() {
                                   ))}
                                 </div>
                               )}
+                              {rev.energyLevel && (
+                                <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-200/60 dark:border-amber-500/30">
+                                  {rev.energyLevel === 'high' ? '🔋 100%' : rev.energyLevel === 'normal' ? '⚡ ปกติ' : '🪫 อดนอน/ล้า'}
+                                </span>
+                              )}
+                              {rev.tradingSessions && rev.tradingSessions.map(s => {
+                                const sObj = TRADING_SESSIONS.find(x => x.key === s);
+                                return (
+                                  <span key={s} className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-indigo-50 dark:bg-indigo-500/10 text-indigo-700 dark:text-indigo-400 border border-indigo-200/60 dark:border-indigo-500/30">
+                                    {sObj ? t(sObj.tKey) : s}
+                                  </span>
+                                );
+                              })}
+                              {rev.psychologyPitfalls && rev.psychologyPitfalls.map(p => {
+                                const pObj = PSYCHOLOGY_PITFALLS.find(x => x.key === p);
+                                return (
+                                  <span key={p} className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-rose-50 dark:bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-200/60 dark:border-rose-500/30">
+                                    {pObj ? t(pObj.tKey) : p}
+                                  </span>
+                                );
+                              })}
                               {typeof rev.followedRules === 'boolean' && (
                                 <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full ${
                                   rev.followedRules
@@ -469,20 +610,44 @@ export default function ReviewsPage() {
                             <div className="flex gap-1">
                               <button
                                 onClick={() => openModal(rev)}
-                                className="p-2 text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-500/10 rounded-lg transition-colors"
+                                className="p-2 text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-500/10 rounded-lg transition-colors cursor-pointer"
                                 title={t('editReview')}
                               >
                                 <Edit2 size={15} />
                               </button>
                               <button
                                 onClick={() => handleDelete(rev.id)}
-                                className="p-2 text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-lg transition-colors"
+                                className="p-2 text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-lg transition-colors cursor-pointer"
                                 title={t('deleteReview')}
                               >
                                 <Trash2 size={15} />
                               </button>
                             </div>
                           </div>
+
+                          {/* Daily Trades Summary */}
+                          {(() => {
+                            const stats = getStatsForDate(allTrades, rev.date);
+                            if (stats.total === 0) return null;
+                            const isProfit = stats.netPnL >= 0;
+                            return (
+                              <div className="flex items-center gap-2.5 flex-wrap px-3.5 py-2.5 rounded-xl bg-slate-50/80 dark:bg-[#121212] border border-slate-200/60 dark:border-zinc-800 text-xs">
+                                <span className="font-bold text-slate-500 dark:text-slate-400 flex items-center gap-1">
+                                  <Sparkles size={12} className="text-blue-500" />
+                                  {stats.total} {t('tradesCount')}
+                                </span>
+                                <span className="text-slate-300 dark:text-zinc-700">|</span>
+                                <span className="font-bold text-slate-700 dark:text-slate-300">
+                                  <span className="text-emerald-500">{stats.wins}W</span> - <span className="text-rose-500">{stats.losses}L</span> ({stats.winRate.toFixed(0)}%)
+                                </span>
+                                <span className="text-slate-300 dark:text-zinc-700">|</span>
+                                <span className={`font-black flex items-center gap-1 ${isProfit ? 'text-emerald-500' : 'text-rose-500'}`}>
+                                  {isProfit ? <TrendingUp size={13} /> : <TrendingDown size={13} />}
+                                  {isProfit ? '+' : ''}${stats.netPnL.toFixed(2)}
+                                </span>
+                              </div>
+                            );
+                          })()}
 
                           {/* Notes */}
                           {rev.notes && (
@@ -507,6 +672,53 @@ export default function ReviewsPage() {
                                   <p className="text-slate-700 dark:text-slate-300 whitespace-pre-wrap leading-relaxed text-xs">{rev.lessons}</p>
                                 </div>
                               )}
+                            </div>
+                          )}
+
+                          {/* Tomorrow's Plan */}
+                          {rev.tomorrowPlan && (
+                            <div className="p-3.5 bg-indigo-50/50 dark:bg-indigo-500/5 rounded-xl border border-indigo-100 dark:border-indigo-500/20">
+                              <p className="text-[10px] font-black uppercase tracking-widest text-indigo-500 mb-1 flex items-center gap-1">
+                                <Target size={12} />
+                                {t('tomorrowPlanTitle')}
+                              </p>
+                              <p className="text-slate-700 dark:text-slate-300 whitespace-pre-wrap leading-relaxed text-xs font-medium">{rev.tomorrowPlan}</p>
+                            </div>
+                          )}
+
+                          {/* Daily Chart */}
+                          {rev.chartUrl && (
+                            <div className="space-y-1.5 pt-1">
+                              <div className="flex items-center gap-1.5 text-[11px] font-bold text-slate-400">
+                                <ImageIcon size={12} />
+                                <span>{t('dailyChartTitle')}</span>
+                                {rev.chartUrl.startsWith('http') && (
+                                  <a
+                                    href={rev.chartUrl}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="text-blue-500 hover:underline flex items-center gap-0.5 ml-1"
+                                    onClick={(e) => e.stopPropagation()}
+                                  >
+                                    <span>เปิดใน TradingView</span>
+                                    <ExternalLink size={10} />
+                                  </a>
+                                )}
+                              </div>
+                              <div
+                                onClick={() => setPreviewZoomChart(rev.chartUrl || null)}
+                                className="max-h-44 max-w-md rounded-xl overflow-hidden border border-slate-200 dark:border-zinc-800 bg-black/10 cursor-pointer hover:border-blue-400 transition"
+                              >
+                                {/* eslint-disable-next-line @next/next/no-img-element */}
+                                <img
+                                  src={rev.chartUrl}
+                                  alt="Daily Chart Preview"
+                                  className="w-full h-auto max-h-44 object-contain rounded-xl"
+                                  onError={(e) => {
+                                    (e.currentTarget as HTMLElement).style.display = 'none';
+                                  }}
+                                />
+                              </div>
                             </div>
                           )}
                         </div>
@@ -595,6 +807,27 @@ export default function ReviewsPage() {
                                   ))}
                                 </div>
                               )}
+                              {rev.energyLevel && (
+                                <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-200/60 dark:border-amber-500/30">
+                                  {rev.energyLevel === 'high' ? '🔋 100%' : rev.energyLevel === 'normal' ? '⚡ ปกติ' : '🪫 อดนอน/ล้า'}
+                                </span>
+                              )}
+                              {rev.tradingSessions && rev.tradingSessions.map(s => {
+                                const sObj = TRADING_SESSIONS.find(x => x.key === s);
+                                return (
+                                  <span key={s} className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-indigo-50 dark:bg-indigo-500/10 text-indigo-700 dark:text-indigo-400 border border-indigo-200/60 dark:border-indigo-500/30">
+                                    {sObj ? t(sObj.tKey) : s}
+                                  </span>
+                                );
+                              })}
+                              {rev.psychologyPitfalls && rev.psychologyPitfalls.map(p => {
+                                const pObj = PSYCHOLOGY_PITFALLS.find(x => x.key === p);
+                                return (
+                                  <span key={p} className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-rose-50 dark:bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-200/60 dark:border-rose-500/30">
+                                    {pObj ? t(pObj.tKey) : p}
+                                  </span>
+                                );
+                              })}
                               {typeof rev.followedRules === 'boolean' && (
                                 <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold ${
                                   rev.followedRules
@@ -608,18 +841,44 @@ export default function ReviewsPage() {
                             <div className="flex gap-1">
                               <button
                                 onClick={() => openModal(rev)}
-                                className="p-2 text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-500/10 rounded-lg transition-colors"
+                                className="p-2 text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-500/10 rounded-lg transition-colors cursor-pointer"
+                                title={t('editReview')}
                               >
                                 <Edit2 size={16} />
                               </button>
                               <button
                                 onClick={() => handleDelete(rev.id)}
-                                className="p-2 text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-lg transition-colors"
+                                className="p-2 text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-lg transition-colors cursor-pointer"
+                                title={t('deleteReview')}
                               >
                                 <Trash2 size={16} />
                               </button>
                             </div>
                           </div>
+
+                          {/* Daily Trades Summary */}
+                          {(() => {
+                            const stats = getStatsForDate(allTrades, rev.date);
+                            if (stats.total === 0) return null;
+                            const isProfit = stats.netPnL >= 0;
+                            return (
+                              <div className="flex items-center gap-2.5 flex-wrap px-3.5 py-2.5 rounded-xl bg-white dark:bg-[#181818] border border-slate-200/60 dark:border-zinc-800 text-xs">
+                                <span className="font-bold text-slate-500 dark:text-slate-400 flex items-center gap-1">
+                                  <Sparkles size={12} className="text-blue-500" />
+                                  {stats.total} {t('tradesCount')}
+                                </span>
+                                <span className="text-slate-300 dark:text-zinc-700">|</span>
+                                <span className="font-bold text-slate-700 dark:text-slate-300">
+                                  <span className="text-emerald-500">{stats.wins}W</span> - <span className="text-rose-500">{stats.losses}L</span> ({stats.winRate.toFixed(0)}%)
+                                </span>
+                                <span className="text-slate-300 dark:text-zinc-700">|</span>
+                                <span className={`font-black flex items-center gap-1 ${isProfit ? 'text-emerald-500' : 'text-rose-500'}`}>
+                                  {isProfit ? <TrendingUp size={13} /> : <TrendingDown size={13} />}
+                                  {isProfit ? '+' : ''}${stats.netPnL.toFixed(2)}
+                                </span>
+                              </div>
+                            );
+                          })()}
 
                           {/* Notes */}
                           {rev.notes && (
@@ -642,6 +901,53 @@ export default function ReviewsPage() {
                             <div className="p-3.5 bg-green-50 dark:bg-green-500/5 rounded-xl border border-green-100 dark:border-green-500/20">
                               <p className="text-[10px] font-black uppercase tracking-widest text-green-500 mb-1">{t('lessonsSection')}</p>
                               <p className="text-slate-700 dark:text-slate-300 whitespace-pre-wrap leading-relaxed text-sm">{rev.lessons}</p>
+                            </div>
+                          )}
+
+                          {/* Tomorrow's Plan */}
+                          {rev.tomorrowPlan && (
+                            <div className="p-3.5 bg-indigo-50/50 dark:bg-indigo-500/5 rounded-xl border border-indigo-100 dark:border-indigo-500/20">
+                              <p className="text-[10px] font-black uppercase tracking-widest text-indigo-500 mb-1 flex items-center gap-1">
+                                <Target size={12} />
+                                {t('tomorrowPlanTitle')}
+                              </p>
+                              <p className="text-slate-700 dark:text-slate-300 whitespace-pre-wrap leading-relaxed text-xs font-medium">{rev.tomorrowPlan}</p>
+                            </div>
+                          )}
+
+                          {/* Daily Chart */}
+                          {rev.chartUrl && (
+                            <div className="space-y-1.5 pt-1">
+                              <div className="flex items-center gap-1.5 text-[11px] font-bold text-slate-400">
+                                <ImageIcon size={12} />
+                                <span>{t('dailyChartTitle')}</span>
+                                {rev.chartUrl.startsWith('http') && (
+                                  <a
+                                    href={rev.chartUrl}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="text-blue-500 hover:underline flex items-center gap-0.5 ml-1"
+                                    onClick={(e) => e.stopPropagation()}
+                                  >
+                                    <span>เปิดใน TradingView</span>
+                                    <ExternalLink size={10} />
+                                  </a>
+                                )}
+                              </div>
+                              <div
+                                onClick={() => setPreviewZoomChart(rev.chartUrl || null)}
+                                className="max-h-48 max-w-md rounded-xl overflow-hidden border border-slate-200 dark:border-zinc-800 bg-black/10 cursor-pointer hover:border-blue-400 transition"
+                              >
+                                {/* eslint-disable-next-line @next/next/no-img-element */}
+                                <img
+                                  src={rev.chartUrl}
+                                  alt="Daily Chart Preview"
+                                  className="w-full h-auto max-h-48 object-contain rounded-xl"
+                                  onError={(e) => {
+                                    (e.currentTarget as HTMLElement).style.display = 'none';
+                                  }}
+                                />
+                              </div>
                             </div>
                           )}
                         </div>
@@ -890,6 +1196,51 @@ export default function ReviewsPage() {
                 />
               </div>
 
+              {/* Daily Trades Auto-Summary */}
+              {(() => {
+                const stats = getStatsForDate(allTrades, formData.date);
+                if (stats.total === 0) {
+                  return (
+                    <div className="p-3 rounded-xl bg-slate-50 dark:bg-[#141414] border border-slate-200/60 dark:border-zinc-800 text-xs text-slate-400 flex items-center gap-2">
+                      <Sparkles size={14} className="text-slate-400" />
+                      <span>{t('noTradesThisDay')}</span>
+                    </div>
+                  );
+                }
+                const isProfit = stats.netPnL >= 0;
+                return (
+                  <div className="p-3.5 rounded-2xl bg-gradient-to-br from-blue-50/50 to-indigo-50/30 dark:from-blue-950/20 dark:to-indigo-950/10 border border-blue-100 dark:border-blue-900/30 space-y-2">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="font-bold text-slate-700 dark:text-slate-200 flex items-center gap-1.5">
+                        <Sparkles size={13} className="text-blue-500" />
+                        {t('dailyTradesSummary')}
+                      </span>
+                      <span className="font-bold text-blue-600 dark:text-blue-400">
+                        {stats.total} {t('tradesCount')}
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-3 gap-2 text-center text-xs">
+                      <div className="bg-white/80 dark:bg-black/30 p-2 rounded-xl border border-slate-100 dark:border-zinc-800">
+                        <p className="text-[10px] text-slate-400">{t('winLoss')}</p>
+                        <p className="font-bold text-slate-800 dark:text-slate-200">
+                          <span className="text-emerald-500">{stats.wins}W</span> - <span className="text-rose-500">{stats.losses}L</span>
+                        </p>
+                      </div>
+                      <div className="bg-white/80 dark:bg-black/30 p-2 rounded-xl border border-slate-100 dark:border-zinc-800">
+                        <p className="text-[10px] text-slate-400">{t('winRate')}</p>
+                        <p className="font-bold text-slate-800 dark:text-slate-200">{stats.winRate.toFixed(0)}%</p>
+                      </div>
+                      <div className="bg-white/80 dark:bg-black/30 p-2 rounded-xl border border-slate-100 dark:border-zinc-800">
+                        <p className="text-[10px] text-slate-400">{t('netProfit')}</p>
+                        <p className={`font-black flex items-center justify-center gap-0.5 ${isProfit ? 'text-emerald-500' : 'text-rose-500'}`}>
+                          {isProfit ? '+' : ''}${stats.netPnL.toFixed(2)}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
+
               {/* Rating */}
               <div>
                 <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">{t('overallRating')}</label>
@@ -906,6 +1257,33 @@ export default function ReviewsPage() {
                       />
                     </button>
                   ))}
+                </div>
+              </div>
+
+              {/* Energy Level */}
+              <div>
+                <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">
+                  {t('energyLevelTitle')}
+                </label>
+                <div className="grid grid-cols-3 gap-2">
+                  {ENERGY_LEVELS.map(lvl => {
+                    const isSelected = formData.energyLevel === lvl.key;
+                    return (
+                      <button
+                        key={lvl.key}
+                        type="button"
+                        onClick={() => setFormData({ ...formData, energyLevel: lvl.key })}
+                        className={`py-2 px-2 rounded-xl text-xs font-bold border transition-all flex flex-col items-center gap-1 cursor-pointer ${
+                          isSelected
+                            ? 'bg-amber-500 border-amber-500 text-white shadow-sm shadow-amber-500/25 scale-[1.02]'
+                            : 'border-slate-200 dark:border-zinc-700 text-slate-600 dark:text-slate-400 hover:border-amber-300 dark:hover:border-amber-700 bg-white dark:bg-[#151515]'
+                        }`}
+                      >
+                        <span className="text-base">{lvl.emoji}</span>
+                        <span>{t(lvl.tKey)}</span>
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
 
@@ -953,6 +1331,45 @@ export default function ReviewsPage() {
                 </div>
               </div>
 
+              {/* Trading Sessions */}
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400">
+                    {t('tradingSessionsTitle')}
+                  </label>
+                  {formData.tradingSessions.length > 0 && (
+                    <span className="text-[11px] font-bold text-indigo-500">
+                      {formData.tradingSessions.length} {t('sessionsSelected')}
+                    </span>
+                  )}
+                </div>
+                <div className="grid grid-cols-3 gap-2">
+                  {TRADING_SESSIONS.map(s => {
+                    const isSelected = formData.tradingSessions.includes(s.key);
+                    return (
+                      <button
+                        key={s.key}
+                        type="button"
+                        onClick={() => {
+                          const next = isSelected
+                            ? formData.tradingSessions.filter(k => k !== s.key)
+                            : [...formData.tradingSessions, s.key];
+                          setFormData({ ...formData, tradingSessions: next });
+                        }}
+                        className={`py-2 px-3 rounded-xl text-xs font-bold border transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+                          isSelected
+                            ? 'bg-indigo-500 border-indigo-500 text-white shadow-sm shadow-indigo-500/25 scale-[1.02]'
+                            : 'border-slate-200 dark:border-zinc-700 text-slate-600 dark:text-slate-400 hover:border-indigo-300 dark:hover:border-indigo-700 bg-white dark:bg-[#151515]'
+                        }`}
+                      >
+                        <span>{t(s.tKey)}</span>
+                        {isSelected && <span className="text-[10px]">✓</span>}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
               {/* Discipline */}
               <div>
                 <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">{t('discipline')}</label>
@@ -965,7 +1382,7 @@ export default function ReviewsPage() {
                       key={String(opt.v)}
                       type="button"
                       onClick={() => setFormData({ ...formData, followedRules: formData.followedRules === opt.v ? null : opt.v })}
-                      className={`flex-1 py-2.5 rounded-xl text-sm font-bold border transition-all ${
+                      className={`flex-1 py-2.5 rounded-xl text-sm font-bold border transition-all cursor-pointer ${
                         formData.followedRules === opt.v
                           ? opt.v
                             ? 'bg-green-50 dark:bg-green-500/10 border-green-300 dark:border-green-500/40 text-green-700 dark:text-green-400'
@@ -976,6 +1393,47 @@ export default function ReviewsPage() {
                       {t(opt.labelKey)}
                     </button>
                   ))}
+                </div>
+              </div>
+
+              {/* Psychology Pitfalls */}
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 flex items-center gap-1">
+                    <AlertOctagon size={12} className="text-rose-500" />
+                    <span>{t('psychologyPitfallsTitle')}</span>
+                  </label>
+                  {formData.psychologyPitfalls.length > 0 && (
+                    <span className="text-[11px] font-bold text-rose-500">
+                      {formData.psychologyPitfalls.length} {t('pitfallsCount')}
+                    </span>
+                  )}
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {PSYCHOLOGY_PITFALLS.map(p => {
+                    const isSelected = formData.psychologyPitfalls.includes(p.key);
+                    return (
+                      <button
+                        key={p.key}
+                        type="button"
+                        onClick={() => {
+                          const next = isSelected
+                            ? formData.psychologyPitfalls.filter(k => k !== p.key)
+                            : [...formData.psychologyPitfalls, p.key];
+                          setFormData({ ...formData, psychologyPitfalls: next });
+                        }}
+                        className={`px-3 py-1.5 rounded-xl text-xs font-bold border transition-all cursor-pointer flex items-center gap-1.5 ${
+                          isSelected
+                            ? 'bg-rose-500 border-rose-500 text-white shadow-sm shadow-rose-500/25 scale-[1.02]'
+                            : 'border-slate-200 dark:border-zinc-700 text-slate-600 dark:text-slate-400 hover:border-rose-300 dark:hover:border-rose-700 bg-white dark:bg-[#151515]'
+                        }`}
+                      >
+                        <span>{p.emoji}</span>
+                        <span>{t(p.tKey)}</span>
+                        {isSelected && <span className="text-[10px]">✓</span>}
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
 
@@ -1016,23 +1474,132 @@ export default function ReviewsPage() {
                 />
               </div>
 
+              {/* Tomorrow's Plan */}
+              <div>
+                <label className="block text-[10px] font-black uppercase tracking-widest text-indigo-500 mb-2 flex items-center gap-1">
+                  <Target size={12} />
+                  <span>{t('tomorrowPlanTitle')}</span>
+                </label>
+                <textarea
+                  rows={2}
+                  value={formData.tomorrowPlan}
+                  onChange={e => setFormData({ ...formData, tomorrowPlan: e.target.value })}
+                  placeholder={t('tomorrowPlanPlaceholder')}
+                  className="w-full bg-slate-50 dark:bg-[#121212] border border-slate-200 dark:border-zinc-800 rounded-xl px-4 py-3 text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-400 outline-none resize-none"
+                />
+              </div>
+
+              {/* Chart URL & Screenshot */}
+              <div className="space-y-2">
+                <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 flex items-center gap-1">
+                  <ImageIcon size={12} />
+                  <span>{t('dailyChartTitle')}</span>
+                </label>
+
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={formData.chartUrl}
+                    onChange={e => setFormData({ ...formData, chartUrl: e.target.value })}
+                    placeholder={t('dailyChartPlaceholder')}
+                    className="flex-1 bg-slate-50 dark:bg-[#121212] border border-slate-200 dark:border-zinc-800 rounded-xl px-4 py-2.5 text-xs text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
+                  />
+                  <label className="px-3 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-slate-700 dark:text-slate-300 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer flex-shrink-0">
+                    <Upload size={14} />
+                    <span>{t('uploadImage')}</span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={handleFileUpload}
+                    />
+                  </label>
+                </div>
+                <p className="text-[11px] text-slate-400 flex items-center gap-1">
+                  <span>💡 {t('pasteChartHint')}</span>
+                </p>
+
+                {formData.chartUrl && (
+                  <div className="relative mt-2 p-2 rounded-xl bg-slate-50 dark:bg-black/30 border border-slate-200 dark:border-zinc-800">
+                    <div className="flex items-center justify-between pb-2">
+                      <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400">{t('chartPreview')}</span>
+                      <button
+                        type="button"
+                        onClick={() => setFormData({ ...formData, chartUrl: '' })}
+                        className="text-xs text-rose-500 hover:underline font-bold cursor-pointer"
+                      >
+                        {t('removeChart')}
+                      </button>
+                    </div>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={formData.chartUrl}
+                      alt="Review Chart"
+                      className="w-full max-h-48 object-contain rounded-lg border border-slate-200 dark:border-zinc-800 bg-black/20"
+                      onError={(e) => {
+                        (e.currentTarget as HTMLElement).style.display = 'none';
+                      }}
+                    />
+                  </div>
+                )}
+              </div>
+
               <div className="pt-2 flex gap-3">
                 <button
                   type="button"
                   onClick={() => setIsModalOpen(false)}
-                  className="flex-1 py-3 rounded-xl font-bold bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-zinc-700 transition-colors"
+                  className="flex-1 py-3 rounded-xl font-bold bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-zinc-700 transition-colors cursor-pointer"
                 >
                   {t('cancel')}
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 py-3 rounded-xl font-bold text-white transition-all shadow-lg shadow-blue-500/30"
+                  className="flex-1 py-3 rounded-xl font-bold text-white transition-all shadow-lg shadow-blue-500/30 cursor-pointer"
                   style={{ background: 'linear-gradient(135deg, #3b82f6 0%, #6366f1 100%)' }}
                 >
                   {t('saveReview')}
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* ─── ZOOM LIGHTBOX MODAL ─── */}
+      {previewZoomChart && (
+        <div
+          className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/85 backdrop-blur-md cursor-pointer animate-fade-in"
+          onClick={() => setPreviewZoomChart(null)}
+        >
+          <div
+            className="relative max-w-5xl max-h-[90vh] w-full flex flex-col items-center justify-center"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="absolute top-2 right-2 flex items-center gap-2 z-10">
+              {previewZoomChart.startsWith('http') && (
+                <a
+                  href={previewZoomChart}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="px-3 py-1.5 bg-black/60 hover:bg-black/80 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 backdrop-blur-sm transition border border-white/10"
+                >
+                  <span>TradingView</span>
+                  <ExternalLink size={12} />
+                </a>
+              )}
+              <button
+                onClick={() => setPreviewZoomChart(null)}
+                className="p-2 bg-black/60 hover:bg-black/80 text-white rounded-xl backdrop-blur-sm transition border border-white/10 cursor-pointer"
+              >
+                <X size={18} />
+              </button>
+            </div>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={previewZoomChart}
+              alt="Zoomed Daily Chart"
+              className="max-h-[85vh] max-w-full w-auto object-contain rounded-2xl shadow-2xl border border-white/10"
+            />
           </div>
         </div>
       )}
