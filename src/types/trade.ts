@@ -30,6 +30,7 @@ export interface TradeNotes {
 
 export interface Trade {
   id: string;
+  userId?: string;
   accountId: string; // Associated account
   instrument: string;
   direction: Direction;

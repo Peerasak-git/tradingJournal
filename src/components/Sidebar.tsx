@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useTheme } from '@/context/ThemeContext';
 import { useLanguage } from '@/context/LanguageContext';
@@ -24,6 +24,7 @@ import {
   ChevronDown,
   Wallet,
   LogOut,
+  LogIn,
   User as UserIcon,
   Briefcase,
   Cat,
@@ -37,15 +38,18 @@ import SupabaseSyncModal from './SupabaseSyncModal';
 
 export default function Sidebar() {
   const pathname = usePathname();
+  const router = useRouter();
   const [isOpen, setIsOpen] = useState(false);
   const [isAccountOpen, setIsAccountOpen] = useState(false);
   const [isSyncModalOpen, setIsSyncModalOpen] = useState(false);
   const [isCloudConnected, setIsCloudConnected] = useState(false);
   const { theme, toggleTheme } = useTheme();
   const { language, setLanguage, t } = useLanguage();
-  const { user, hasPin, lockSession } = useAuth();
+  const { user, signOut, hasPin, lockSession } = useAuth();
   const { accounts, selectedAccount, setSelectedAccount } = useAccount();
   const [petEnabled, setPetEnabled] = useState(true);
+
+  if (pathname === '/login') return null;
 
   useEffect(() => {
     setIsCloudConnected(isSupabaseConfigured());
@@ -124,7 +128,7 @@ export default function Sidebar() {
         <div className="flex flex-col h-full p-5">
           {/* User Profile Section */}
           <div className="flex items-center gap-3 mb-6 p-2 bg-slate-50 dark:bg-[#1a1a1a] rounded-2xl border border-slate-200 dark:border-zinc-800/80">
-            <div className="w-10 h-10 rounded-xl overflow-hidden bg-blue-100 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800/50">
+            <div className="w-10 h-10 rounded-xl overflow-hidden bg-blue-100 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800/50 flex-shrink-0">
               {user?.avatar ? (
                 <img src={user.avatar} alt={user.name} className="w-full h-full object-cover" />
               ) : (
@@ -134,14 +138,33 @@ export default function Sidebar() {
               )}
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-black text-slate-900 dark:text-white truncate">{user?.name || 'Guest'}</p>
-              <span className="flex items-center gap-1 text-[10px] font-bold text-blue-500 dark:text-blue-400 uppercase tracking-widest">
-                {user?.role === 'ADMIN' ? t('admin') : t('user')}
-              </span>
+              <p className="text-sm font-black text-slate-900 dark:text-white truncate">{user?.name || t('guestUser')}</p>
+              <p className="text-[10px] text-slate-400 truncate">
+                {user?.email || (user?.role === 'ADMIN' ? t('admin') : t('user'))}
+              </p>
             </div>
-            <button className="p-1.5 hover:bg-slate-200 dark:hover:bg-slate-800 rounded-lg text-slate-400 transition-colors">
-              <LogOut size={14} />
-            </button>
+            {user ? (
+              <button
+                onClick={async () => {
+                  if (confirm(t('signOutConfirm'))) {
+                    await signOut();
+                    router.push('/login');
+                  }
+                }}
+                title={t('signOut')}
+                className="p-1.5 hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-900/30 dark:hover:text-rose-400 rounded-lg text-slate-400 transition-colors cursor-pointer"
+              >
+                <LogOut size={15} />
+              </button>
+            ) : (
+              <Link
+                href="/login"
+                title={t('signIn')}
+                className="p-1.5 hover:bg-blue-50 hover:text-blue-600 dark:hover:bg-blue-900/30 dark:hover:text-blue-400 rounded-lg text-blue-500 transition-colors"
+              >
+                <LogIn size={15} />
+              </Link>
+            )}
           </div>
 
           {/* Account Switcher */}

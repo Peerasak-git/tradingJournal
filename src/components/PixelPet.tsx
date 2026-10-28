@@ -1,13 +1,17 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
+import { usePathname } from 'next/navigation';
 import { getTrades, getReviews } from '@/lib/clientStorage';
 import { evaluateDiscipline, DisciplineMetrics } from '@/lib/discipline';
 
 type PetState = 'WALK' | 'SIT' | 'IDLE' | 'SLEEP' | 'RUN' | 'EAT' | 'PLAY';
 
 export default function PixelPet() {
+  const pathname = usePathname();
   const [isEnabled, setIsEnabled] = useState(true);
+
+  if (pathname === '/login') return null;
   const [position, setPosition] = useState({ x: 100, y: 100 });
   const [direction, setDirection] = useState<'LEFT' | 'RIGHT'>('RIGHT');
   const [state, setState] = useState<PetState>('WALK');

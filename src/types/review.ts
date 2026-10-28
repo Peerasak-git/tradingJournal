@@ -1,5 +1,6 @@
 export interface Review {
   id: string;
+  userId?: string;
   date: string;
   rating: number;
   notes: string;

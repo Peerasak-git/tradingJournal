@@ -1,10 +1,12 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { usePathname } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import { Lock, Delete, ShieldAlert, KeyRound, CheckCircle2, ArrowRight } from 'lucide-react';
 
 export default function LockScreen() {
+  const pathname = usePathname();
   const { hasPin, isLocked, unlockWithPin, setPin, removePin, skipPinSetup } = useAuth();
   
   // State for PIN entry
@@ -36,7 +38,7 @@ export default function LockScreen() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [pin, isLocked, hasPin, setupStep, firstPin]);
 
-  if (!isLocked) return null;
+  if (pathname === '/login' || !isLocked) return null;
 
   const handleDigitPress = (digit: string) => {
     if (pin.length >= 6) return;

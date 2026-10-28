@@ -22,11 +22,29 @@ function isClient(): boolean {
   return typeof window !== 'undefined';
 }
 
+export function getActiveUserId(): string | null {
+  if (!isClient()) return null;
+  const local = localStorage.getItem(KEYS.USER);
+  if (local) {
+    try {
+      const u = JSON.parse(local);
+      return u?.id || null;
+    } catch {}
+  }
+  return null;
+}
+
+export function getUserKey(baseKey: string): string {
+  const userId = getActiveUserId();
+  return userId ? `${baseKey}_${userId}` : baseKey;
+}
+
 // ---------------- Trades ----------------
 export async function getTrades(): Promise<Trade[]> {
   if (!isClient()) return [];
 
   const supabase = getSupabase();
+  const currentUserId = getActiveUserId();
 
   if (supabase) {
     try {
@@ -37,13 +55,19 @@ export async function getTrades(): Promise<Trade[]> {
 
       if (!error && data) {
         if (data.length > 0) {
-          const trades: Trade[] = data.map((row: any) => row.data as Trade);
-          localStorage.setItem(KEYS.TRADES, JSON.stringify(trades));
+          let trades: Trade[] = data.map((row: any) => ({
+            ...(row.data as Trade),
+            userId: row.data?.userId || row.user_id || undefined,
+          }));
+          if (currentUserId) {
+            trades = trades.filter(t => !t.userId || t.userId === currentUserId);
+          }
+          localStorage.setItem(getUserKey(KEYS.TRADES), JSON.stringify(trades));
           return trades;
         }
 
         // If Supabase table is empty, check if we have local trades to push to cloud
-        const local = localStorage.getItem(KEYS.TRADES);
+        const local = localStorage.getItem(getUserKey(KEYS.TRADES)) || localStorage.getItem(KEYS.TRADES);
         if (local) {
           try {
             const localTrades: Trade[] = JSON.parse(local);
@@ -65,46 +89,61 @@ export async function getTrades(): Promise<Trade[]> {
   }
 
   // Local fallback
-  const local = localStorage.getItem(KEYS.TRADES);
+  const local = localStorage.getItem(getUserKey(KEYS.TRADES)) || localStorage.getItem(KEYS.TRADES);
   if (local) {
     try {
-      return JSON.parse(local);
+      let parsed: Trade[] = JSON.parse(local);
+      if (currentUserId) {
+        parsed = parsed.filter(t => !t.userId || t.userId === currentUserId);
+      }
+      return parsed;
     } catch (e) {
       console.error('Error parsing trades from localStorage', e);
     }
   }
 
-  // Seed from API if first time
-  try {
-    const res = await fetch('/api/trades');
-    if (res.ok) {
-      const data = await res.json();
-      const trades: Trade[] = data.trades || [];
-      localStorage.setItem(KEYS.TRADES, JSON.stringify(trades));
+  // Seed from API if first time and no specific user
+  if (!currentUserId) {
+    try {
+      const res = await fetch('/api/trades');
+      if (res.ok) {
+        const data = await res.json();
+        const trades: Trade[] = data.trades || [];
+        localStorage.setItem(KEYS.TRADES, JSON.stringify(trades));
 
-      if (supabase && trades.length > 0) {
-        syncTradesToSupabase(trades).catch(console.error);
+        if (supabase && trades.length > 0) {
+          syncTradesToSupabase(trades).catch(console.error);
+        }
+
+        return trades;
       }
-
-      return trades;
+    } catch (err) {
+      console.error('Error seeding trades from API:', err);
     }
-  } catch (err) {
-    console.error('Error seeding trades from API:', err);
   }
   return [];
 }
 
 export function saveTrades(trades: Trade[]): void {
   if (!isClient()) return;
-  localStorage.setItem(KEYS.TRADES, JSON.stringify(trades));
+  const currentUserId = getActiveUserId();
+  const stamped = trades.map(t => ({
+    ...t,
+    userId: t.userId || currentUserId || undefined,
+  }));
+  localStorage.setItem(getUserKey(KEYS.TRADES), JSON.stringify(stamped));
 
   const supabase = getSupabase();
   if (supabase) {
-    syncTradesToSupabase(trades).catch(console.error);
+    syncTradesToSupabase(stamped).catch(console.error);
   }
 }
 
 export async function addOrUpdateTrade(trade: Trade): Promise<Trade> {
+  const currentUserId = getActiveUserId();
+  if (!trade.userId && currentUserId) {
+    trade.userId = currentUserId;
+  }
   const trades = await getTrades();
   const index = trades.findIndex(t => t.id === trade.id);
   const accounts = await getAccounts();
@@ -135,7 +174,7 @@ export async function addOrUpdateTrade(trade: Trade): Promise<Trade> {
 
   // Save to local cache
   if (isClient()) {
-    localStorage.setItem(KEYS.TRADES, JSON.stringify(trades));
+    localStorage.setItem(getUserKey(KEYS.TRADES), JSON.stringify(trades));
   }
 
   // Sync to Supabase
@@ -174,7 +213,7 @@ export async function deleteTrade(id: string): Promise<boolean> {
   const filtered = trades.filter(t => t.id !== id);
 
   if (isClient()) {
-    localStorage.setItem(KEYS.TRADES, JSON.stringify(filtered));
+    localStorage.setItem(getUserKey(KEYS.TRADES), JSON.stringify(filtered));
   }
 
   // Revert balance if closed
@@ -204,17 +243,24 @@ async function syncTradesToSupabase(trades: Trade[]): Promise<void> {
   const supabase = getSupabase();
   if (!supabase || trades.length === 0) return;
 
-  const rows = trades.map(t => ({
-    id: t.id,
-    account_id: t.accountId || null,
-    instrument: t.instrument || null,
-    direction: t.direction || null,
-    status: t.status || null,
-    pnl: t.financials?.netPnL ?? null,
-    entry_date: t.entryDate || null,
-    data: t,
-    updated_at: new Date().toISOString(),
-  }));
+  const currentUserId = getActiveUserId();
+  const rows = trades.map(t => {
+    const item = {
+      ...t,
+      userId: t.userId || currentUserId || undefined,
+    };
+    return {
+      id: item.id,
+      account_id: item.accountId || null,
+      instrument: item.instrument || null,
+      direction: item.direction || null,
+      status: item.status || null,
+      pnl: item.financials?.netPnL ?? null,
+      entry_date: item.entryDate || null,
+      data: item,
+      updated_at: new Date().toISOString(),
+    };
+  });
 
   const { error } = await supabase.from('trades').upsert(rows);
   if (error) {
@@ -227,6 +273,8 @@ export async function getAccounts(): Promise<Account[]> {
   if (!isClient()) return [];
 
   const supabase = getSupabase();
+  const currentUserId = getActiveUserId();
+
   if (supabase) {
     try {
       const { data, error } = await supabase
@@ -236,12 +284,18 @@ export async function getAccounts(): Promise<Account[]> {
 
       if (!error && data) {
         if (data.length > 0) {
-          const accounts: Account[] = data.map((row: any) => row.data as Account);
-          localStorage.setItem(KEYS.ACCOUNTS, JSON.stringify(accounts));
+          let accounts: Account[] = data.map((row: any) => ({
+            ...(row.data as Account),
+            userId: row.data?.userId || row.user_id || undefined,
+          }));
+          if (currentUserId) {
+            accounts = accounts.filter(a => !a.userId || a.userId === currentUserId);
+          }
+          localStorage.setItem(getUserKey(KEYS.ACCOUNTS), JSON.stringify(accounts));
           return accounts;
         }
 
-        const local = localStorage.getItem(KEYS.ACCOUNTS);
+        const local = localStorage.getItem(getUserKey(KEYS.ACCOUNTS)) || localStorage.getItem(KEYS.ACCOUNTS);
         if (local) {
           try {
             const localAccs: Account[] = JSON.parse(local);
@@ -259,39 +313,50 @@ export async function getAccounts(): Promise<Account[]> {
     }
   }
 
-  const local = localStorage.getItem(KEYS.ACCOUNTS);
+  const local = localStorage.getItem(getUserKey(KEYS.ACCOUNTS)) || localStorage.getItem(KEYS.ACCOUNTS);
   if (local) {
     try {
-      return JSON.parse(local);
+      let parsed: Account[] = JSON.parse(local);
+      if (currentUserId) {
+        parsed = parsed.filter(a => !a.userId || a.userId === currentUserId);
+      }
+      return parsed;
     } catch (e) {
       console.error('Error parsing accounts from localStorage', e);
     }
   }
 
-  try {
-    const res = await fetch('/api/accounts');
-    if (res.ok) {
-      const data = await res.json();
-      const accounts: Account[] = data.accounts || [];
-      localStorage.setItem(KEYS.ACCOUNTS, JSON.stringify(accounts));
-      if (supabase && accounts.length > 0) {
-        syncAccountsToSupabase(accounts).catch(console.error);
+  if (!currentUserId) {
+    try {
+      const res = await fetch('/api/accounts');
+      if (res.ok) {
+        const data = await res.json();
+        const accounts: Account[] = data.accounts || [];
+        localStorage.setItem(KEYS.ACCOUNTS, JSON.stringify(accounts));
+        if (supabase && accounts.length > 0) {
+          syncAccountsToSupabase(accounts).catch(console.error);
+        }
+        return accounts;
       }
-      return accounts;
+    } catch (err) {
+      console.error('Error seeding accounts from API:', err);
     }
-  } catch (err) {
-    console.error('Error seeding accounts from API:', err);
   }
   return [];
 }
 
 export function saveAccounts(accounts: Account[]): void {
   if (!isClient()) return;
-  localStorage.setItem(KEYS.ACCOUNTS, JSON.stringify(accounts));
+  const currentUserId = getActiveUserId();
+  const stamped = accounts.map(a => ({
+    ...a,
+    userId: a.userId || currentUserId || '',
+  }));
+  localStorage.setItem(getUserKey(KEYS.ACCOUNTS), JSON.stringify(stamped));
 
   const supabase = getSupabase();
   if (supabase) {
-    syncAccountsToSupabase(accounts).catch(console.error);
+    syncAccountsToSupabase(stamped).catch(console.error);
   }
 }
 
@@ -299,14 +364,21 @@ async function syncAccountsToSupabase(accounts: Account[]): Promise<void> {
   const supabase = getSupabase();
   if (!supabase || accounts.length === 0) return;
 
-  const rows = accounts.map(a => ({
-    id: a.id,
-    name: a.name || null,
-    balance: a.balance ?? 0,
-    currency: a.currency || null,
-    data: a,
-    updated_at: new Date().toISOString(),
-  }));
+  const currentUserId = getActiveUserId();
+  const rows = accounts.map(a => {
+    const item = {
+      ...a,
+      userId: a.userId || currentUserId || '',
+    };
+    return {
+      id: item.id,
+      name: item.name || null,
+      balance: item.balance ?? 0,
+      currency: item.currency || null,
+      data: item,
+      updated_at: new Date().toISOString(),
+    };
+  });
 
   const { error } = await supabase.from('accounts').upsert(rows);
   if (error) {
@@ -315,6 +387,10 @@ async function syncAccountsToSupabase(accounts: Account[]): Promise<void> {
 }
 
 export async function addAccount(account: Account): Promise<Account> {
+  const currentUserId = getActiveUserId();
+  if (!account.userId && currentUserId) {
+    account.userId = currentUserId;
+  }
   const accounts = await getAccounts();
   accounts.push(account);
   saveAccounts(accounts);
@@ -348,6 +424,8 @@ export async function getJournals(): Promise<JournalEntry[]> {
   if (!isClient()) return [];
 
   const supabase = getSupabase();
+  const currentUserId = getActiveUserId();
+
   if (supabase) {
     try {
       const { data, error } = await supabase
@@ -357,12 +435,18 @@ export async function getJournals(): Promise<JournalEntry[]> {
 
       if (!error && data) {
         if (data.length > 0) {
-          const journals: JournalEntry[] = data.map((row: any) => row.data as JournalEntry);
-          localStorage.setItem(KEYS.JOURNALS, JSON.stringify(journals));
+          let journals: JournalEntry[] = data.map((row: any) => ({
+            ...(row.data as JournalEntry),
+            userId: row.data?.userId || row.user_id || undefined,
+          }));
+          if (currentUserId) {
+            journals = journals.filter(j => !j.userId || j.userId === currentUserId);
+          }
+          localStorage.setItem(getUserKey(KEYS.JOURNALS), JSON.stringify(journals));
           return journals;
         }
 
-        const local = localStorage.getItem(KEYS.JOURNALS);
+        const local = localStorage.getItem(getUserKey(KEYS.JOURNALS)) || localStorage.getItem(KEYS.JOURNALS);
         if (local) {
           try {
             const localJ: JournalEntry[] = JSON.parse(local);
@@ -380,39 +464,50 @@ export async function getJournals(): Promise<JournalEntry[]> {
     }
   }
 
-  const local = localStorage.getItem(KEYS.JOURNALS);
+  const local = localStorage.getItem(getUserKey(KEYS.JOURNALS)) || localStorage.getItem(KEYS.JOURNALS);
   if (local) {
     try {
-      return JSON.parse(local);
+      let parsed: JournalEntry[] = JSON.parse(local);
+      if (currentUserId) {
+        parsed = parsed.filter(j => !j.userId || j.userId === currentUserId);
+      }
+      return parsed;
     } catch (e) {
       console.error('Error parsing journals from localStorage', e);
     }
   }
 
-  try {
-    const res = await fetch('/api/journals');
-    if (res.ok) {
-      const data = await res.json();
-      const journals: JournalEntry[] = data.journals || [];
-      localStorage.setItem(KEYS.JOURNALS, JSON.stringify(journals));
-      if (supabase && journals.length > 0) {
-        syncJournalsToSupabase(journals).catch(console.error);
+  if (!currentUserId) {
+    try {
+      const res = await fetch('/api/journals');
+      if (res.ok) {
+        const data = await res.json();
+        const journals: JournalEntry[] = data.journals || [];
+        localStorage.setItem(KEYS.JOURNALS, JSON.stringify(journals));
+        if (supabase && journals.length > 0) {
+          syncJournalsToSupabase(journals).catch(console.error);
+        }
+        return journals;
       }
-      return journals;
+    } catch (err) {
+      console.error('Error seeding journals from API:', err);
     }
-  } catch (err) {
-    console.error('Error seeding journals from API:', err);
   }
   return [];
 }
 
 export function saveJournals(journals: JournalEntry[]): void {
   if (!isClient()) return;
-  localStorage.setItem(KEYS.JOURNALS, JSON.stringify(journals));
+  const currentUserId = getActiveUserId();
+  const stamped = journals.map(j => ({
+    ...j,
+    userId: j.userId || currentUserId || undefined,
+  }));
+  localStorage.setItem(getUserKey(KEYS.JOURNALS), JSON.stringify(stamped));
 
   const supabase = getSupabase();
   if (supabase) {
-    syncJournalsToSupabase(journals).catch(console.error);
+    syncJournalsToSupabase(stamped).catch(console.error);
   }
 }
 
@@ -420,18 +515,29 @@ async function syncJournalsToSupabase(journals: JournalEntry[]): Promise<void> {
   const supabase = getSupabase();
   if (!supabase || journals.length === 0) return;
 
-  const rows = journals.map(j => ({
-    id: j.id,
-    date: j.date || null,
-    data: j,
-    updated_at: new Date().toISOString(),
-  }));
+  const currentUserId = getActiveUserId();
+  const rows = journals.map(j => {
+    const item = {
+      ...j,
+      userId: j.userId || currentUserId || undefined,
+    };
+    return {
+      id: item.id,
+      date: item.date || null,
+      data: item,
+      updated_at: new Date().toISOString(),
+    };
+  });
 
   const { error } = await supabase.from('journals').upsert(rows);
   if (error) console.warn('Failed to sync journals to Supabase:', error.message);
 }
 
 export async function addOrUpdateJournal(entry: JournalEntry): Promise<JournalEntry> {
+  const currentUserId = getActiveUserId();
+  if (!entry.userId && currentUserId) {
+    entry.userId = currentUserId;
+  }
   const journals = await getJournals();
   const index = journals.findIndex(j => j.id === entry.id);
   if (index === -1) {
@@ -460,6 +566,8 @@ export async function getFinances(): Promise<FinanceEntry[]> {
   if (!isClient()) return [];
 
   const supabase = getSupabase();
+  const currentUserId = getActiveUserId();
+
   if (supabase) {
     try {
       const { data, error } = await supabase
@@ -469,12 +577,18 @@ export async function getFinances(): Promise<FinanceEntry[]> {
 
       if (!error && data) {
         if (data.length > 0) {
-          const finances: FinanceEntry[] = data.map((row: any) => row.data as FinanceEntry);
-          localStorage.setItem(KEYS.FINANCES, JSON.stringify(finances));
+          let finances: FinanceEntry[] = data.map((row: any) => ({
+            ...(row.data as FinanceEntry),
+            userId: row.data?.userId || row.user_id || undefined,
+          }));
+          if (currentUserId) {
+            finances = finances.filter(f => !f.userId || f.userId === currentUserId);
+          }
+          localStorage.setItem(getUserKey(KEYS.FINANCES), JSON.stringify(finances));
           return finances;
         }
 
-        const local = localStorage.getItem(KEYS.FINANCES);
+        const local = localStorage.getItem(getUserKey(KEYS.FINANCES)) || localStorage.getItem(KEYS.FINANCES);
         if (local) {
           try {
             const localF: FinanceEntry[] = JSON.parse(local);
@@ -492,39 +606,50 @@ export async function getFinances(): Promise<FinanceEntry[]> {
     }
   }
 
-  const local = localStorage.getItem(KEYS.FINANCES);
+  const local = localStorage.getItem(getUserKey(KEYS.FINANCES)) || localStorage.getItem(KEYS.FINANCES);
   if (local) {
     try {
-      return JSON.parse(local);
+      let parsed: FinanceEntry[] = JSON.parse(local);
+      if (currentUserId) {
+        parsed = parsed.filter(f => !f.userId || f.userId === currentUserId);
+      }
+      return parsed;
     } catch (e) {
       console.error('Error parsing finances from localStorage', e);
     }
   }
 
-  try {
-    const res = await fetch('/api/finances');
-    if (res.ok) {
-      const data = await res.json();
-      const finances: FinanceEntry[] = data.finances || [];
-      localStorage.setItem(KEYS.FINANCES, JSON.stringify(finances));
-      if (supabase && finances.length > 0) {
-        syncFinancesToSupabase(finances).catch(console.error);
+  if (!currentUserId) {
+    try {
+      const res = await fetch('/api/finances');
+      if (res.ok) {
+        const data = await res.json();
+        const finances: FinanceEntry[] = data.finances || [];
+        localStorage.setItem(KEYS.FINANCES, JSON.stringify(finances));
+        if (supabase && finances.length > 0) {
+          syncFinancesToSupabase(finances).catch(console.error);
+        }
+        return finances;
       }
-      return finances;
+    } catch (err) {
+      console.error('Error seeding finances from API:', err);
     }
-  } catch (err) {
-    console.error('Error seeding finances from API:', err);
   }
   return [];
 }
 
 export function saveFinances(finances: FinanceEntry[]): void {
   if (!isClient()) return;
-  localStorage.setItem(KEYS.FINANCES, JSON.stringify(finances));
+  const currentUserId = getActiveUserId();
+  const stamped = finances.map(f => ({
+    ...f,
+    userId: f.userId || currentUserId || undefined,
+  }));
+  localStorage.setItem(getUserKey(KEYS.FINANCES), JSON.stringify(stamped));
 
   const supabase = getSupabase();
   if (supabase) {
-    syncFinancesToSupabase(finances).catch(console.error);
+    syncFinancesToSupabase(stamped).catch(console.error);
   }
 }
 
@@ -532,21 +657,32 @@ async function syncFinancesToSupabase(finances: FinanceEntry[]): Promise<void> {
   const supabase = getSupabase();
   if (!supabase || finances.length === 0) return;
 
-  const rows = finances.map(f => ({
-    id: f.id,
-    date: f.date || null,
-    type: f.type || null,
-    amount: f.amount ?? 0,
-    account_id: f.accountId || null,
-    data: f,
-    updated_at: new Date().toISOString(),
-  }));
+  const currentUserId = getActiveUserId();
+  const rows = finances.map(f => {
+    const item = {
+      ...f,
+      userId: f.userId || currentUserId || undefined,
+    };
+    return {
+      id: item.id,
+      date: item.date || null,
+      type: item.type || null,
+      amount: item.amount ?? 0,
+      account_id: item.accountId || null,
+      data: item,
+      updated_at: new Date().toISOString(),
+    };
+  });
 
   const { error } = await supabase.from('finances').upsert(rows);
   if (error) console.warn('Failed to sync finances to Supabase:', error.message);
 }
 
 export async function addFinance(entry: FinanceEntry): Promise<FinanceEntry> {
+  const currentUserId = getActiveUserId();
+  if (!entry.userId && currentUserId) {
+    entry.userId = currentUserId;
+  }
   const finances = await getFinances();
   finances.unshift(entry);
   saveFinances(finances);
@@ -558,6 +694,8 @@ export async function getReviews(): Promise<Review[]> {
   if (!isClient()) return [];
 
   const supabase = getSupabase();
+  const currentUserId = getActiveUserId();
+
   if (supabase) {
     try {
       const { data, error } = await supabase
@@ -567,12 +705,18 @@ export async function getReviews(): Promise<Review[]> {
 
       if (!error && data) {
         if (data.length > 0) {
-          const reviews: Review[] = data.map((row: any) => row.data as Review);
-          localStorage.setItem(KEYS.REVIEWS, JSON.stringify(reviews));
+          let reviews: Review[] = data.map((row: any) => ({
+            ...(row.data as Review),
+            userId: row.data?.userId || row.user_id || undefined,
+          }));
+          if (currentUserId) {
+            reviews = reviews.filter(r => !r.userId || r.userId === currentUserId);
+          }
+          localStorage.setItem(getUserKey(KEYS.REVIEWS), JSON.stringify(reviews));
           return reviews;
         }
 
-        const local = localStorage.getItem(KEYS.REVIEWS);
+        const local = localStorage.getItem(getUserKey(KEYS.REVIEWS)) || localStorage.getItem(KEYS.REVIEWS);
         if (local) {
           try {
             const localR: Review[] = JSON.parse(local);
@@ -590,39 +734,50 @@ export async function getReviews(): Promise<Review[]> {
     }
   }
 
-  const local = localStorage.getItem(KEYS.REVIEWS);
+  const local = localStorage.getItem(getUserKey(KEYS.REVIEWS)) || localStorage.getItem(KEYS.REVIEWS);
   if (local) {
     try {
-      return JSON.parse(local);
+      let parsed: Review[] = JSON.parse(local);
+      if (currentUserId) {
+        parsed = parsed.filter(r => !r.userId || r.userId === currentUserId);
+      }
+      return parsed;
     } catch (e) {
       console.error('Error parsing reviews from localStorage', e);
     }
   }
 
-  try {
-    const res = await fetch('/api/reviews');
-    if (res.ok) {
-      const data = await res.json();
-      const reviews: Review[] = data.reviews || [];
-      localStorage.setItem(KEYS.REVIEWS, JSON.stringify(reviews));
-      if (supabase && reviews.length > 0) {
-        syncReviewsToSupabase(reviews).catch(console.error);
+  if (!currentUserId) {
+    try {
+      const res = await fetch('/api/reviews');
+      if (res.ok) {
+        const data = await res.json();
+        const reviews: Review[] = data.reviews || [];
+        localStorage.setItem(KEYS.REVIEWS, JSON.stringify(reviews));
+        if (supabase && reviews.length > 0) {
+          syncReviewsToSupabase(reviews).catch(console.error);
+        }
+        return reviews;
       }
-      return reviews;
+    } catch (err) {
+      console.error('Error seeding reviews from API:', err);
     }
-  } catch (err) {
-    console.error('Error seeding reviews from API:', err);
   }
   return [];
 }
 
 export function saveReviews(reviews: Review[]): void {
   if (!isClient()) return;
-  localStorage.setItem(KEYS.REVIEWS, JSON.stringify(reviews));
+  const currentUserId = getActiveUserId();
+  const stamped = reviews.map(r => ({
+    ...r,
+    userId: r.userId || currentUserId || undefined,
+  }));
+  localStorage.setItem(getUserKey(KEYS.REVIEWS), JSON.stringify(stamped));
 
   const supabase = getSupabase();
   if (supabase) {
-    syncReviewsToSupabase(reviews).catch(console.error);
+    syncReviewsToSupabase(stamped).catch(console.error);
   }
 }
 
@@ -630,19 +785,30 @@ async function syncReviewsToSupabase(reviews: Review[]): Promise<void> {
   const supabase = getSupabase();
   if (!supabase || reviews.length === 0) return;
 
-  const rows = reviews.map(r => ({
-    id: r.id,
-    date: r.date || null,
-    rating: r.rating ?? null,
-    data: r,
-    updated_at: new Date().toISOString(),
-  }));
+  const currentUserId = getActiveUserId();
+  const rows = reviews.map(r => {
+    const item = {
+      ...r,
+      userId: r.userId || currentUserId || undefined,
+    };
+    return {
+      id: item.id,
+      date: item.date || null,
+      rating: item.rating || null,
+      data: item,
+      updated_at: new Date().toISOString(),
+    };
+  });
 
   const { error } = await supabase.from('reviews').upsert(rows);
   if (error) console.warn('Failed to sync reviews to Supabase:', error.message);
 }
 
 export async function addOrUpdateReview(review: Review): Promise<Review> {
+  const currentUserId = getActiveUserId();
+  if (!review.userId && currentUserId) {
+    review.userId = currentUserId;
+  }
   const reviews = await getReviews();
   const index = reviews.findIndex(r => r.id === review.id);
   if (index === -1) {
