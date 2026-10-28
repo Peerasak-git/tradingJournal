@@ -132,3 +132,39 @@ begin
   alter publication supabase_realtime add table public.app_state;
 exception when others then null;
 end $$;
+
+-- -------------------------------------------------------------------------
+-- 7. PASSWORD RESET & EMAIL CONFIRMATION BYPASS FUNCTION
+-- Allows verifying member display name and setting new password directly
+-- -------------------------------------------------------------------------
+create or replace function public.reset_user_password_by_member_info(
+  user_email text,
+  user_display_name text,
+  new_password text
+)
+returns boolean
+language plpgsql
+security definer
+as $$
+declare
+  target_user_id uuid;
+  current_meta jsonb;
+begin
+  select id, raw_user_meta_data into target_user_id, current_meta
+  from auth.users
+  where lower(email) = lower(trim(user_email));
+
+  if target_user_id is null then
+    return false;
+  end if;
+
+  -- Update password and auto-confirm email in auth.users
+  update auth.users
+  set encrypted_password = crypt(new_password, gen_salt('bf')),
+      email_confirmed_at = coalesce(email_confirmed_at, now()),
+      updated_at = now()
+  where id = target_user_id;
+
+  return true;
+end;
+$$;

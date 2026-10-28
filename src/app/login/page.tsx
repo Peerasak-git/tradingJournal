@@ -7,7 +7,8 @@ import { useLanguage } from '@/context/LanguageContext';
 import {
   TrendingUp, Lock, Mail, User as UserIcon,
   Eye, EyeOff, AlertCircle, CheckCircle2,
-  ArrowRight, ArrowLeft, ShieldCheck, Sparkles, KeyRound
+  ArrowRight, ArrowLeft, ShieldCheck, Sparkles, KeyRound,
+  UserCheck
 } from 'lucide-react';
 
 export default function LoginPage() {
@@ -18,12 +19,14 @@ export default function LoginPage() {
     signUp,
     resetPasswordForEmail,
     updateUserPassword,
+    resetPasswordWithMemberInfo,
     isPasswordRecovery,
     loading: authLoading
   } = useAuth();
   const { t, language, setLanguage } = useLanguage();
 
   const [mode, setMode] = useState<'signin' | 'signup' | 'forgot' | 'updatePassword'>('signin');
+  const [forgotMethod, setForgotMethod] = useState<'member' | 'email'>('member');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -76,6 +79,43 @@ export default function LoginPage() {
 
     // --- Mode: Forgot Password ---
     if (mode === 'forgot') {
+      if (forgotMethod === 'member') {
+        if (!email.trim()) {
+          setErrorMessage(language === 'th' ? 'กรุณากรอกอีเมล' : 'Please enter your email');
+          return;
+        }
+        if (!displayName.trim()) {
+          setErrorMessage(language === 'th' ? 'กรุณากรอกชื่อที่แสดง (Display Name) ตอนสมัคร' : 'Please enter your registered display name');
+          return;
+        }
+        if (password.length < 6) {
+          setErrorMessage(t('passwordMinLength'));
+          return;
+        }
+        if (password !== confirmPassword) {
+          setErrorMessage(t('passwordsDoNotMatch'));
+          return;
+        }
+        setSubmitting(true);
+        try {
+          const res = await resetPasswordWithMemberInfo(email, displayName, password);
+          if (res.success) {
+            setSuccessMessage(t('memberVerifySuccess'));
+            setTimeout(() => {
+              router.push('/');
+            }, 1000);
+          } else {
+            setErrorMessage(res.message || t('memberVerifyFailed'));
+          }
+        } catch (err: any) {
+          setErrorMessage(err.message || t('memberVerifyFailed'));
+        } finally {
+          setSubmitting(false);
+        }
+        return;
+      }
+
+      // forgotMethod === 'email'
       if (!email.trim()) {
         setErrorMessage(t('loginFailed'));
         return;
@@ -158,12 +198,8 @@ export default function LoginPage() {
         if (error) {
           setErrorMessage(formatAuthError(error.message));
         } else if (needsConfirmation) {
-          setSuccessMessage(
-            language === 'th'
-              ? 'สมัครสมาชิกสำเร็จ! โปรดตรวจสอบอีเมลของคุณเพื่อกดยืนยันตัวตนก่อนเข้าสู่ระบบ'
-              : 'Registration successful! Please check your email to confirm your account before logging in.'
-          );
-          setMode('signin');
+          setSuccessMessage(t('loginSuccess'));
+          setTimeout(() => router.push('/'), 500);
         } else {
           setSuccessMessage(t('registerSuccess'));
           setTimeout(() => router.push('/'), 600);
@@ -224,13 +260,13 @@ export default function LoginPage() {
                   <ArrowLeft size={14} />
                   <span>{t('backToSignIn')}</span>
                 </button>
-                <div className="flex items-center gap-1.5 text-xs font-bold text-blue-400">
-                  <KeyRound size={14} />
-                  <span>{t('resetPasswordTitle')}</span>
+                <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-400">
+                  <UserCheck size={14} />
+                  <span>{forgotMethod === 'member' ? t('resetWithMemberInfo') : t('resetPasswordTitle')}</span>
                 </div>
               </div>
               <p className="text-xs text-slate-300 leading-relaxed">
-                {t('resetPasswordDesc')}
+                {forgotMethod === 'member' ? t('resetWithMemberInfoDesc') : t('resetPasswordDesc')}
               </p>
             </div>
           ) : mode === 'updatePassword' ? (
@@ -284,8 +320,8 @@ export default function LoginPage() {
           )}
 
           <form onSubmit={handleSubmit} className="space-y-4">
-            {/* Display Name (Only in SignUp) */}
-            {mode === 'signup' && (
+            {/* Display Name (in SignUp OR in Forgot via Member Info) */}
+            {(mode === 'signup' || (mode === 'forgot' && forgotMethod === 'member')) && (
               <div>
                 <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">
                   {t('displayName')}
@@ -296,9 +332,10 @@ export default function LoginPage() {
                   </div>
                   <input
                     type="text"
+                    required
                     value={displayName}
                     onChange={(e) => setDisplayName(e.target.value)}
-                    placeholder="เช่น Alex Trader"
+                    placeholder={mode === 'forgot' ? (t('displayNameHint') || 'ชื่อที่แสดงตอนสมัคร') : 'เช่น Alex Trader'}
                     className="w-full bg-black/40 border border-white/10 rounded-xl pl-10 pr-4 py-3 text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
                   />
                 </div>
@@ -327,18 +364,19 @@ export default function LoginPage() {
               </div>
             )}
 
-            {/* Password Field (Visible in signin, signup, updatePassword) */}
-            {mode !== 'forgot' && (
+            {/* Password Field */}
+            {mode !== 'forgot' || forgotMethod === 'member' ? (
               <div>
                 <div className="flex items-center justify-between mb-1.5">
                   <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider">
-                    {mode === 'updatePassword' ? t('newPassword') : t('password')}
+                    {mode === 'updatePassword' || mode === 'forgot' ? t('newPassword') : t('password')}
                   </label>
                   {mode === 'signin' && (
                     <button
                       type="button"
                       onClick={() => {
                         setMode('forgot');
+                        setForgotMethod('member');
                         setErrorMessage('');
                         setSuccessMessage('');
                       }}
@@ -369,10 +407,10 @@ export default function LoginPage() {
                   </button>
                 </div>
               </div>
-            )}
+            ) : null}
 
-            {/* Confirm Password (In SignUp and updatePassword) */}
-            {(mode === 'signup' || mode === 'updatePassword') && (
+            {/* Confirm Password (In SignUp, updatePassword, or forgot via member) */}
+            {(mode === 'signup' || mode === 'updatePassword' || (mode === 'forgot' && forgotMethod === 'member')) && (
               <div>
                 <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">
                   {t('confirmPassword')}
@@ -398,12 +436,16 @@ export default function LoginPage() {
               type="submit"
               disabled={submitting}
               className="w-full py-3.5 px-4 rounded-xl text-sm font-bold text-white transition-all shadow-lg shadow-blue-500/25 flex items-center justify-center gap-2 cursor-pointer mt-2 disabled:opacity-50"
-              style={{ background: 'linear-gradient(135deg, #2563eb 0%, #4f46e5 100%)' }}
+              style={{
+                background: mode === 'forgot' && forgotMethod === 'member'
+                  ? 'linear-gradient(135deg, #059669 0%, #10b981 100%)'
+                  : 'linear-gradient(135deg, #2563eb 0%, #4f46e5 100%)'
+              }}
             >
               {submitting ? (
                 <span>
                   {mode === 'forgot'
-                    ? t('sendingResetLink')
+                    ? (forgotMethod === 'member' ? 'กำลังยืนยันและเปลี่ยนรหัสผ่าน...' : t('sendingResetLink'))
                     : mode === 'updatePassword'
                     ? t('updatingPassword')
                     : mode === 'signin'
@@ -414,7 +456,7 @@ export default function LoginPage() {
                 <>
                   <span>
                     {mode === 'forgot'
-                      ? t('sendResetLink')
+                      ? (forgotMethod === 'member' ? t('verifyAndResetBtn') : t('sendResetLink'))
                       : mode === 'updatePassword'
                       ? t('updatePasswordButton')
                       : mode === 'signin'
@@ -426,6 +468,37 @@ export default function LoginPage() {
               )}
             </button>
           </form>
+
+          {/* Toggle between member bypass & email reset link in forgot mode */}
+          {mode === 'forgot' && (
+            <div className="mt-4 text-center">
+              {forgotMethod === 'member' ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setForgotMethod('email');
+                    setErrorMessage('');
+                    setSuccessMessage('');
+                  }}
+                  className="text-xs text-slate-400 hover:text-slate-200 transition underline cursor-pointer"
+                >
+                  {t('orSendEmailLink')}
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setForgotMethod('member');
+                    setErrorMessage('');
+                    setSuccessMessage('');
+                  }}
+                  className="text-xs text-emerald-400 hover:text-emerald-300 font-bold transition underline cursor-pointer"
+                >
+                  {t('orResetWithMemberInfo')}
+                </button>
+              )}
+            </div>
+          )}
 
           {/* Switch mode hint */}
           <div className="mt-6 text-center text-xs text-slate-400">

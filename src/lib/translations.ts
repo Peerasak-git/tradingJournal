@@ -191,7 +191,15 @@ export const translations = {
     updatePasswordButton: 'Update Password',
     updatingPassword: 'Updating Password...',
     passwordUpdatedSuccess: 'Your password has been reset successfully! You can now sign in.',
-    passwordMinLength: 'Password must be at least 6 characters.'
+    passwordMinLength: 'Password must be at least 6 characters.',
+    resetWithMemberInfo: 'Bypass: Verify Member Info',
+    resetWithMemberInfoDesc: 'Verify your registered email and display name to set a new password directly without waiting for an email.',
+    displayNameHint: 'Display Name used during registration (or email prefix)',
+    verifyAndResetBtn: 'Verify & Set New Password',
+    memberVerifySuccess: 'Member verified and password updated successfully! Redirecting...',
+    memberVerifyFailed: 'Member information does not match. Please verify your email or display name.',
+    orSendEmailLink: 'Or send reset link via email instead',
+    orResetWithMemberInfo: 'Or reset password using member info (No email required)'
   },
   th: {
     dashboard: 'แดชบอร์ดการเทรด',
@@ -383,7 +391,15 @@ export const translations = {
     updatePasswordButton: 'บันทึกรหัสผ่านใหม่',
     updatingPassword: 'กำลังบันทึกรหัสผ่านใหม่...',
     passwordUpdatedSuccess: 'เปลี่ยนรหัสผ่านใหม่เรียบร้อยแล้ว! สามารถเข้าสู่ระบบได้ทันที',
-    passwordMinLength: 'รหัสผ่านต้องมีความยาวอย่างน้อย 6 ตัวอักษร'
+    passwordMinLength: 'รหัสผ่านต้องมีความยาวอย่างน้อย 6 ตัวอักษร',
+    resetWithMemberInfo: 'ยืนยันด้วยข้อมูลสมาชิก (Bypass)',
+    resetWithMemberInfoDesc: 'กรอกอีเมลและชื่อที่แสดง (Display Name) ที่ใช้ตอนสมัคร เพื่อเปลี่ยนรหัสผ่านใหม่ได้ทันทีโดยไม่ต้องรอยืนยันอีเมล',
+    displayNameHint: 'ชื่อที่แสดงตอนสมัคร (หรือตัวอักษรหน้า @ ของอีเมล)',
+    verifyAndResetBtn: 'ยืนยันและบันทึกรหัสผ่านใหม่',
+    memberVerifySuccess: 'ยืนยันข้อมูลสมาชิกและเปลี่ยนรหัสผ่านสำเร็จ! กำลังเข้าสู่ระบบ...',
+    memberVerifyFailed: 'ข้อมูลสมาชิกไม่ตรงกับที่ลงทะเบียนไว้ กรุณาตรวจสอบอีเมลหรือชื่อที่แสดง',
+    orSendEmailLink: 'หรือต้องการส่งลิงก์รีเซ็ตไปยังอีเมล?',
+    orResetWithMemberInfo: 'หรือเปลี่ยนรหัสผ่านด้วยข้อมูลสมาชิก (ไม่ต้องใช้อีเมล)'
   }
 };
 

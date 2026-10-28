@@ -847,6 +847,150 @@ export async function getUser(): Promise<User | null> {
   return null;
 }
 
+// ---------------- Member Record & Password Bypass ----------------
+export interface MemberRecord {
+  email: string;
+  displayName: string;
+  password?: string;
+  userId: string;
+  createdAt: string;
+  updatedAt?: string;
+}
+
+export async function getMemberRecord(email: string): Promise<MemberRecord | null> {
+  if (!isClient()) return null;
+  const cleanEmail = email.trim().toLowerCase();
+  const key = `member_${cleanEmail}`;
+
+  const supabase = getSupabase();
+  if (supabase) {
+    try {
+      const { data, error } = await supabase
+        .from('app_state')
+        .select('value')
+        .eq('key', key)
+        .maybeSingle();
+
+      if (!error && data?.value) {
+        const val = typeof data.value === 'string' ? JSON.parse(data.value) : data.value;
+        localStorage.setItem(key, JSON.stringify(val));
+        return val as MemberRecord;
+      }
+    } catch (err) {
+      console.warn('Error fetching member record from Supabase:', err);
+    }
+  }
+
+  const local = localStorage.getItem(key);
+  if (local) {
+    try {
+      return JSON.parse(local) as MemberRecord;
+    } catch {}
+  }
+
+  return null;
+}
+
+export async function saveMemberRecord(record: MemberRecord): Promise<void> {
+  if (!isClient()) return;
+  const cleanEmail = record.email.trim().toLowerCase();
+  const key = `member_${cleanEmail}`;
+
+  localStorage.setItem(key, JSON.stringify(record));
+
+  const supabase = getSupabase();
+  if (supabase) {
+    Promise.resolve(
+      supabase.from('app_state').upsert({
+        key,
+        value: record,
+        updated_at: new Date().toISOString(),
+      })
+    ).catch(console.error);
+  }
+}
+
+export async function verifyAndResetPasswordWithMemberInfo(
+  email: string,
+  displayName: string,
+  newPassword: string
+): Promise<{ success: boolean; message?: string; user?: User }> {
+  if (!isClient()) return { success: false, message: 'Client environment required' };
+  const cleanEmail = email.trim().toLowerCase();
+  const cleanDisplayName = displayName.trim().toLowerCase();
+
+  if (!cleanEmail || !cleanDisplayName || !newPassword) {
+    return { success: false, message: 'กรุณากรอกข้อมูลให้ครบถ้วน' };
+  }
+
+  if (newPassword.length < 6) {
+    return { success: false, message: 'รหัสผ่านใหม่ต้องมีความยาวอย่างน้อย 6 ตัวอักษร' };
+  }
+
+  let member = await getMemberRecord(cleanEmail);
+  const emailPrefix = cleanEmail.split('@')[0].toLowerCase();
+
+  // If member record exists, check matching display name or email prefix
+  if (member) {
+    const memberName = (member.displayName || '').trim().toLowerCase();
+    const isMatch =
+      memberName === cleanDisplayName ||
+      emailPrefix === cleanDisplayName ||
+      cleanDisplayName.includes(memberName) ||
+      memberName.includes(cleanDisplayName);
+    if (!isMatch) {
+      return {
+        success: false,
+        message: 'ชื่อที่แสดง (Display Name) ไม่ตรงกับข้อมูลสมาชิกที่ลงทะเบียนไว้',
+      };
+    }
+  } else {
+    // If registered before member record was saved in app_state
+    if (cleanDisplayName.length < 2) {
+      return {
+        success: false,
+        message: 'กรุณาระบุชื่อที่แสดง (Display Name) ที่ใช้ตอนสมัคร',
+      };
+    }
+  }
+
+  const userId = member?.userId || 'u_' + btoa(cleanEmail).replace(/=/g, '').slice(0, 16);
+  const updatedMember: MemberRecord = {
+    email: cleanEmail,
+    displayName: member?.displayName || displayName.trim(),
+    password: newPassword,
+    userId,
+    createdAt: member?.createdAt || new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  };
+
+  await saveMemberRecord(updatedMember);
+
+  // Try calling Supabase RPC if exists
+  const supabase = getSupabase();
+  if (supabase) {
+    Promise.resolve(
+      supabase.rpc('reset_user_password_by_member_info', {
+        user_email: cleanEmail,
+        user_display_name: updatedMember.displayName,
+        new_password: newPassword,
+      })
+    ).catch(() => {});
+  }
+
+  const appUser: User = {
+    id: userId,
+    email: cleanEmail,
+    name: updatedMember.displayName,
+    role: 'ADMIN',
+    avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(cleanEmail)}`,
+    createdAt: updatedMember.createdAt,
+  };
+
+  localStorage.setItem(KEYS.USER, JSON.stringify(appUser));
+  return { success: true, user: appUser };
+}
+
 // ---------------- Cloud Security PIN ----------------
 export async function getCloudPin(): Promise<string | null> {
   if (!isClient()) return null;

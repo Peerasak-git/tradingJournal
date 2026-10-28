@@ -3,7 +3,10 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import { User, UserRole } from '@/types/user';
 import { getSupabase } from '@/lib/supabase';
-import { getCloudPin, setCloudPin, removeCloudPin } from '@/lib/clientStorage';
+import {
+  getCloudPin, setCloudPin, removeCloudPin,
+  getMemberRecord, saveMemberRecord, verifyAndResetPasswordWithMemberInfo
+} from '@/lib/clientStorage';
 
 interface AuthContextType {
   user: User | null;
@@ -18,6 +21,7 @@ interface AuthContextType {
   signOut: () => Promise<void>;
   resetPasswordForEmail: (email: string) => Promise<{ error: Error | null }>;
   updateUserPassword: (password: string) => Promise<{ error: Error | null }>;
+  resetPasswordWithMemberInfo: (email: string, displayName: string, newPassword: string) => Promise<{ success: boolean; message?: string }>;
   setPin: (pin: string) => void;
   removePin: () => void;
   unlockWithPin: (pin: string) => boolean;
@@ -148,45 +152,95 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const signIn = useCallback(async (email: string, password: string): Promise<{ error: Error | null }> => {
+    const cleanEmail = email.trim().toLowerCase();
     const supabase = getSupabase();
-    if (!supabase) {
-      return { error: new Error('Supabase is not configured. Please check settings.') };
+
+    // 1. Try Supabase Auth
+    if (supabase) {
+      try {
+        const { data, error } = await supabase.auth.signInWithPassword({
+          email: cleanEmail,
+          password,
+        });
+
+        if (!error && data?.user) {
+          const mapped = mapSupabaseUserToAppUser(data.user);
+          setUser(mapped);
+          localStorage.setItem('tj_user', JSON.stringify(mapped));
+          // Keep member record synced
+          saveMemberRecord({
+            email: cleanEmail,
+            displayName: mapped.name,
+            password,
+            userId: mapped.id,
+            createdAt: mapped.createdAt,
+          }).catch(console.error);
+          return { error: null };
+        }
+
+        // --- BYPASS 1: Supabase reports "Email not confirmed" ---
+        // In Supabase, this error ONLY occurs if email and password are valid!
+        if (error && error.message.toLowerCase().includes('email not confirmed')) {
+          const member = await getMemberRecord(cleanEmail);
+          const appUser: User = {
+            id: member?.userId || 'u_' + btoa(cleanEmail).replace(/=/g, '').slice(0, 16),
+            email: cleanEmail,
+            name: member?.displayName || cleanEmail.split('@')[0],
+            role: 'ADMIN',
+            avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(cleanEmail)}`,
+            createdAt: member?.createdAt || new Date().toISOString(),
+          };
+          setUser(appUser);
+          localStorage.setItem('tj_user', JSON.stringify(appUser));
+          await saveMemberRecord({
+            email: cleanEmail,
+            displayName: appUser.name,
+            password,
+            userId: appUser.id,
+            createdAt: appUser.createdAt,
+          });
+          return { error: null };
+        }
+      } catch (err) {
+        console.warn('Supabase signIn attempt error:', err);
+      }
     }
 
-    try {
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email: email.trim(),
-        password,
-      });
-
-      if (error) {
-        return { error: new Error(error.message) };
-      }
-
-      if (data?.user) {
-        const mapped = mapSupabaseUserToAppUser(data.user);
-        setUser(mapped);
-        localStorage.setItem('tj_user', JSON.stringify(mapped));
-      }
+    // --- BYPASS 2: Check member record in app_state / localStorage ---
+    const member = await getMemberRecord(cleanEmail);
+    if (member && member.password === password) {
+      const appUser: User = {
+        id: member.userId || 'u_' + btoa(cleanEmail).replace(/=/g, '').slice(0, 16),
+        email: cleanEmail,
+        name: member.displayName || cleanEmail.split('@')[0],
+        role: 'ADMIN',
+        avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(cleanEmail)}`,
+        createdAt: member.createdAt || new Date().toISOString(),
+      };
+      setUser(appUser);
+      localStorage.setItem('tj_user', JSON.stringify(appUser));
       return { error: null };
-    } catch (err: any) {
-      return { error: err instanceof Error ? err : new Error(String(err)) };
     }
+
+    return { error: new Error('อีเมลหรือรหัสผ่านไม่ถูกต้อง') };
   }, []);
 
   const signUp = useCallback(async (email: string, password: string, displayName?: string): Promise<{ error: Error | null; needsConfirmation?: boolean }> => {
+    const cleanEmail = email.trim().toLowerCase();
+    const finalName = displayName?.trim() || cleanEmail.split('@')[0];
     const supabase = getSupabase();
+
     if (!supabase) {
       return { error: new Error('Supabase is not configured. Please check settings.') };
     }
 
     try {
       const { data, error } = await supabase.auth.signUp({
-        email: email.trim(),
+        email: cleanEmail,
         password,
         options: {
           data: {
-            displayName: displayName?.trim() || email.split('@')[0],
+            displayName: finalName,
             role: 'ADMIN',
           },
         },
@@ -196,6 +250,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return { error: new Error(error.message) };
       }
 
+      const userId = data?.user?.id || 'u_' + btoa(cleanEmail).replace(/=/g, '').slice(0, 16);
+      await saveMemberRecord({
+        email: cleanEmail,
+        displayName: finalName,
+        password,
+        userId,
+        createdAt: data?.user?.created_at || new Date().toISOString(),
+      });
+
       if (data?.user && data.session) {
         const mapped = mapSupabaseUserToAppUser(data.user);
         setUser(mapped);
@@ -203,14 +266,36 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return { error: null, needsConfirmation: false };
       }
 
+      // If user created without session (email confirmation required in Supabase)
+      // Since member record is saved, user can already log in with bypass!
       if (data?.user && !data.session) {
-        return { error: null, needsConfirmation: true };
+        const appUser: User = {
+          id: userId,
+          email: cleanEmail,
+          name: finalName,
+          role: 'ADMIN',
+          avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(cleanEmail)}`,
+          createdAt: new Date().toISOString(),
+        };
+        setUser(appUser);
+        localStorage.setItem('tj_user', JSON.stringify(appUser));
+        return { error: null, needsConfirmation: false };
       }
 
       return { error: null };
     } catch (err: any) {
       return { error: err instanceof Error ? err : new Error(String(err)) };
     }
+  }, []);
+
+  const resetPasswordWithMemberInfo = useCallback(async (email: string, displayName: string, newPassword: string): Promise<{ success: boolean; message?: string }> => {
+    const res = await verifyAndResetPasswordWithMemberInfo(email, displayName, newPassword);
+    if (res.success && res.user) {
+      setUser(res.user);
+      localStorage.setItem('tj_user', JSON.stringify(res.user));
+      return { success: true };
+    }
+    return { success: false, message: res.message || 'ไม่สามารถยืนยันข้อมูลสมาชิกได้' };
   }, []);
 
   const signOut = useCallback(async () => {
@@ -324,6 +409,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       signOut,
       resetPasswordForEmail,
       updateUserPassword,
+      resetPasswordWithMemberInfo,
       setPin,
       removePin,
       unlockWithPin,
