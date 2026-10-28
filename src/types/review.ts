@@ -4,6 +4,7 @@ export interface Review {
   rating: number;
   notes: string;
   emotion?: string;
+  emotions?: string[];
   followedRules?: boolean;
   mistakes?: string;
   lessons?: string;

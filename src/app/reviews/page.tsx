@@ -34,12 +34,28 @@ const EMOTIONS: { key: string; tKey: TranslationKey; emoji: string }[] = [
   { key: 'calm',        tKey: 'emotionCalm',        emoji: '😌' },
   { key: 'focused',     tKey: 'emotionFocused',     emoji: '🎯' },
   { key: 'confident',   tKey: 'emotionConfident',   emoji: '💪' },
-  { key: 'anxious',     tKey: 'emotionAnxious',     emoji: '😰' },
-  { key: 'greedy',      tKey: 'emotionGreedy',      emoji: '🤑' },
-  { key: 'fearful',     tKey: 'emotionFearful',     emoji: '😨' },
-  { key: 'impulsive',   tKey: 'emotionImpulsive',   emoji: '😤' },
   { key: 'disciplined', tKey: 'emotionDisciplined', emoji: '🧘' },
+  { key: 'neutral',     tKey: 'emotionNeutral',     emoji: '🧊' },
+  { key: 'excited',     tKey: 'emotionExcited',     emoji: '🤩' },
+  { key: 'anxious',     tKey: 'emotionAnxious',     emoji: '😰' },
+  { key: 'fearful',     tKey: 'emotionFearful',     emoji: '😨' },
+  { key: 'greedy',      tKey: 'emotionGreedy',      emoji: '🤑' },
+  { key: 'impulsive',   tKey: 'emotionImpulsive',   emoji: '😤' },
+  { key: 'frustrated',  tKey: 'emotionFrustrated',  emoji: '🤬' },
+  { key: 'tired',       tKey: 'emotionTired',       emoji: '😴' },
 ];
+
+function getReviewEmotions(review?: Review | null): { key: string; tKey: TranslationKey; emoji: string }[] {
+  if (!review) return [];
+  const keys: string[] = review.emotions && Array.isArray(review.emotions) && review.emotions.length > 0
+    ? review.emotions
+    : review.emotion
+    ? review.emotion.split(',').map(s => s.trim().toLowerCase()).filter(Boolean)
+    : [];
+  return keys
+    .map(k => EMOTIONS.find(e => e.key === k))
+    .filter((e): e is { key: string; tKey: TranslationKey; emoji: string } => !!e);
+}
 
 const RATING_COLORS = ['', '#ef4444', '#f97316', '#eab308', '#22c55e', '#3b82f6'];
 
@@ -48,6 +64,7 @@ const EMPTY_FORM = {
   rating: 5,
   notes: '',
   emotion: '',
+  emotions: [] as string[],
   followedRules: true as boolean | null,
   mistakes: '',
   lessons: '',
@@ -114,11 +131,14 @@ export default function ReviewsPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const existing = editingId ? reviews.find(r => r.id === editingId) : null;
+    const emList = formData.emotions || [];
+    const primaryEmotion = emList[0] || formData.emotion || 'calm';
     const payload: Review = {
       id: editingId || 'rev-' + Math.random().toString(36).substr(2, 9),
       date: formData.date || new Date().toISOString().split('T')[0],
       rating: formData.rating || 3,
-      emotion: formData.emotion || 'Calm',
+      emotions: emList,
+      emotion: primaryEmotion,
       notes: formData.notes || '',
       mistakes: formData.mistakes,
       lessons: formData.lessons,
@@ -148,18 +168,24 @@ export default function ReviewsPage() {
 
   const openModal = (review?: Review, date?: string) => {
     if (review) {
+      const emKeys = review.emotions && Array.isArray(review.emotions)
+        ? review.emotions
+        : review.emotion
+        ? review.emotion.split(',').map(s => s.trim().toLowerCase()).filter(Boolean)
+        : [];
       setFormData({
         date: review.date,
         rating: review.rating,
         notes: review.notes,
-        emotion: review.emotion || '',
+        emotion: emKeys[0] || review.emotion || '',
+        emotions: emKeys,
         followedRules: review.followedRules ?? null,
         mistakes: review.mistakes || '',
         lessons: review.lessons || '',
       });
       setEditingId(review.id);
     } else {
-      setFormData({ ...EMPTY_FORM, date: date || selectedDate });
+      setFormData({ ...EMPTY_FORM, date: date || selectedDate, emotions: [] });
       setEditingId(null);
     }
     setIsModalOpen(true);
@@ -388,7 +414,7 @@ export default function ReviewsPage() {
                 ) : (
                   <div className="space-y-3">
                     {allReviewsSorted.map((rev) => {
-                      const revEmotion = EMOTIONS.find(e => e.key === rev.emotion);
+                      const revEmotions = getReviewEmotions(rev);
                       return (
                         <div
                           key={rev.id}
@@ -417,10 +443,18 @@ export default function ReviewsPage() {
                                 ))}
                                 <span className="text-xs text-slate-400 ml-1 font-bold">{rev.rating}/5</span>
                               </div>
-                              {revEmotion && (
-                                <span className="px-2.5 py-1 bg-slate-100 dark:bg-zinc-800 rounded-full text-xs font-bold text-slate-600 dark:text-slate-300">
-                                  {revEmotion.emoji} {t(revEmotion.tKey)}
-                                </span>
+                              {revEmotions.length > 0 && (
+                                <div className="flex flex-wrap gap-1.5 items-center">
+                                  {revEmotions.map(em => (
+                                    <span
+                                      key={em.key}
+                                      className="px-2.5 py-0.5 bg-slate-100 dark:bg-zinc-800 rounded-full text-xs font-bold text-slate-600 dark:text-slate-300 border border-slate-200/50 dark:border-zinc-700/60 inline-flex items-center gap-1"
+                                    >
+                                      <span>{em.emoji}</span>
+                                      <span>{t(em.tKey)}</span>
+                                    </span>
+                                  ))}
+                                </div>
                               )}
                               {typeof rev.followedRules === 'boolean' && (
                                 <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full ${
@@ -530,7 +564,7 @@ export default function ReviewsPage() {
                 {selectedReviews.length > 0 ? (
                   <div className="p-5 space-y-4">
                     {selectedReviews.map((rev) => {
-                      const revEmotion = EMOTIONS.find(e => e.key === rev.emotion);
+                      const revEmotions = getReviewEmotions(rev);
                       return (
                         <div
                           key={rev.id}
@@ -548,10 +582,18 @@ export default function ReviewsPage() {
                                 ))}
                               </div>
                               <span className="text-sm font-bold text-slate-700 dark:text-slate-300">{rev.rating}/5</span>
-                              {revEmotion && (
-                                <span className="px-2.5 py-1 bg-white dark:bg-zinc-800 rounded-full text-xs font-bold text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-zinc-700">
-                                  {revEmotion.emoji} {t(revEmotion.tKey)}
-                                </span>
+                              {revEmotions.length > 0 && (
+                                <div className="flex flex-wrap gap-1.5 items-center">
+                                  {revEmotions.map(em => (
+                                    <span
+                                      key={em.key}
+                                      className="px-2.5 py-1 bg-white dark:bg-zinc-800 rounded-full text-xs font-bold text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-zinc-700 inline-flex items-center gap-1"
+                                    >
+                                      <span>{em.emoji}</span>
+                                      <span>{t(em.tKey)}</span>
+                                    </span>
+                                  ))}
+                                </div>
                               )}
                               {typeof rev.followedRules === 'boolean' && (
                                 <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold ${
@@ -662,7 +704,7 @@ export default function ReviewsPage() {
                     const isToday = dateStr === today;
                     const isSelected = dateStr === selectedDate;
                     const dayNum = new Date(dateStr + 'T12:00:00').getDate();
-                    const emotion = EMOTIONS.find(e => e.key === review?.emotion);
+                    const revEmotions = getReviewEmotions(review);
 
                     return (
                       <div
@@ -697,7 +739,13 @@ export default function ReviewsPage() {
                                 />
                               ))}
                             </div>
-                            {emotion && <span className="text-sm">{emotion.emoji}</span>}
+                            {revEmotions.length > 0 && (
+                              <div className="flex flex-wrap gap-0.5 text-sm">
+                                {revEmotions.map(em => (
+                                  <span key={em.key} title={t(em.tKey)}>{em.emoji}</span>
+                                ))}
+                              </div>
+                            )}
                             <p className="text-[10px] text-slate-500 dark:text-slate-400 line-clamp-4 leading-relaxed">{review.notes}</p>
                           </div>
                         ) : (
@@ -749,7 +797,7 @@ export default function ReviewsPage() {
                   <div className="space-y-2">
                     {monthReviews.map(review => {
                       const d = new Date(review.date + 'T12:00:00');
-                      const emotion = EMOTIONS.find(e => e.key === review.emotion);
+                      const revEmotions = getReviewEmotions(review);
                       return (
                         <div
                           key={review.id}
@@ -771,10 +819,15 @@ export default function ReviewsPage() {
                                   />
                                 ))}
                               </div>
-                              {emotion && (
-                                <span className="text-sm">
-                                  {emotion.emoji} <span className="text-xs text-slate-400">{t(emotion.tKey)}</span>
-                                </span>
+                              {revEmotions.length > 0 && (
+                                <div className="flex flex-wrap gap-1 items-center">
+                                  {revEmotions.map(em => (
+                                    <span key={em.key} className="text-xs inline-flex items-center gap-0.5 px-2 py-0.5 bg-slate-100 dark:bg-zinc-800 rounded-full font-bold text-slate-600 dark:text-slate-300">
+                                      <span>{em.emoji}</span>
+                                      <span className="text-[11px] text-slate-400">{t(em.tKey)}</span>
+                                    </span>
+                                  ))}
+                                </div>
                               )}
                               {typeof review.followedRules === 'boolean' && (
                                 <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
@@ -858,22 +911,45 @@ export default function ReviewsPage() {
 
               {/* Emotion */}
               <div>
-                <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">{t('emotionMood')}</label>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400">
+                    {t('emotionMood')}
+                  </label>
+                  <span className="text-[11px] font-bold text-blue-500">
+                    {formData.emotions.length > 0
+                      ? `${formData.emotions.length} ${t('emotionsSelected')}`
+                      : t('selectMultipleEmotions')}
+                  </span>
+                </div>
                 <div className="flex flex-wrap gap-2">
-                  {EMOTIONS.map(e => (
-                    <button
-                      key={e.key}
-                      type="button"
-                      onClick={() => setFormData({ ...formData, emotion: formData.emotion === e.key ? '' : e.key })}
-                      className={`px-3 py-1.5 rounded-xl text-xs font-bold border transition-all ${
-                        formData.emotion === e.key
-                          ? 'bg-blue-500 border-blue-500 text-white'
-                          : 'border-slate-200 dark:border-zinc-700 text-slate-600 dark:text-slate-400 hover:border-blue-300 dark:hover:border-blue-700'
-                      }`}
-                    >
-                      {e.emoji} {t(e.tKey)}
-                    </button>
-                  ))}
+                  {EMOTIONS.map(e => {
+                    const isSelected = formData.emotions.includes(e.key);
+                    return (
+                      <button
+                        key={e.key}
+                        type="button"
+                        onClick={() => {
+                          const next = isSelected
+                            ? formData.emotions.filter(k => k !== e.key)
+                            : [...formData.emotions, e.key];
+                          setFormData({
+                            ...formData,
+                            emotions: next,
+                            emotion: next[0] || ''
+                          });
+                        }}
+                        className={`px-3 py-1.5 rounded-xl text-xs font-bold border transition-all cursor-pointer flex items-center gap-1.5 ${
+                          isSelected
+                            ? 'bg-blue-500 border-blue-500 text-white shadow-sm shadow-blue-500/25 scale-[1.02]'
+                            : 'border-slate-200 dark:border-zinc-700 text-slate-600 dark:text-slate-400 hover:border-blue-300 dark:hover:border-blue-700 bg-white dark:bg-[#151515]'
+                        }`}
+                      >
+                        <span>{e.emoji}</span>
+                        <span>{t(e.tKey)}</span>
+                        {isSelected && <span className="text-[10px] ml-0.5 opacity-90">✓</span>}
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
 
