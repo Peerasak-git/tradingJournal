@@ -54,47 +54,33 @@ export async function getTrades(): Promise<Trade[]> {
         .order('created_at', { ascending: false });
 
       if (!error && data) {
-        if (data.length > 0) {
-          let trades: Trade[] = data.map((row: any) => ({
-            ...(row.data as Trade),
-            userId: row.data?.userId || row.user_id || undefined,
-          }));
-          if (currentUserId) {
-            trades = trades.filter(t => !t.userId || t.userId === currentUserId);
-          }
-          localStorage.setItem(getUserKey(KEYS.TRADES), JSON.stringify(trades));
-          return trades;
+        let trades: Trade[] = data.map((row: any) => ({
+          ...(row.data as Trade),
+          userId: row.data?.userId || row.user_id || undefined,
+        }));
+        if (currentUserId) {
+          trades = trades.filter(t => t.userId === currentUserId);
+        } else {
+          trades = trades.filter(t => !t.userId);
         }
-
-        // If Supabase table is empty, check if we have local trades to push to cloud
-        const local = localStorage.getItem(getUserKey(KEYS.TRADES)) || localStorage.getItem(KEYS.TRADES);
-        if (local) {
-          try {
-            const localTrades: Trade[] = JSON.parse(local);
-            if (localTrades.length > 0) {
-              // Auto-seed cloud from local
-              syncTradesToSupabase(localTrades).catch(console.error);
-              return localTrades;
-            }
-          } catch (e) {
-            console.error('Error parsing local trades for cloud seed', e);
-          }
-        }
-      } else if (error) {
-        console.warn('Supabase getTrades error, falling back to local cache:', error.message);
+        localStorage.setItem(getUserKey(KEYS.TRADES), JSON.stringify(trades));
+        return trades;
       }
     } catch (err) {
       console.warn('Supabase fetch failed, falling back to local cache:', err);
     }
   }
 
-  // Local fallback
-  const local = localStorage.getItem(getUserKey(KEYS.TRADES)) || localStorage.getItem(KEYS.TRADES);
+  // Local fallback (strictly user-scoped if logged in)
+  const localKey = getUserKey(KEYS.TRADES);
+  const local = localStorage.getItem(localKey);
   if (local) {
     try {
       let parsed: Trade[] = JSON.parse(local);
       if (currentUserId) {
-        parsed = parsed.filter(t => !t.userId || t.userId === currentUserId);
+        parsed = parsed.filter(t => t.userId === currentUserId);
+      } else {
+        parsed = parsed.filter(t => !t.userId);
       }
       return parsed;
     } catch (e) {
@@ -102,25 +88,6 @@ export async function getTrades(): Promise<Trade[]> {
     }
   }
 
-  // Seed from API if first time and no specific user
-  if (!currentUserId) {
-    try {
-      const res = await fetch('/api/trades');
-      if (res.ok) {
-        const data = await res.json();
-        const trades: Trade[] = data.trades || [];
-        localStorage.setItem(KEYS.TRADES, JSON.stringify(trades));
-
-        if (supabase && trades.length > 0) {
-          syncTradesToSupabase(trades).catch(console.error);
-        }
-
-        return trades;
-      }
-    } catch (err) {
-      console.error('Error seeding trades from API:', err);
-    }
-  }
   return [];
 }
 
@@ -283,65 +250,86 @@ export async function getAccounts(): Promise<Account[]> {
         .order('created_at', { ascending: true });
 
       if (!error && data) {
-        if (data.length > 0) {
-          let accounts: Account[] = data.map((row: any) => ({
-            ...(row.data as Account),
-            userId: row.data?.userId || row.user_id || undefined,
-          }));
-          if (currentUserId) {
-            accounts = accounts.filter(a => !a.userId || a.userId === currentUserId);
-          }
-          localStorage.setItem(getUserKey(KEYS.ACCOUNTS), JSON.stringify(accounts));
-          return accounts;
+        let accounts: Account[] = data.map((row: any) => ({
+          ...(row.data as Account),
+          userId: row.data?.userId || row.user_id || undefined,
+        }));
+        if (currentUserId) {
+          accounts = accounts.filter(a => a.userId === currentUserId);
+        } else {
+          accounts = accounts.filter(a => !a.userId || a.userId === 'u-001');
         }
 
-        const local = localStorage.getItem(getUserKey(KEYS.ACCOUNTS)) || localStorage.getItem(KEYS.ACCOUNTS);
-        if (local) {
-          try {
-            const localAccs: Account[] = JSON.parse(local);
-            if (localAccs.length > 0) {
-              syncAccountsToSupabase(localAccs).catch(console.error);
-              return localAccs;
-            }
-          } catch (e) {
-            console.error('Error parsing local accounts', e);
-          }
+        // Auto-create default account if new user has none
+        if (currentUserId && accounts.length === 0) {
+          const defaultAcc: Account = {
+            id: 'acc-' + Math.random().toString(36).substr(2, 9),
+            userId: currentUserId,
+            name: 'Personal Standard',
+            type: 'STANDARD',
+            broker: 'Default',
+            balance: 10000,
+            currency: 'USD',
+            leverage: '1:500',
+            createdAt: new Date().toISOString(),
+          };
+          accounts = [defaultAcc];
+          await syncAccountsToSupabase(accounts);
         }
+
+        localStorage.setItem(getUserKey(KEYS.ACCOUNTS), JSON.stringify(accounts));
+        return accounts;
       }
     } catch (err) {
       console.warn('Supabase getAccounts error, falling back to local cache:', err);
     }
   }
 
-  const local = localStorage.getItem(getUserKey(KEYS.ACCOUNTS)) || localStorage.getItem(KEYS.ACCOUNTS);
+  const local = localStorage.getItem(getUserKey(KEYS.ACCOUNTS));
   if (local) {
     try {
       let parsed: Account[] = JSON.parse(local);
       if (currentUserId) {
-        parsed = parsed.filter(a => !a.userId || a.userId === currentUserId);
+        parsed = parsed.filter(a => a.userId === currentUserId);
+      } else {
+        parsed = parsed.filter(a => !a.userId || a.userId === 'u-001');
       }
-      return parsed;
+      if (parsed.length > 0) return parsed;
     } catch (e) {
       console.error('Error parsing accounts from localStorage', e);
     }
   }
 
-  if (!currentUserId) {
-    try {
-      const res = await fetch('/api/accounts');
-      if (res.ok) {
-        const data = await res.json();
-        const accounts: Account[] = data.accounts || [];
-        localStorage.setItem(KEYS.ACCOUNTS, JSON.stringify(accounts));
-        if (supabase && accounts.length > 0) {
-          syncAccountsToSupabase(accounts).catch(console.error);
-        }
-        return accounts;
-      }
-    } catch (err) {
-      console.error('Error seeding accounts from API:', err);
+  // Local fallback for new user
+  if (currentUserId) {
+    const defaultAcc: Account = {
+      id: 'acc-' + Math.random().toString(36).substr(2, 9),
+      userId: currentUserId,
+      name: 'Personal Standard',
+      type: 'STANDARD',
+      broker: 'Default',
+      balance: 10000,
+      currency: 'USD',
+      leverage: '1:500',
+      createdAt: new Date().toISOString(),
+    };
+    const newAccs = [defaultAcc];
+    localStorage.setItem(getUserKey(KEYS.ACCOUNTS), JSON.stringify(newAccs));
+    if (supabase) {
+      syncAccountsToSupabase(newAccs).catch(console.error);
     }
+    return newAccs;
   }
+
+  // Seed for guests
+  try {
+    const res = await fetch('/api/accounts');
+    if (res.ok) {
+      const data = await res.json();
+      return data.accounts || [];
+    }
+  } catch {}
+
   return [];
 }
 
@@ -434,42 +422,32 @@ export async function getJournals(): Promise<JournalEntry[]> {
         .order('created_at', { ascending: false });
 
       if (!error && data) {
-        if (data.length > 0) {
-          let journals: JournalEntry[] = data.map((row: any) => ({
-            ...(row.data as JournalEntry),
-            userId: row.data?.userId || row.user_id || undefined,
-          }));
-          if (currentUserId) {
-            journals = journals.filter(j => !j.userId || j.userId === currentUserId);
-          }
-          localStorage.setItem(getUserKey(KEYS.JOURNALS), JSON.stringify(journals));
-          return journals;
+        let journals: JournalEntry[] = data.map((row: any) => ({
+          ...(row.data as JournalEntry),
+          userId: row.data?.userId || row.user_id || undefined,
+        }));
+        if (currentUserId) {
+          journals = journals.filter(j => j.userId === currentUserId);
+        } else {
+          journals = journals.filter(j => !j.userId);
         }
-
-        const local = localStorage.getItem(getUserKey(KEYS.JOURNALS)) || localStorage.getItem(KEYS.JOURNALS);
-        if (local) {
-          try {
-            const localJ: JournalEntry[] = JSON.parse(local);
-            if (localJ.length > 0) {
-              syncJournalsToSupabase(localJ).catch(console.error);
-              return localJ;
-            }
-          } catch (e) {
-            console.error('Error parsing local journals', e);
-          }
-        }
+        localStorage.setItem(getUserKey(KEYS.JOURNALS), JSON.stringify(journals));
+        return journals;
       }
     } catch (err) {
       console.warn('Supabase getJournals error:', err);
     }
   }
 
-  const local = localStorage.getItem(getUserKey(KEYS.JOURNALS)) || localStorage.getItem(KEYS.JOURNALS);
+  const localKey = getUserKey(KEYS.JOURNALS);
+  const local = localStorage.getItem(localKey);
   if (local) {
     try {
       let parsed: JournalEntry[] = JSON.parse(local);
       if (currentUserId) {
-        parsed = parsed.filter(j => !j.userId || j.userId === currentUserId);
+        parsed = parsed.filter(j => j.userId === currentUserId);
+      } else {
+        parsed = parsed.filter(j => !j.userId);
       }
       return parsed;
     } catch (e) {
@@ -576,42 +554,32 @@ export async function getFinances(): Promise<FinanceEntry[]> {
         .order('created_at', { ascending: false });
 
       if (!error && data) {
-        if (data.length > 0) {
-          let finances: FinanceEntry[] = data.map((row: any) => ({
-            ...(row.data as FinanceEntry),
-            userId: row.data?.userId || row.user_id || undefined,
-          }));
-          if (currentUserId) {
-            finances = finances.filter(f => !f.userId || f.userId === currentUserId);
-          }
-          localStorage.setItem(getUserKey(KEYS.FINANCES), JSON.stringify(finances));
-          return finances;
+        let finances: FinanceEntry[] = data.map((row: any) => ({
+          ...(row.data as FinanceEntry),
+          userId: row.data?.userId || row.user_id || undefined,
+        }));
+        if (currentUserId) {
+          finances = finances.filter(f => f.userId === currentUserId);
+        } else {
+          finances = finances.filter(f => !f.userId);
         }
-
-        const local = localStorage.getItem(getUserKey(KEYS.FINANCES)) || localStorage.getItem(KEYS.FINANCES);
-        if (local) {
-          try {
-            const localF: FinanceEntry[] = JSON.parse(local);
-            if (localF.length > 0) {
-              syncFinancesToSupabase(localF).catch(console.error);
-              return localF;
-            }
-          } catch (e) {
-            console.error('Error parsing local finances', e);
-          }
-        }
+        localStorage.setItem(getUserKey(KEYS.FINANCES), JSON.stringify(finances));
+        return finances;
       }
     } catch (err) {
       console.warn('Supabase getFinances error:', err);
     }
   }
 
-  const local = localStorage.getItem(getUserKey(KEYS.FINANCES)) || localStorage.getItem(KEYS.FINANCES);
+  const localKey = getUserKey(KEYS.FINANCES);
+  const local = localStorage.getItem(localKey);
   if (local) {
     try {
       let parsed: FinanceEntry[] = JSON.parse(local);
       if (currentUserId) {
-        parsed = parsed.filter(f => !f.userId || f.userId === currentUserId);
+        parsed = parsed.filter(f => f.userId === currentUserId);
+      } else {
+        parsed = parsed.filter(f => !f.userId);
       }
       return parsed;
     } catch (e) {
@@ -704,42 +672,32 @@ export async function getReviews(): Promise<Review[]> {
         .order('created_at', { ascending: false });
 
       if (!error && data) {
-        if (data.length > 0) {
-          let reviews: Review[] = data.map((row: any) => ({
-            ...(row.data as Review),
-            userId: row.data?.userId || row.user_id || undefined,
-          }));
-          if (currentUserId) {
-            reviews = reviews.filter(r => !r.userId || r.userId === currentUserId);
-          }
-          localStorage.setItem(getUserKey(KEYS.REVIEWS), JSON.stringify(reviews));
-          return reviews;
+        let reviews: Review[] = data.map((row: any) => ({
+          ...(row.data as Review),
+          userId: row.data?.userId || row.user_id || undefined,
+        }));
+        if (currentUserId) {
+          reviews = reviews.filter(r => r.userId === currentUserId);
+        } else {
+          reviews = reviews.filter(r => !r.userId);
         }
-
-        const local = localStorage.getItem(getUserKey(KEYS.REVIEWS)) || localStorage.getItem(KEYS.REVIEWS);
-        if (local) {
-          try {
-            const localR: Review[] = JSON.parse(local);
-            if (localR.length > 0) {
-              syncReviewsToSupabase(localR).catch(console.error);
-              return localR;
-            }
-          } catch (e) {
-            console.error('Error parsing local reviews', e);
-          }
-        }
+        localStorage.setItem(getUserKey(KEYS.REVIEWS), JSON.stringify(reviews));
+        return reviews;
       }
     } catch (err) {
       console.warn('Supabase getReviews error:', err);
     }
   }
 
-  const local = localStorage.getItem(getUserKey(KEYS.REVIEWS)) || localStorage.getItem(KEYS.REVIEWS);
+  const localKey = getUserKey(KEYS.REVIEWS);
+  const local = localStorage.getItem(localKey);
   if (local) {
     try {
       let parsed: Review[] = JSON.parse(local);
       if (currentUserId) {
-        parsed = parsed.filter(r => !r.userId || r.userId === currentUserId);
+        parsed = parsed.filter(r => r.userId === currentUserId);
+      } else {
+        parsed = parsed.filter(r => !r.userId);
       }
       return parsed;
     } catch (e) {

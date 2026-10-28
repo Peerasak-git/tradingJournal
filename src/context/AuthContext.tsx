@@ -55,9 +55,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (supabase) {
           const { data: { session }, error } = await supabase.auth.getSession();
           if (!error && session?.user && mounted) {
-            setUser(mapSupabaseUserToAppUser(session.user));
+            const mapped = mapSupabaseUserToAppUser(session.user);
+            setUser(mapped);
+            if (typeof window !== 'undefined') {
+              localStorage.setItem('tj_user', JSON.stringify(mapped));
+            }
           } else if (mounted) {
             setUser(null);
+            if (typeof window !== 'undefined') {
+              localStorage.removeItem('tj_user');
+            }
           }
         } else if (mounted) {
           // If Supabase is not configured, check local storage

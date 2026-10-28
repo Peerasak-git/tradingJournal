@@ -41,7 +41,7 @@ export default function PortfoliosPage() {
       const createdAccount = {
         ...newAccount,
         id: 'acc-' + Math.random().toString(36).substr(2, 9),
-        userId: user?.id || 'u-001',
+        userId: user?.id || undefined,
         createdAt: new Date().toISOString()
       };
       await addAccount(createdAccount as any);

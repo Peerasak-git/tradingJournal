@@ -22,16 +22,27 @@ export function AccountProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   const refreshAccounts = async () => {
-    if (!user) return;
+    if (!user) {
+      setAccounts([]);
+      setSelectedAccountState(null);
+      setLoading(false);
+      return;
+    }
     try {
       const data = await getAccounts();
       setAccounts(data);
-      const savedId = typeof window !== 'undefined' ? localStorage.getItem('selectedAccountId') : null;
+      const storageKey = `selectedAccountId_${user.id}`;
+      const savedId = typeof window !== 'undefined' ? localStorage.getItem(storageKey) : null;
       const found = data.find(a => a.id === savedId);
       if (found) {
         setSelectedAccountState(found);
-      } else if (data.length > 0 && !selectedAccount) {
+      } else if (data.length > 0) {
         setSelectedAccountState(data[0]);
+        if (typeof window !== 'undefined') {
+          localStorage.setItem(storageKey, data[0].id);
+        }
+      } else {
+        setSelectedAccountState(null);
       }
     } catch (error) {
       console.error('Error fetching accounts:', error);
@@ -41,14 +52,14 @@ export function AccountProvider({ children }: { children: React.ReactNode }) {
   };
 
   useEffect(() => {
-    if (user) {
-      refreshAccounts();
-    }
+    refreshAccounts();
   }, [user]);
 
   const setSelectedAccount = (account: Account) => {
     setSelectedAccountState(account);
-    localStorage.setItem('selectedAccountId', account.id);
+    if (user && typeof window !== 'undefined') {
+      localStorage.setItem(`selectedAccountId_${user.id}`, account.id);
+    }
   };
 
   return (

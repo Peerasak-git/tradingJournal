@@ -4,6 +4,7 @@ import { useEffect, useState, useMemo } from 'react';
 import { Trade } from '@/types/trade';
 import { JournalEntry } from '@/types/journal';
 import { useAccount } from '@/context/AccountContext';
+import { useAuth } from '@/context/AuthContext';
 import { getTrades, getJournals, addOrUpdateJournal, deleteJournal } from '@/lib/clientStorage';
 import JournalModal from '@/components/JournalModal';
 import {
@@ -48,9 +49,11 @@ export default function JournalPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedJournal, setSelectedJournal] = useState<JournalEntry | null>(null);
   const { selectedAccount } = useAccount();
+  const { user } = useAuth();
 
   useEffect(() => {
     const fetchData = async () => {
+      setLoading(true);
       try {
         const [tradesData, journalsData] = await Promise.all([
           getTrades(),
@@ -65,7 +68,7 @@ export default function JournalPage() {
       }
     };
     fetchData();
-  }, []);
+  }, [user?.id, selectedAccount?.id]);
 
   const handleSaveJournal = async (entry: JournalEntry) => {
     const isEditing = !!selectedJournal;
@@ -104,9 +107,11 @@ export default function JournalPage() {
     setIsModalOpen(true);
   };
 
+  const isAccountMatch = (accId?: string) => selectedAccount ? accId === selectedAccount.id : (!user);
+
   const unifiedEntries = useMemo(() => {
     const tradeEntries: UnifiedEntry[] = trades
-      .filter(t => !selectedAccount || t.accountId === selectedAccount.id)
+      .filter(t => isAccountMatch(t.accountId))
       .map(t => ({
         id: t.id,
         date: t.entryDate,
@@ -126,7 +131,7 @@ export default function JournalPage() {
       }));
 
     const standaloneEntries: UnifiedEntry[] = journals
-      .filter(j => !selectedAccount || j.accountId === selectedAccount.id)
+      .filter(j => isAccountMatch(j.accountId))
       .map(j => ({
         id: j.id,
         date: j.date,
@@ -152,7 +157,7 @@ export default function JournalPage() {
         return matchSearch && hasContent;
       })
       .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-  }, [trades, journals, searchTerm, selectedAccount]);
+  }, [trades, journals, searchTerm, selectedAccount, user]);
 
   if (loading) return (
     <main className="p-6 md:p-8 animate-pulse">

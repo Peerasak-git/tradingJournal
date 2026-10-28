@@ -3,6 +3,7 @@
 import { useEffect, useState, useMemo } from 'react';
 import { Trade, TradeStatus } from '@/types/trade';
 import { useAccount } from '@/context/AccountContext';
+import { useAuth } from '@/context/AuthContext';
 import { getTrades, addOrUpdateTrade, deleteTrade } from '@/lib/clientStorage';
 import TradeModal from '@/components/TradeModal';
 import {
@@ -57,6 +58,7 @@ export default function HistoryPage() {
   const [isChecklistModalOpen, setIsChecklistModalOpen] = useState(false);
   const [selectedTrade, setSelectedTrade] = useState<Trade | null>(null);
   const { selectedAccount } = useAccount();
+  const { user } = useAuth();
   const [liveAsset, setLiveAsset] = useState(LIVE_ASSETS[0]);
   const [livePrice, setLivePrice] = useState<string | null>(null);
   const [allPrices, setAllPrices] = useState<Record<string, number>>({});
@@ -147,6 +149,7 @@ export default function HistoryPage() {
   }, [allPrices, trades]);
 
   useEffect(() => {
+    setLoading(true);
     getTrades()
       .then(data => {
         setTrades(data);
@@ -156,7 +159,7 @@ export default function HistoryPage() {
         console.error('Error fetching trades:', err);
         setLoading(false);
       });
-  }, []);
+  }, [user?.id, selectedAccount?.id]);
 
   const handleSaveTrade = async (trade: Trade) => {
     const isEditing = !!selectedTrade;
@@ -196,7 +199,7 @@ export default function HistoryPage() {
   };
 
   const filteredTrades = useMemo(() => trades.filter(t => {
-    const isSameAccount = !selectedAccount || t.accountId === selectedAccount.id;
+    const isSameAccount = selectedAccount ? t.accountId === selectedAccount.id : (!user);
     if (!isSameAccount) return false;
 
     const matchSearch =
@@ -207,7 +210,7 @@ export default function HistoryPage() {
     const matchStatus = statusFilter === 'ALL' || t.status === statusFilter;
     const matchDate = !dateFilter || t.entryDate.startsWith(dateFilter);
     return matchSearch && matchStatus && matchDate;
-  }), [trades, searchTerm, statusFilter, dateFilter, selectedAccount]);
+  }), [trades, searchTerm, statusFilter, dateFilter, selectedAccount, user]);
 
   if (loading) return (
     <main className="p-6 md:p-8 animate-pulse">

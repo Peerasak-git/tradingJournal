@@ -3,6 +3,7 @@
 import { useEffect, useState, useMemo } from 'react';
 import { FinanceEntry, FinanceType } from '@/types/finance';
 import { useAccount } from '@/context/AccountContext';
+import { useAuth } from '@/context/AuthContext';
 import { useLanguage } from '@/context/LanguageContext';
 import { getFinances, addFinance, getAppState, setAppState } from '@/lib/clientStorage';
 import {
@@ -24,6 +25,7 @@ export default function FinancesPage() {
   const [typeFilter, setTypeFilter] = useState<'ALL' | 'INCOME' | 'EXPENSE'>('ALL');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const { selectedAccount } = useAccount();
+  const { user } = useAuth();
   const { t, language } = useLanguage();
 
   const [savedCategories, setSavedCategories] = useState<string[]>([]);
@@ -39,6 +41,7 @@ export default function FinancesPage() {
   });
 
   useEffect(() => {
+    setLoading(true);
     getFinances()
       .then(data => {
         setFinances(data);
@@ -55,7 +58,7 @@ export default function FinancesPage() {
           setSavedCategories(cats);
         }
       });
-  }, []);
+  }, [user?.id, selectedAccount?.id]);
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -82,7 +85,7 @@ export default function FinancesPage() {
   };
 
   const filteredFinances = useMemo(() => finances.filter(f => {
-    const isSameAccount = !selectedAccount || f.accountId === selectedAccount.id;
+    const isSameAccount = selectedAccount ? f.accountId === selectedAccount.id : (!user);
     if (!isSameAccount) return false;
 
     const matchSearch =
@@ -90,7 +93,7 @@ export default function FinancesPage() {
       (f.category || '').toLowerCase().includes(searchTerm.toLowerCase());
     const matchType = typeFilter === 'ALL' || f.type === typeFilter;
     return matchSearch && matchType;
-  }), [finances, searchTerm, typeFilter, selectedAccount]);
+  }), [finances, searchTerm, typeFilter, selectedAccount, user]);
 
   const totalIncome = filteredFinances.filter(f => f.type === 'INCOME').reduce((sum, f) => sum + (f.amount || 0), 0);
   const totalExpense = filteredFinances.filter(f => f.type === 'EXPENSE').reduce((sum, f) => sum + (f.amount || 0), 0);

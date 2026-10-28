@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { Trade } from '@/types/trade';
 import { useLanguage } from '@/context/LanguageContext';
 import { useAccount } from '@/context/AccountContext';
+import { useAuth } from '@/context/AuthContext';
 import {
   ArrowUpRight,
   ArrowDownLeft,
@@ -19,8 +20,10 @@ export default function Dashboard() {
   const [chartType, setChartType] = useState<'pnl' | 'balance'>('balance');
   const { t } = useLanguage();
   const { selectedAccount } = useAccount();
+  const { user } = useAuth();
 
   useEffect(() => {
+    setLoading(true);
     getTrades()
       .then(data => {
         setTrades(data);
@@ -30,7 +33,7 @@ export default function Dashboard() {
         console.error('Error fetching trades:', err);
         setLoading(false);
       });
-  }, []);
+  }, [user?.id, selectedAccount?.id]);
 
   const accountTrades = trades.filter(t => t.accountId === selectedAccount?.id);
   const closedTrades = accountTrades.filter(t => t.status !== 'OPEN');

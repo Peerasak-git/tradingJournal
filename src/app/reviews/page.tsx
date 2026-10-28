@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import { useLanguage } from '@/context/LanguageContext';
+import { useAuth } from '@/context/AuthContext';
 import {
   Star, PlusCircle, Trash2, Edit2, X,
   ChevronLeft, ChevronRight, BookOpen,
@@ -125,6 +126,7 @@ const EMPTY_FORM = {
 
 export default function ReviewsPage() {
   const { t, language } = useLanguage();
+  const { user } = useAuth();
   const locale = language === 'th' ? 'th-TH' : 'en-US';
   const today = new Date().toISOString().split('T')[0];
 
@@ -154,9 +156,10 @@ export default function ReviewsPage() {
     }), [locale]);
 
   useEffect(() => { 
+    setLoading(true);
     fetchReviews(); 
     getTrades().then(setAllTrades).catch(console.error);
-  }, []);
+  }, [user?.id]);
 
   const fetchReviews = async () => {
     try {
