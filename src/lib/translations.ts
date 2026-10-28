@@ -174,7 +174,24 @@ export const translations = {
     creatingAccount: 'Creating account...',
     guestUser: 'Guest',
     welcomeBack: 'Welcome back!',
-    startYourJournal: 'Start recording your trades and mastering psychology'
+    startYourJournal: 'Start recording your trades and mastering psychology',
+    forgotPassword: 'Forgot Password?',
+    resetPassword: 'Reset Password',
+    resetPasswordTitle: 'Reset Password',
+    resetPasswordDesc: 'Enter your email address and we will send you a password reset link.',
+    sendResetLink: 'Send Reset Link',
+    sendingResetLink: 'Sending Link...',
+    resetLinkSent: 'Password reset link has been sent to your email. Please check your inbox or spam folder.',
+    resetLinkFailed: 'Failed to send reset link. Please check your email.',
+    backToSignIn: 'Back to Sign In',
+    newPassword: 'New Password',
+    setNewPassword: 'Set New Password',
+    updatePasswordTitle: 'Set New Password',
+    updatePasswordDesc: 'Please enter your new password below.',
+    updatePasswordButton: 'Update Password',
+    updatingPassword: 'Updating Password...',
+    passwordUpdatedSuccess: 'Your password has been reset successfully! You can now sign in.',
+    passwordMinLength: 'Password must be at least 6 characters.'
   },
   th: {
     dashboard: 'แดชบอร์ดการเทรด',
@@ -349,7 +366,24 @@ export const translations = {
     creatingAccount: 'กำลังสร้างบัญชี...',
     guestUser: 'ผู้เยี่ยมชม',
     welcomeBack: 'ยินดีต้อนรับกลับมา!',
-    startYourJournal: 'เริ่มต้นบันทึกการเทรดและพัฒนาจิตวิทยาการลงทุนของคุณ'
+    startYourJournal: 'เริ่มต้นบันทึกการเทรดและพัฒนาจิตวิทยาการลงทุนของคุณ',
+    forgotPassword: 'ลืมรหัสผ่าน?',
+    resetPassword: 'รีเซ็ตรหัสผ่าน',
+    resetPasswordTitle: 'รีเซ็ตรหัสผ่าน',
+    resetPasswordDesc: 'กรอกอีเมลของคุณเพื่อรับลิงก์สำหรับตั้งรหัสผ่านใหม่',
+    sendResetLink: 'ส่งลิงก์รีเซ็ตรหัสผ่าน',
+    sendingResetLink: 'กำลังส่งลิงก์...',
+    resetLinkSent: 'ส่งลิงก์สำหรับตั้งรหัสผ่านใหม่ไปยังอีเมลของคุณแล้ว กรุณาตรวจสอบกล่องข้อความหรือโฟลเดอร์สแปม',
+    resetLinkFailed: 'ไม่สามารถส่งลิงก์รีเซ็ตรหัสผ่านได้ กรุณาตรวจสอบอีเมลของคุณ',
+    backToSignIn: 'กลับไปหน้าเข้าสู่ระบบ',
+    newPassword: 'รหัสผ่านใหม่',
+    setNewPassword: 'ตั้งรหัสผ่านใหม่',
+    updatePasswordTitle: 'ตั้งรหัสผ่านใหม่',
+    updatePasswordDesc: 'กรุณากรอกรหัสผ่านใหม่ของคุณด้านล่าง',
+    updatePasswordButton: 'บันทึกรหัสผ่านใหม่',
+    updatingPassword: 'กำลังบันทึกรหัสผ่านใหม่...',
+    passwordUpdatedSuccess: 'เปลี่ยนรหัสผ่านใหม่เรียบร้อยแล้ว! สามารถเข้าสู่ระบบได้ทันที',
+    passwordMinLength: 'รหัสผ่านต้องมีความยาวอย่างน้อย 6 ตัวอักษร'
   }
 };
 

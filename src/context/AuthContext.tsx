@@ -11,9 +11,13 @@ interface AuthContextType {
   isAdmin: boolean;
   hasPin: boolean;
   isLocked: boolean;
+  isPasswordRecovery: boolean;
+  setIsPasswordRecovery: (value: boolean) => void;
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
   signUp: (email: string, password: string, displayName?: string) => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
+  resetPasswordForEmail: (email: string) => Promise<{ error: Error | null }>;
+  updateUserPassword: (password: string) => Promise<{ error: Error | null }>;
   setPin: (pin: string) => void;
   removePin: () => void;
   unlockWithPin: (pin: string) => boolean;
@@ -44,6 +48,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [hasPin, setHasPin] = useState(false);
   const [isLocked, setIsLocked] = useState(false);
+  const [isPasswordRecovery, setIsPasswordRecovery] = useState(false);
 
   // Initialize Supabase Auth & PIN state
   useEffect(() => {
@@ -89,8 +94,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // Listen to Supabase Auth state changes
     let subscription: any = null;
     if (supabase) {
-      const { data } = supabase.auth.onAuthStateChange((_event, session) => {
+      const { data } = supabase.auth.onAuthStateChange((event, session) => {
         if (!mounted) return;
+        if (event === 'PASSWORD_RECOVERY') {
+          setIsPasswordRecovery(true);
+        }
         if (session?.user) {
           const mapped = mapSupabaseUserToAppUser(session.user);
           setUser(mapped);
@@ -104,8 +112,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       subscription = data.subscription;
     }
 
-    // Check PIN status on load
+    // Check PIN status and password recovery URL on load
     if (typeof window !== 'undefined') {
+      const hash = window.location.hash || '';
+      const search = window.location.search || '';
+      if (hash.includes('type=recovery') || search.includes('type=recovery')) {
+        setIsPasswordRecovery(true);
+      }
+
       const isSkipped = sessionStorage.getItem('tj_pin_skipped') === 'true';
       const isSessionUnlocked = sessionStorage.getItem('tj_unlocked') === 'true';
 
@@ -210,6 +224,44 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
+  const resetPasswordForEmail = useCallback(async (email: string): Promise<{ error: Error | null }> => {
+    const supabase = getSupabase();
+    if (!supabase) {
+      return { error: new Error('Supabase is not configured.') };
+    }
+    try {
+      const redirectTo = typeof window !== 'undefined'
+        ? `${window.location.origin}/login?type=recovery`
+        : undefined;
+      const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
+        redirectTo,
+      });
+      if (error) {
+        return { error: new Error(error.message) };
+      }
+      return { error: null };
+    } catch (err: any) {
+      return { error: err instanceof Error ? err : new Error(String(err)) };
+    }
+  }, []);
+
+  const updateUserPassword = useCallback(async (newPassword: string): Promise<{ error: Error | null }> => {
+    const supabase = getSupabase();
+    if (!supabase) {
+      return { error: new Error('Supabase is not configured.') };
+    }
+    try {
+      const { error } = await supabase.auth.updateUser({ password: newPassword });
+      if (error) {
+        return { error: new Error(error.message) };
+      }
+      setIsPasswordRecovery(false);
+      return { error: null };
+    } catch (err: any) {
+      return { error: err instanceof Error ? err : new Error(String(err)) };
+    }
+  }, []);
+
   const unlockWithPin = (inputPin: string): boolean => {
     if (typeof window === 'undefined') return false;
     const savedPin = localStorage.getItem('tj_security_pin');
@@ -259,9 +311,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       isAdmin,
       hasPin,
       isLocked,
+      isPasswordRecovery,
+      setIsPasswordRecovery,
       signIn,
       signUp,
       signOut,
+      resetPasswordForEmail,
+      updateUserPassword,
       setPin,
       removePin,
       unlockWithPin,
