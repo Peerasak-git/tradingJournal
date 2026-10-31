@@ -7,6 +7,24 @@ import { useAccount } from '@/context/AccountContext';
 import { getTrades } from '@/lib/clientStorage';
 import { useEffect, useState, useRef } from 'react';
 
+function formatDateForDatetimeLocal(raw: any): string {
+  if (!raw) return new Date().toISOString().slice(0, 16);
+  const str = String(raw).trim();
+  const isoMatch = str.match(/^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2})/);
+  if (isoMatch) return isoMatch[1];
+  
+  const d = new Date(str);
+  if (isNaN(d.getTime())) {
+    return new Date().toISOString().slice(0, 16);
+  }
+  const yr = d.getFullYear();
+  const mo = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  const hr = String(d.getHours()).padStart(2, '0');
+  const mn = String(d.getMinutes()).padStart(2, '0');
+  return `${yr}-${mo}-${day}T${hr}:${mn}`;
+}
+
 interface TradeModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -444,94 +462,117 @@ export default function TradeModal({ isOpen, onClose, onSave, initialData }: Tra
     }
   };
 
-  const processImage = async (file: File, overrideKey?: string) => {
+  const applyExtractedData = (data: any, engineLabel: string) => {
+    let newInstrument = data.instrument || formData.instrument;
+    if (newInstrument) {
+      newInstrument = newInstrument.toUpperCase().trim();
+      if (!instruments.includes(newInstrument)) {
+        setInstruments(prev => [...prev, newInstrument]);
+      }
+    }
+
+    setFormData(prev => ({
+      ...prev,
+      instrument: newInstrument || prev.instrument,
+      direction: (data.direction === 'SHORT' ? 'SHORT' : 'LONG') as Direction,
+      lotSize: data.lotSize > 0 ? data.lotSize : prev.lotSize,
+      entryPrice: data.entryPrice > 0 ? data.entryPrice : prev.entryPrice,
+      exitPrice: data.exitPrice > 0 ? data.exitPrice : prev.exitPrice,
+      stopLoss: data.stopLoss > 0 ? data.stopLoss : prev.stopLoss,
+      takeProfit: data.takeProfit > 0 ? data.takeProfit : prev.takeProfit,
+      netPnL: data.netPnL !== null && data.netPnL !== undefined ? data.netPnL : prev.netPnL,
+      status: data.status || prev.status,
+      entryDate: formatDateForDatetimeLocal(data.entryDate || prev.entryDate),
+      notes: data.notes ? (prev.notes ? `${prev.notes}\n${data.notes}` : data.notes) : prev.notes
+    }));
+
+    const msg = `✨ อ่านข้อมูลสำเร็จ (${engineLabel})! [${newInstrument || 'สินทรัพย์'} ${data.direction} ${data.lotSize ? data.lotSize + ' Lots' : ''}] เข้า: ${data.entryPrice || '-'} | ออก: ${data.exitPrice || '-'} | P&L: ${data.netPnL !== null && data.netPnL !== undefined ? (data.netPnL >= 0 ? '+' : '') + data.netPnL + ' USD' : '-'}`;
+    setScanStatusMessage(msg);
+    setTimeout(() => setScanStatusMessage(null), 8000);
+  };
+
+  // When an image is pasted or uploaded -> Read directly from image using Local OCR (No AI error / free)
+  const processImage = async (file: File) => {
     try {
       const base64 = await fileToBase64(file);
-      // Set image preview immediately so the user sees their chart right away
       setFormData(prev => ({
         ...prev,
         entryImage: base64
       }));
-
-      const key = overrideKey !== undefined ? overrideKey : ((typeof window !== 'undefined' ? localStorage.getItem('gemini_api_key') : '') || '');
+      setPendingImageFile(file);
 
       setIsOcrLoading(true);
-      setScanStatusMessage('กำลังประมวลผลรูปภาพ...');
+      setScanStatusMessage('⚡ กำลังอ่านข้อมูลจากรูปภาพ (Local OCR)...');
 
-      let data: any = null;
-      let engineUsed = 'Local OCR';
+      const localRes = await fetch('/api/ocr/local-slip', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ imageBase64: base64 })
+      });
 
-      if (key) {
-        try {
-          setScanStatusMessage('กำลังวิเคราะห์รูปภาพด้วย AI Gemini Vision...');
-          const res = await fetch('/api/ai/vision-trade', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              imageBase64: base64,
-              apiKey: key
-            })
-          });
-
-          const json = await res.json();
-          if (res.ok && json.success) {
-            data = json.data;
-            engineUsed = 'AI Vision';
-          }
-        } catch (err) {
-          console.warn('AI Vision failed, falling back to Local OCR:', err);
-        }
+      const localJson = await localRes.json();
+      if (localRes.ok && localJson.success) {
+        applyExtractedData(localJson.data, 'Local OCR');
+      } else {
+        setScanStatusMessage(`⚠️ ไม่สามารถอ่านตัวหนังสือจากรูปได้: ${localJson.message || 'โปรดตรวจสอบความคมชัด'}`);
       }
-
-      // Fallback to Local OCR (100% free, no API key needed)
-      if (!data) {
-        setScanStatusMessage('⚡ กำลังอ่านข้อมูลด้วย Local OCR (ไม่ต้องใช้ AI / ไม่ต้องใช้ Key)...');
-        const localRes = await fetch('/api/ocr/local-slip', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ imageBase64: base64 })
-        });
-        const localJson = await localRes.json();
-        if (localRes.ok && localJson.success) {
-          data = localJson.data;
-          engineUsed = 'Local OCR';
-        } else {
-          setScanStatusMessage(`❌ ${localJson.message || 'ไม่สามารถอ่านข้อความจากรูปได้'}`);
-          return;
-        }
-      }
-      let newInstrument = data.instrument || formData.instrument;
-      if (newInstrument) {
-        newInstrument = newInstrument.toUpperCase().trim();
-        if (!instruments.includes(newInstrument)) {
-          setInstruments(prev => [...prev, newInstrument]);
-        }
-      }
-
-      setFormData(prev => ({
-        ...prev,
-        instrument: newInstrument || prev.instrument,
-        direction: (data.direction === 'SHORT' ? 'SHORT' : 'LONG') as Direction,
-        lotSize: data.lotSize > 0 ? data.lotSize : prev.lotSize,
-        entryPrice: data.entryPrice > 0 ? data.entryPrice : prev.entryPrice,
-        exitPrice: data.exitPrice > 0 ? data.exitPrice : prev.exitPrice,
-        stopLoss: data.stopLoss > 0 ? data.stopLoss : prev.stopLoss,
-        takeProfit: data.takeProfit > 0 ? data.takeProfit : prev.takeProfit,
-        netPnL: data.netPnL !== null && data.netPnL !== undefined ? data.netPnL : prev.netPnL,
-        status: data.status || prev.status,
-        entryDate: data.entryDate ? data.entryDate.slice(0, 16) : prev.entryDate,
-        notes: data.notes ? (prev.notes ? `${prev.notes}\n${data.notes}` : data.notes) : prev.notes
-      }));
-
-      const msg = `✨ ดึงข้อมูลออเดอร์สำเร็จ! [${newInstrument || 'สินทรัพย์'} ${data.direction} ${data.lotSize ? data.lotSize + ' Lots' : ''}] เข้า: ${data.entryPrice} | ออก: ${data.exitPrice || '-'} | P&L: ${data.netPnL !== null && data.netPnL !== undefined ? (data.netPnL >= 0 ? '+' : '') + data.netPnL + ' USD' : '-'}`;
-      setScanStatusMessage(msg);
-      setTimeout(() => setScanStatusMessage(null), 8000);
     } catch (err: any) {
-      console.error('AI Vision error:', err);
-      setScanStatusMessage(`❌ เกิดข้อผิดพลาดในการเชื่อมต่อ AI: ${err.message || 'โปรดตรวจสอบเครือข่าย'}`);
+      console.error('OCR error:', err);
+      setScanStatusMessage(`⚠️ เกิดข้อผิดพลาดในการอ่านรูปภาพ: ${err.message || 'โปรดลองใหม่อีกครั้ง'}`);
     } finally {
       setIsOcrLoading(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
+  // When user explicitly clicks "ให้ AI อ่านข้อความ"
+  const triggerAiScan = async (overrideKey?: string) => {
+    if (!formData.entryImage) {
+      setScanStatusMessage('⚠️ กรุณาอัปโหลดหรือวางรูปภาพก่อนใช้งาน AI');
+      return;
+    }
+
+    const key = overrideKey !== undefined ? overrideKey : ((typeof window !== 'undefined' ? localStorage.getItem('gemini_api_key') : '') || '');
+
+    if (!key) {
+      setApiKeyError('กรุณากรอก Gemini API Key เพื่อให้ AI ช่วยอ่านข้อความ');
+      setGeminiApiKeyInput('');
+      setIsApiKeyModalOpen(true);
+      return;
+    }
+
+    try {
+      setIsOcrLoading(true);
+      setScanStatusMessage('🤖 กำลังส่งรูปภาพให้ AI Gemini Vision วิเคราะห์ข้อความ...');
+
+      const res = await fetch('/api/ai/vision-trade', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          imageBase64: formData.entryImage,
+          apiKey: key
+        })
+      });
+
+      const json = await res.json();
+      if (!res.ok || !json.success) {
+        if (json.error === 'NO_API_KEY' || json.error === 'INVALID_API_KEY' || json.error === 'PERMISSION_DENIED') {
+          setApiKeyError(json.message || 'Gemini API Key ไม่ถูกต้อง โปรดตรวจสอบอีกครั้ง');
+          setGeminiApiKeyInput(key);
+          setIsApiKeyModalOpen(true);
+          setScanStatusMessage(null);
+          return;
+        }
+        setScanStatusMessage(`❌ ${json.message || 'AI Vision ไม่สามารถวิเคราะห์รูปได้'}`);
+        return;
+      }
+
+      applyExtractedData(json.data, 'AI Gemini');
+    } catch (err: any) {
+      console.error('AI error:', err);
+      setScanStatusMessage(`❌ เกิดข้อผิดพลาดในการเชื่อมต่อ AI: ${err.message || 'โปรดตรวจสอบเครือข่าย'}`);
+    } finally {
+      setIsOcrLoading(false);
     }
   };
 
@@ -755,12 +796,24 @@ export default function TradeModal({ isOpen, onClose, onSave, initialData }: Tra
                 {/* Image Preview if user pasted / uploaded an image */}
                 {formData.entryImage && (
                   <div className="relative rounded-2xl overflow-hidden border border-blue-200/80 dark:border-blue-500/30 bg-blue-50/20 dark:bg-blue-950/20 p-2.5 animate-fade-in space-y-2">
-                    <div className="flex items-center justify-between px-1">
+                    <div className="flex items-center justify-between px-1 flex-wrap gap-2">
                       <span className="flex items-center gap-1.5 text-xs font-bold text-blue-600 dark:text-blue-400">
                         <Sparkles size={13} className="shrink-0" />
-                        รูปชาร์ต TradingView ที่นำเข้า
+                        รูปสลิป / ชาร์ตที่นำเข้า
                       </span>
-                      <div className="flex items-center gap-1">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        {/* User-requested button: Click to let AI read the text */}
+                        <button
+                          type="button"
+                          onClick={() => triggerAiScan()}
+                          disabled={isOcrLoading}
+                          className="px-2.5 py-1 text-[11px] font-bold text-purple-700 dark:text-purple-300 bg-purple-50 dark:bg-purple-500/10 hover:bg-purple-100 dark:hover:bg-purple-500/20 border border-purple-200 dark:border-purple-800 rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer shadow-xs active:scale-95"
+                          title="กดเพื่อให้ AI Gemini อ่านข้อความจากรูปภาพนี้อีกครั้ง"
+                        >
+                          {isOcrLoading ? <Loader2 size={11} className="animate-spin text-purple-500" /> : <Sparkles size={11} />}
+                          <span>🤖 ให้ AI อ่านข้อความ</span>
+                        </button>
+
                         <button
                           type="button"
                           onClick={() => setIsZoomImageOpen(true)}
@@ -1472,9 +1525,8 @@ export default function TradeModal({ isOpen, onClose, onSave, initialData }: Tra
                   localStorage.setItem('gemini_api_key', key);
                   setIsApiKeyModalOpen(false);
                   if (pendingImageFile) {
-                    const file = pendingImageFile;
                     setPendingImageFile(null);
-                    await processImage(file, key);
+                    await triggerAiScan(key);
                   }
                 }}
                 className="flex-1 py-2.5 rounded-xl text-xs font-bold text-white bg-blue-500 hover:bg-blue-600 transition-colors shadow-lg shadow-blue-500/20 cursor-pointer"

@@ -504,6 +504,43 @@ export default function AutoOrderScanModal({
                   <div className="space-y-4">
                     {/* Header info card */}
                     <div className="p-4 rounded-xl bg-slate-50 dark:bg-white/[0.03] border border-slate-200/80 dark:border-white/[0.06] space-y-3">
+                      {/* Top Action Row with AI Read Button */}
+                      <div className="flex items-center justify-between gap-2 pb-2 border-b border-slate-200/60 dark:border-white/[0.05]">
+                        <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
+                          <span>วิธีอ่านข้อมูล:</span>
+                          <span className="font-bold text-emerald-600 dark:text-emerald-400">
+                            {scannedTrade.engine === 'LOCAL_OCR' ? '⚡ Local OCR (อ่านจากรูปภาพ)' : '🤖 AI Gemini Vision'}
+                          </span>
+                        </span>
+
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            if (imagePreview) {
+                              try {
+                                setIsScanning(true);
+                                setErrorMessage('');
+                                const aiData = await processWithAi(imagePreview);
+                                setScannedTrade(aiData);
+                                if (autoSaveEnabled) {
+                                  await saveTradeToDatabase(aiData, imagePreview);
+                                }
+                              } catch (err: any) {
+                                setErrorMessage(err.message || 'เกิดข้อผิดพลาดในการเรียก AI');
+                              } finally {
+                                setIsScanning(false);
+                              }
+                            }
+                          }}
+                          disabled={isScanning}
+                          className="px-2.5 py-1 text-[11px] font-bold text-purple-700 dark:text-purple-300 bg-purple-50 dark:bg-purple-500/10 hover:bg-purple-100 dark:hover:bg-purple-500/20 border border-purple-200 dark:border-purple-800 rounded-lg transition-all flex items-center gap-1.5 cursor-pointer shadow-xs active:scale-95"
+                          title="กดเพื่อให้ AI Gemini ช่วยอ่านข้อความจากรูปภาพนี้อีกครั้ง"
+                        >
+                          {isScanning ? <Loader2 size={11} className="animate-spin text-purple-500" /> : <Sparkles size={11} />}
+                          <span>🤖 ให้ AI อ่านข้อความ</span>
+                        </button>
+                      </div>
+
                       <div className="flex items-start justify-between gap-2">
                         <div>
                           <div className="flex items-center gap-2">
