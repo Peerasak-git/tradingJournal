@@ -31,6 +31,7 @@ import { useAccount } from '@/context/AccountContext';
 import { useAuth } from '@/context/AuthContext';
 import { useLanguage } from '@/context/LanguageContext';
 import { addOrUpdateTrade } from '@/lib/clientStorage';
+import { runClientOcr } from '@/lib/clientOcr';
 
 interface AutoOrderScanModalProps {
   isOpen: boolean;
@@ -191,19 +192,11 @@ export default function AutoOrderScanModal({
     }
   };
 
-  const processWithLocalOcr = async (base64: string) => {
-    setStatusMessage('⚡ กำลังอ่านข้อความจากสลิปด้วย Local OCR (ไม่ต้องใช้ AI / ไม่ต้องใช้ Key)...');
-    const res = await fetch('/api/ocr/local-slip', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ imageBase64: base64 }),
+  const processWithLocalOcr = async (imageInput: string | File) => {
+    setStatusMessage('⚡ กำลังอ่านข้อความจากสลิปด้วย Local OCR...');
+    return await runClientOcr(imageInput, (pct) => {
+      setStatusMessage(`⚡ กำลังอ่านข้อความจากสลิป... (${pct}%)`);
     });
-
-    const json = await res.json();
-    if (!res.ok || !json.success) {
-      throw new Error(json.message || 'Local OCR ไม่สามารถอ่านข้อความจากรูปภาพได้');
-    }
-    return json.data;
   };
 
   const processWithAi = async (base64: string, overrideKey?: string) => {

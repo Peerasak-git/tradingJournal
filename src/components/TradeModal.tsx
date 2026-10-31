@@ -5,6 +5,7 @@ import { Direction, TradeStatus, Trade } from '@/types/trade';
 import { useLanguage } from '@/context/LanguageContext';
 import { useAccount } from '@/context/AccountContext';
 import { getTrades } from '@/lib/clientStorage';
+import { runClientOcr } from '@/lib/clientOcr';
 import { useEffect, useState, useRef } from 'react';
 
 function formatDateForDatetimeLocal(raw: any): string {
@@ -491,7 +492,7 @@ export default function TradeModal({ isOpen, onClose, onSave, initialData }: Tra
     setTimeout(() => setScanStatusMessage(null), 8000);
   };
 
-  // When an image is pasted or uploaded -> Read directly from image using Local OCR (No AI error / free)
+  // When an image is pasted or uploaded -> Read directly from image using Client-side OCR
   const processImage = async (file: File) => {
     try {
       const base64 = await fileToBase64(file);
@@ -502,23 +503,20 @@ export default function TradeModal({ isOpen, onClose, onSave, initialData }: Tra
       setPendingImageFile(file);
 
       setIsOcrLoading(true);
-      setScanStatusMessage('⚡ กำลังอ่านข้อมูลจากรูปภาพ (Local OCR)...');
+      setScanStatusMessage('⚡ กำลังอ่านข้อมูลจากรูปภาพ...');
 
-      const localRes = await fetch('/api/ocr/local-slip', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ imageBase64: base64 })
-      });
-
-      const localJson = await localRes.json();
-      if (localRes.ok && localJson.success) {
-        applyExtractedData(localJson.data, 'Local OCR');
-      } else {
-        setScanStatusMessage(`⚠️ ไม่สามารถอ่านตัวหนังสือจากรูปได้: ${localJson.message || 'โปรดตรวจสอบความคมชัด'}`);
+      try {
+        const extracted = await runClientOcr(file, (pct) => {
+          setScanStatusMessage(`⚡ กำลังอ่านข้อมูลจากรูปภาพ... (${pct}%)`);
+        });
+        applyExtractedData(extracted, 'Local OCR');
+      } catch (ocrErr: any) {
+        console.warn('Local OCR warning:', ocrErr);
+        setScanStatusMessage('💡 โหลดรูปภาพสำเร็จ! กดปุ่ม "🤖 ให้ AI อ่านข้อความ" เพื่ออ่านออเดอร์ หรือกรอกราคา');
       }
     } catch (err: any) {
-      console.error('OCR error:', err);
-      setScanStatusMessage(`⚠️ เกิดข้อผิดพลาดในการอ่านรูปภาพ: ${err.message || 'โปรดลองใหม่อีกครั้ง'}`);
+      console.error('Image load error:', err);
+      setScanStatusMessage(`⚠️ ไม่สามารถโหลดรูปภาพได้: ${err.message || 'โปรดลองใหม่อีกครั้ง'}`);
     } finally {
       setIsOcrLoading(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
