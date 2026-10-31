@@ -22,7 +22,9 @@ import {
   RotateCcw,
   PlusCircle,
   Clock,
-  Ticket
+  Ticket,
+  Zap,
+  Cpu
 } from 'lucide-react';
 import { Trade, Direction, TradeStatus } from '@/types/trade';
 import { useAccount } from '@/context/AccountContext';
@@ -36,6 +38,8 @@ interface AutoOrderScanModalProps {
   onTradeSaved?: (trade: Trade) => void;
 }
 
+type ScanEngine = 'local' | 'ai';
+
 export default function AutoOrderScanModal({
   isOpen,
   onClose,
@@ -45,6 +49,7 @@ export default function AutoOrderScanModal({
   const { user } = useAuth();
   const { language } = useLanguage();
 
+  const [scanEngine, setScanEngine] = useState<ScanEngine>('local'); // Default to Local OCR (No AI needed)
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string>('');
   const [isScanning, setIsScanning] = useState(false);
@@ -93,7 +98,7 @@ export default function AutoOrderScanModal({
 
     window.addEventListener('paste', handlePaste);
     return () => window.removeEventListener('paste', handlePaste);
-  }, [isOpen, autoSaveEnabled]);
+  }, [isOpen, autoSaveEnabled, scanEngine]);
 
   const resetScanState = () => {
     setImageFile(null);
@@ -156,7 +161,7 @@ export default function AutoOrderScanModal({
           currency: tradeRaw.currency || 'USD',
         },
         analysis: {
-          strategy: 'Auto Slip OCR',
+          strategy: tradeRaw.engine === 'LOCAL_OCR' ? 'Local OCR (No AI)' : 'AI Slip Vision',
           timeframe: tradeRaw.timeframe || null,
           plannedRR,
           actualRR,
@@ -186,65 +191,92 @@ export default function AutoOrderScanModal({
     }
   };
 
+  const processWithLocalOcr = async (base64: string) => {
+    setStatusMessage('⚡ กำลังอ่านข้อความจากสลิปด้วย Local OCR (ไม่ต้องใช้ AI / ไม่ต้องใช้ Key)...');
+    const res = await fetch('/api/ocr/local-slip', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ imageBase64: base64 }),
+    });
+
+    const json = await res.json();
+    if (!res.ok || !json.success) {
+      throw new Error(json.message || 'Local OCR ไม่สามารถอ่านข้อความจากรูปภาพได้');
+    }
+    return json.data;
+  };
+
+  const processWithAi = async (base64: string, overrideKey?: string) => {
+    const key =
+      overrideKey !== undefined
+        ? overrideKey
+        : (typeof window !== 'undefined' ? localStorage.getItem('gemini_api_key') : '') || '';
+
+    if (!key) {
+      // If no key provided, seamlessly fallback to Local OCR
+      return await processWithLocalOcr(base64);
+    }
+
+    setStatusMessage('🤖 กำลังส่งรูปภาพให้ AI Gemini Vision วิเคราะห์ข้อมูล...');
+    const res = await fetch('/api/ai/vision-trade', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        imageBase64: base64,
+        apiKey: key,
+      }),
+    });
+
+    const json = await res.json();
+    if (!res.ok || !json.success) {
+      // If AI fails, fallback to Local OCR so the user is never blocked!
+      console.warn('AI failed, falling back to Local OCR:', json.message);
+      return await processWithLocalOcr(base64);
+    }
+    return json.data;
+  };
+
   const processImageScan = async (file: File, overrideKey?: string) => {
     try {
       setIsScanning(true);
       setErrorMessage('');
       setSavedSuccess(false);
-      setStatusMessage('กำลังแปลงรูปภาพและส่งให้ AI Gemini Vision...');
 
       const base64 = await fileToBase64(file);
       setImagePreview(base64);
 
-      const key =
-        overrideKey !== undefined
-          ? overrideKey
-          : (typeof window !== 'undefined' ? localStorage.getItem('gemini_api_key') : '') || '';
+      let extractedData: any = null;
 
-      setStatusMessage('กำลังอ่านข้อมูลออเดอร์ (คู่เงิน, LOT, ราคาเข้า/ออก, กำไร, SL/TP)...');
-
-      const res = await fetch('/api/ai/vision-trade', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          imageBase64: base64,
-          apiKey: key,
-        }),
-      });
-
-      const json = await res.json();
-      if (!res.ok || !json.success) {
-        if (
-          json.error === 'NO_API_KEY' ||
-          json.error === 'INVALID_API_KEY' ||
-          json.error === 'PERMISSION_DENIED'
-        ) {
-          setApiKeyError(json.message || 'Gemini API Key ไม่ถูกต้อง โปรดใส่ Key');
-          setGeminiApiKeyInput(key);
-          setIsApiKeyModalOpen(true);
-          setIsScanning(false);
-          setStatusMessage('');
-          return;
-        }
-        setErrorMessage(json.message || 'AI ไม่สามารถระบุข้อมูลจากรูปได้ กรุณาลองใหม่อีกครั้ง');
-        setIsScanning(false);
-        setStatusMessage('');
-        return;
+      if (scanEngine === 'local') {
+        extractedData = await processWithLocalOcr(base64);
+      } else {
+        extractedData = await processWithAi(base64, overrideKey);
       }
 
-      const extracted = json.data;
-      setScannedTrade(extracted);
-      setStatusMessage('✨ สแกนข้อมูลออเดอร์สำเร็จ!');
+      setScannedTrade(extractedData);
+      setStatusMessage('✨ สแกนและอ่านข้อมูลออเดอร์สำเร็จ!');
 
       // If Auto-Save is enabled, automatically save to database immediately!
       if (autoSaveEnabled) {
         setStatusMessage('⚡ กำลังเพิ่มข้อมูลเข้าพอร์ตอัตโนมัติ...');
-        await saveTradeToDatabase(extracted, base64);
+        await saveTradeToDatabase(extractedData, base64);
         setStatusMessage('🎉 บันทึกออเดอร์เข้าพอร์ตเรียบร้อยแล้ว!');
       }
     } catch (err: any) {
       console.error('Scan error:', err);
-      setErrorMessage(err.message || 'เกิดข้อผิดพลาดในการเชื่อมต่อ');
+      // As a last-ditch effort, try local OCR if not already tried
+      if (scanEngine === 'ai') {
+        try {
+          const base64 = await fileToBase64(file);
+          const fallbackData = await processWithLocalOcr(base64);
+          setScannedTrade(fallbackData);
+          if (autoSaveEnabled) {
+            await saveTradeToDatabase(fallbackData, base64);
+          }
+          return;
+        } catch {}
+      }
+      setErrorMessage(err.message || 'เกิดข้อผิดพลาดในการประมวลผลรูปภาพ');
     } finally {
       setIsScanning(false);
     }
@@ -308,15 +340,15 @@ export default function AutoOrderScanModal({
             </div>
             <div>
               <h2 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                {language === 'th' ? 'สแกนออเดอร์อัตโนมัติจากรูปสลิป' : 'Auto Order Slip Scanner (AI)'}
-                <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-blue-100 dark:bg-blue-500/20 text-blue-700 dark:text-blue-300">
-                  AI Vision
+                {language === 'th' ? 'สแกนออเดอร์อัตโนมัติจากรูปสลิป' : 'Auto Order Slip Scanner'}
+                <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300">
+                  {scanEngine === 'local' ? 'Local OCR (ไม่ต้องใช้ AI)' : 'AI Vision'}
                 </span>
               </h2>
               <p className="text-xs text-slate-500 dark:text-slate-400">
                 {language === 'th'
-                  ? 'รองรับรูปสลิป IUX, Exness, MT4/MT5, cTrader หรือวางรูปด้วย Ctrl+V'
-                  : 'Reads mobile broker order tickets, MT4/MT5 slips & TradingView charts'}
+                  ? 'อ่านข้อมูลสลิป IUX, Exness, MT4/MT5, cTrader ฟรี 100% ไม่ต้องใช้ API Key'
+                  : 'Reads mobile broker order tickets without requiring an external AI API key'}
               </p>
             </div>
           </div>
@@ -330,9 +362,53 @@ export default function AutoOrderScanModal({
 
         {/* Content Body */}
         <div className="p-6 overflow-y-auto space-y-5 flex-1">
-          {/* Top Options Bar */}
-          <div className="flex flex-wrap items-center justify-between gap-3 p-3 rounded-xl bg-blue-50/60 dark:bg-blue-950/20 border border-blue-100 dark:border-blue-900/40">
-            <label className="flex items-center gap-2.5 cursor-pointer text-xs font-semibold text-slate-800 dark:text-slate-200">
+          {/* Engine Selector & Auto-Save Toggle */}
+          <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-white/[0.03] border border-slate-200/80 dark:border-white/[0.06] space-y-3">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              {/* Engine Switch */}
+              <div className="flex items-center gap-1 bg-slate-200/60 dark:bg-white/[0.05] p-1 rounded-xl">
+                <button
+                  type="button"
+                  onClick={() => setScanEngine('local')}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition ${
+                    scanEngine === 'local'
+                      ? 'bg-white dark:bg-slate-800 text-emerald-600 dark:text-emerald-400 shadow-xs'
+                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
+                  }`}
+                >
+                  <Zap size={13} className="text-emerald-500" />
+                  <span>{language === 'th' ? '⚡ Local OCR (ไม่ต้องใช้ AI / ฟรี)' : '⚡ Local OCR (No AI)'}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setScanEngine('ai')}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition ${
+                    scanEngine === 'ai'
+                      ? 'bg-white dark:bg-slate-800 text-blue-600 dark:text-blue-400 shadow-xs'
+                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
+                  }`}
+                >
+                  <Cpu size={13} className="text-blue-500" />
+                  <span>{language === 'th' ? '🤖 Gemini AI Vision' : '🤖 Gemini AI Vision'}</span>
+                </button>
+              </div>
+
+              {scanEngine === 'ai' && (
+                <button
+                  onClick={() => {
+                    setGeminiApiKeyInput(localStorage.getItem('gemini_api_key') || '');
+                    setIsApiKeyModalOpen(true);
+                  }}
+                  className="inline-flex items-center gap-1.5 text-xs font-semibold text-blue-600 dark:text-blue-400 hover:underline"
+                >
+                  <Key size={13} />
+                  {language === 'th' ? 'ตั้งค่า Gemini API Key' : 'Configure API Key'}
+                </button>
+              )}
+            </div>
+
+            {/* Auto-Save Checkbox */}
+            <label className="flex items-center gap-2.5 cursor-pointer text-xs font-semibold text-slate-800 dark:text-slate-200 pt-1 border-t border-slate-200/50 dark:border-white/[0.04]">
               <input
                 type="checkbox"
                 checked={autoSaveEnabled}
@@ -341,21 +417,10 @@ export default function AutoOrderScanModal({
               />
               <span>
                 {language === 'th'
-                  ? '⚡ บันทึกข้อมูลเข้าพอร์ตทันทีอัตโนมัติเมื่อ AI อ่านเสร็จ (Auto-Save)'
+                  ? '⚡ บันทึกข้อมูลเข้าพอร์ตทันทีอัตโนมัติเมื่ออ่านเสร็จ (Auto-Save)'
                   : '⚡ Auto-Save order directly into portfolio on scan'}
               </span>
             </label>
-
-            <button
-              onClick={() => {
-                setGeminiApiKeyInput(localStorage.getItem('gemini_api_key') || '');
-                setIsApiKeyModalOpen(true);
-              }}
-              className="inline-flex items-center gap-1.5 text-xs font-semibold text-blue-600 dark:text-blue-400 hover:underline"
-            >
-              <Key size={13} />
-              {language === 'th' ? 'ตั้งค่า Gemini API Key' : 'Configure API Key'}
-            </button>
           </div>
 
           {/* Upload Dropzone */}
@@ -364,7 +429,7 @@ export default function AutoOrderScanModal({
               onDrop={handleDrop}
               onDragOver={(e) => e.preventDefault()}
               onClick={() => fileInputRef.current?.click()}
-              className="border-2 border-dashed border-slate-300 dark:border-white/[0.12] hover:border-blue-500 dark:hover:border-blue-400 rounded-2xl p-8 text-center cursor-pointer transition-all bg-slate-50/50 dark:bg-white/[0.01] hover:bg-blue-50/20 dark:hover:bg-blue-950/10 group flex flex-col items-center justify-center gap-3"
+              className="border-2 border-dashed border-slate-300 dark:border-white/[0.12] hover:border-emerald-500 dark:hover:border-emerald-400 rounded-2xl p-8 text-center cursor-pointer transition-all bg-slate-50/50 dark:bg-white/[0.01] hover:bg-emerald-50/20 dark:hover:bg-emerald-950/10 group flex flex-col items-center justify-center gap-3"
             >
               <input
                 type="file"
@@ -373,7 +438,7 @@ export default function AutoOrderScanModal({
                 accept="image/*"
                 className="hidden"
               />
-              <div className="w-14 h-14 rounded-2xl bg-blue-100 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 flex items-center justify-center group-hover:scale-110 transition-transform">
+              <div className="w-14 h-14 rounded-2xl bg-emerald-100 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center group-hover:scale-110 transition-transform">
                 <UploadCloud size={28} />
               </div>
               <div>
@@ -384,7 +449,7 @@ export default function AutoOrderScanModal({
                 </p>
                 <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
                   {language === 'th'
-                    ? '💡 หรือกดปุ่ม Ctrl + V (Cmd + V) เพื่อวางรูปภาพจากคลิปบอร์ดได้ทันที'
+                    ? '💡 หรือกดปุ่ม Ctrl + V (Cmd + V) เพื่อวางรูปภาพสลิปจากคลิปบอร์ดได้ทันที'
                     : '💡 Or press Ctrl + V (Cmd + V) to paste screenshot directly'}
                 </p>
               </div>
@@ -393,9 +458,9 @@ export default function AutoOrderScanModal({
 
           {/* Status / Loading Banner */}
           {isScanning && (
-            <div className="p-4 rounded-xl bg-blue-50 dark:bg-blue-950/30 border border-blue-200/80 dark:border-blue-900/50 flex items-center gap-3 animate-pulse">
-              <Loader2 size={20} className="animate-spin text-blue-600 dark:text-blue-400 shrink-0" />
-              <div className="text-xs font-semibold text-blue-700 dark:text-blue-300">
+            <div className="p-4 rounded-xl bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200/80 dark:border-emerald-900/50 flex items-center gap-3 animate-pulse">
+              <Loader2 size={20} className="animate-spin text-emerald-600 dark:text-emerald-400 shrink-0" />
+              <div className="text-xs font-semibold text-emerald-700 dark:text-emerald-300">
                 {statusMessage}
               </div>
             </div>
@@ -544,14 +609,14 @@ export default function AutoOrderScanModal({
                         <div className="pt-2 flex items-center gap-2">
                           <button
                             onClick={resetScanState}
-                            className="px-3 py-1.5 rounded-lg bg-win-600 hover:bg-win-700 text-white text-xs font-semibold shadow-xs flex items-center gap-1.5"
+                            className="px-3 py-1.5 rounded-lg bg-win-600 hover:bg-win-700 text-white text-xs font-semibold shadow-xs flex items-center gap-1.5 cursor-pointer"
                           >
                             <PlusCircle size={13} />
                             {language === 'th' ? 'สแกนสลิปออเดอร์ถัดไป' : 'Scan Next Order Slip'}
                           </button>
                           <button
                             onClick={onClose}
-                            className="px-3 py-1.5 rounded-lg bg-slate-200 dark:bg-slate-700 text-slate-800 dark:text-white text-xs font-semibold"
+                            className="px-3 py-1.5 rounded-lg bg-slate-200 dark:bg-slate-700 text-slate-800 dark:text-white text-xs font-semibold cursor-pointer"
                           >
                             {language === 'th' ? 'เสร็จสิ้น / ปิดหน้าต่าง' : 'Done / Close'}
                           </button>
@@ -562,7 +627,7 @@ export default function AutoOrderScanModal({
                       <div className="pt-2">
                         <button
                           onClick={() => saveTradeToDatabase(scannedTrade, imagePreview)}
-                          className="w-full py-3 px-4 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm shadow-md shadow-blue-500/25 transition flex items-center justify-center gap-2"
+                          className="w-full py-3 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm shadow-md shadow-emerald-500/25 transition flex items-center justify-center gap-2 cursor-pointer"
                         >
                           <CheckCircle2 size={16} />
                           <span>
@@ -596,7 +661,7 @@ export default function AutoOrderScanModal({
           </span>
           <button
             onClick={onClose}
-            className="px-4 py-2 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-200/60 dark:hover:bg-white/[0.06] font-semibold transition"
+            className="px-4 py-2 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-200/60 dark:hover:bg-white/[0.06] font-semibold transition cursor-pointer"
           >
             {language === 'th' ? 'ปิด' : 'Close'}
           </button>

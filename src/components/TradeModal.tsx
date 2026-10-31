@@ -456,32 +456,50 @@ export default function TradeModal({ isOpen, onClose, onSave, initialData }: Tra
       const key = overrideKey !== undefined ? overrideKey : ((typeof window !== 'undefined' ? localStorage.getItem('gemini_api_key') : '') || '');
 
       setIsOcrLoading(true);
-      setScanStatusMessage('กำลังส่งภาพชาร์ต TradingView ให้ AI Gemini Vision วิเคราะห์ราคา...');
-      
-      const res = await fetch('/api/ai/vision-trade', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          imageBase64: base64,
-          apiKey: key
-        })
-      });
+      setScanStatusMessage('กำลังประมวลผลรูปภาพ...');
 
-      const json = await res.json();
-      if (!res.ok || !json.success) {
-        if (json.error === 'NO_API_KEY' || json.error === 'INVALID_API_KEY' || json.error === 'PERMISSION_DENIED') {
-          setPendingImageFile(file);
-          setApiKeyError(json.message || 'Gemini API Key ไม่ถูกต้อง โปรดตรวจสอบอีกครั้ง');
-          setGeminiApiKeyInput(key);
-          setIsApiKeyModalOpen(true);
-          setScanStatusMessage(null);
-          return;
+      let data: any = null;
+      let engineUsed = 'Local OCR';
+
+      if (key) {
+        try {
+          setScanStatusMessage('กำลังวิเคราะห์รูปภาพด้วย AI Gemini Vision...');
+          const res = await fetch('/api/ai/vision-trade', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              imageBase64: base64,
+              apiKey: key
+            })
+          });
+
+          const json = await res.json();
+          if (res.ok && json.success) {
+            data = json.data;
+            engineUsed = 'AI Vision';
+          }
+        } catch (err) {
+          console.warn('AI Vision failed, falling back to Local OCR:', err);
         }
-        setScanStatusMessage(`❌ ${json.message || 'AI Vision ไม่สามารถวิเคราะห์รูปได้'}`);
-        return;
       }
 
-      const { data } = json;
+      // Fallback to Local OCR (100% free, no API key needed)
+      if (!data) {
+        setScanStatusMessage('⚡ กำลังอ่านข้อมูลด้วย Local OCR (ไม่ต้องใช้ AI / ไม่ต้องใช้ Key)...');
+        const localRes = await fetch('/api/ocr/local-slip', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ imageBase64: base64 })
+        });
+        const localJson = await localRes.json();
+        if (localRes.ok && localJson.success) {
+          data = localJson.data;
+          engineUsed = 'Local OCR';
+        } else {
+          setScanStatusMessage(`❌ ${localJson.message || 'ไม่สามารถอ่านข้อความจากรูปได้'}`);
+          return;
+        }
+      }
       let newInstrument = data.instrument || formData.instrument;
       if (newInstrument) {
         newInstrument = newInstrument.toUpperCase().trim();
