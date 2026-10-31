@@ -264,7 +264,9 @@ export const translations = {
     allInstruments: 'All Instruments',
     allDirections: 'All Directions',
     allStatuses: 'All Statuses',
-    resetFilter: 'Reset Filters'
+    resetFilter: 'Reset Filters',
+    autoScanSlip: 'AI Scan Slip (Auto)',
+    autoScanSlipDesc: 'Auto-read broker slip and add trade automatically'
   },
   th: {
     dashboard: 'แดชบอร์ดการเทรด',
@@ -529,7 +531,9 @@ export const translations = {
     allInstruments: 'ทุกสินทรัพย์',
     allDirections: 'ทุกทิศทาง',
     allStatuses: 'ทุกสถานะ',
-    resetFilter: 'ล้างตัวกรอง'
+    resetFilter: 'ล้างตัวกรอง',
+    autoScanSlip: '📸 สแกนสลิปออเดอร์ (AI Auto-Import)',
+    autoScanSlipDesc: 'อ่านสลิปออเดอร์อัตโนมัติและเพิ่มเข้าพอร์ตทันที'
   }
 };
 

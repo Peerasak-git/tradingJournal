@@ -494,13 +494,18 @@ export default function TradeModal({ isOpen, onClose, onSave, initialData }: Tra
         ...prev,
         instrument: newInstrument || prev.instrument,
         direction: (data.direction === 'SHORT' ? 'SHORT' : 'LONG') as Direction,
+        lotSize: data.lotSize > 0 ? data.lotSize : prev.lotSize,
         entryPrice: data.entryPrice > 0 ? data.entryPrice : prev.entryPrice,
+        exitPrice: data.exitPrice > 0 ? data.exitPrice : prev.exitPrice,
         stopLoss: data.stopLoss > 0 ? data.stopLoss : prev.stopLoss,
         takeProfit: data.takeProfit > 0 ? data.takeProfit : prev.takeProfit,
-        notes: data.notes ? (prev.notes ? `${prev.notes}\n[TradingView]: ${data.notes}` : data.notes) : prev.notes
+        netPnL: data.netPnL !== null && data.netPnL !== undefined ? data.netPnL : prev.netPnL,
+        status: data.status || prev.status,
+        entryDate: data.entryDate ? data.entryDate.slice(0, 16) : prev.entryDate,
+        notes: data.notes ? (prev.notes ? `${prev.notes}\n${data.notes}` : data.notes) : prev.notes
       }));
 
-      const msg = `✨ ดึงราคา TradingView สำเร็จ! [${newInstrument || 'ชาร์ต'} ${data.direction}] เข้า: ${data.entryPrice} | SL: ${data.stopLoss} | TP: ${data.takeProfit}`;
+      const msg = `✨ ดึงข้อมูลออเดอร์สำเร็จ! [${newInstrument || 'สินทรัพย์'} ${data.direction} ${data.lotSize ? data.lotSize + ' Lots' : ''}] เข้า: ${data.entryPrice} | ออก: ${data.exitPrice || '-'} | P&L: ${data.netPnL !== null && data.netPnL !== undefined ? (data.netPnL >= 0 ? '+' : '') + data.netPnL + ' USD' : '-'}`;
       setScanStatusMessage(msg);
       setTimeout(() => setScanStatusMessage(null), 8000);
     } catch (err: any) {
@@ -721,7 +726,7 @@ export default function TradeModal({ isOpen, onClose, onSave, initialData }: Tra
                     onClick={() => fileInputRef.current?.click()}
                     disabled={isOcrLoading}
                     className="p-1.5 bg-blue-50 dark:bg-blue-500/10 hover:bg-blue-100 dark:hover:bg-blue-500/20 text-blue-600 dark:text-blue-400 border border-blue-200/70 dark:border-blue-500/30 rounded-lg transition-colors shrink-0 shadow-sm"
-                    title="สแกนราคาจากรูปภาพ TradingView (AI Vision)"
+                    title="สแกนออเดอร์จากรูปภาพสลิปหรือชาร์ต TradingView (AI Vision)"
                   >
                     {isOcrLoading ? <Loader2 size={14} className="animate-spin text-blue-500" /> : <Camera size={14} />}
                   </button>

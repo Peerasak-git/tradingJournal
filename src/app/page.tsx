@@ -27,6 +27,7 @@ import {
 
 import { getTrades } from '@/lib/clientStorage';
 import TradingCalendar from '@/components/TradingCalendar';
+import AutoOrderScanModal from '@/components/AutoOrderScanModal';
 
 type DashboardTab = 'overview' | 'calendar' | 'categories' | 'recent' | 'all';
 type CategoryDimension = 'instrument' | 'direction' | 'strategy' | 'session' | 'dayOfWeek';
@@ -172,9 +173,16 @@ export default function Dashboard() {
   const [selectedDirection, setSelectedDirection] = useState<string>('ALL');
   const [selectedStatus, setSelectedStatus] = useState<string>('ALL');
 
+  // Auto Order Slip Scanner Modal
+  const [isScanModalOpen, setIsScanModalOpen] = useState(false);
+
   const { t, language } = useLanguage();
   const { selectedAccount } = useAccount();
   const { user } = useAuth();
+
+  const reloadTrades = () => {
+    getTrades().then(setTrades).catch(console.error);
+  };
 
   useEffect(() => {
     setLoading(true);
@@ -512,8 +520,17 @@ export default function Dashboard() {
           </p>
         </div>
 
-        {/* Global Category Filter Bar */}
-        <div className="flex flex-wrap items-center gap-2 bg-white dark:bg-[#1a1a1a] border border-slate-200 dark:border-white/[0.06] p-2 rounded-xl shadow-xs">
+        <div className="flex flex-wrap items-center gap-2.5">
+          <button
+            onClick={() => setIsScanModalOpen(true)}
+            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 hover:from-blue-700 hover:to-indigo-700 text-white text-xs font-bold shadow-md shadow-blue-500/25 transition active:scale-95 shrink-0 cursor-pointer"
+          >
+            <Sparkles size={14} />
+            <span>{t('autoScanSlip')}</span>
+          </button>
+
+          {/* Global Category Filter Bar */}
+          <div className="flex flex-wrap items-center gap-2 bg-white dark:bg-[#1a1a1a] border border-slate-200 dark:border-white/[0.06] p-2 rounded-xl shadow-xs">
           <div className="flex items-center gap-1.5 px-2 text-xs font-semibold text-slate-500 dark:text-slate-400">
             <Filter size={13} className="text-blue-500" />
             <span>{t('filter')}:</span>
@@ -567,6 +584,7 @@ export default function Dashboard() {
             </button>
           )}
         </div>
+      </div>
       </div>
 
       {/* Main Navigation Tabs */}
@@ -1313,6 +1331,13 @@ export default function Dashboard() {
           </div>
         </div>
       )}
+
+      {/* Auto Order Slip Scanner Modal */}
+      <AutoOrderScanModal
+        isOpen={isScanModalOpen}
+        onClose={() => setIsScanModalOpen(false)}
+        onTradeSaved={() => reloadTrades()}
+      />
     </main>
   );
 }

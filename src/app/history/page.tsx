@@ -6,6 +6,7 @@ import { useAccount } from '@/context/AccountContext';
 import { useAuth } from '@/context/AuthContext';
 import { getTrades, addOrUpdateTrade, deleteTrade } from '@/lib/clientStorage';
 import TradeModal from '@/components/TradeModal';
+import AutoOrderScanModal from '@/components/AutoOrderScanModal';
 import {
   ArrowUpRight,
   ArrowDownLeft,
@@ -15,7 +16,8 @@ import {
   Edit2,
   Trash2,
   ListChecks,
-  ExternalLink
+  ExternalLink,
+  Sparkles
 } from 'lucide-react';
 import ChecklistModal from '@/components/ChecklistModal';
 import DatePicker from '@/components/DatePicker';
@@ -56,6 +58,7 @@ export default function HistoryPage() {
   });
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isChecklistModalOpen, setIsChecklistModalOpen] = useState(false);
+  const [isScanModalOpen, setIsScanModalOpen] = useState(false);
   const [selectedTrade, setSelectedTrade] = useState<Trade | null>(null);
   const { selectedAccount } = useAccount();
   const { user } = useAuth();
@@ -270,6 +273,13 @@ export default function HistoryPage() {
           >
             <ListChecks size={16} strokeWidth={2.5} />
             Checklist
+          </button>
+          <button
+            onClick={() => setIsScanModalOpen(true)}
+            className="flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-sm text-blue-700 bg-blue-50 dark:text-blue-300 dark:bg-blue-500/10 hover:bg-blue-100 dark:hover:bg-blue-500/20 border border-blue-200 dark:border-blue-800 transition-all active:scale-95 whitespace-nowrap cursor-pointer"
+          >
+            <Sparkles size={16} strokeWidth={2.5} />
+            AI Scan Slip
           </button>
           <button
             onClick={openAddModal}
@@ -524,6 +534,12 @@ export default function HistoryPage() {
       <ChecklistModal
         isOpen={isChecklistModalOpen}
         onClose={() => setIsChecklistModalOpen(false)}
+      />
+
+      <AutoOrderScanModal
+        isOpen={isScanModalOpen}
+        onClose={() => setIsScanModalOpen(false)}
+        onTradeSaved={(trade) => setTrades(prev => [trade, ...prev])}
       />
     </main>
   );

@@ -36,59 +36,81 @@ export async function POST(req: NextRequest) {
     }
 
     const promptText = `
-You are an expert TradingView chart analyst.
-The user uploaded a screenshot of a TradingView chart containing a "Long Position" or "Short Position" drawing tool.
+You are an expert AI trading assistant specializing in financial trade slip OCR and TradingView chart analysis.
 
-Examine the chart carefully and follow these strict visual instructions:
+Carefully examine the user's uploaded image. It will belong to ONE of two types:
 
-1. IDENTIFY THE POSITION TOOL:
-   - A rectangular box split into TWO colored zones:
-     a) Target / Profit zone: usually shaded light blue or green.
-     b) Stop / Loss zone: usually shaded light grey or red.
-   - The solid horizontal line dividing the two zones is the ENTRY LEVEL.
+TYPE 1: BROKER ORDER DETAILS / POSITION TICKET / TRADING SLIP
+(Screenshots from mobile or desktop apps such as IUX, Exness, MetaTrader MT4/MT5, cTrader, Binance, Bitget, Bybit, TradingView Order Details, etc.)
+Key indicators: "Position Details", "Order Details", "Position Information", "Protection", "Time (Server)", "P/L Breakdown", "Transaction Details", "Sell 0.03 lots", "Buy 0.10 lots", "Gross P/L", "Net P/L".
 
-2. DETERMINE DIRECTION:
-   - If the Target/Profit zone (blue/green) is on TOP, and Stop zone (grey/red) is on BOTTOM:
-     -> direction = "LONG"
-   - If the Target/Profit zone (blue/green) is on BOTTOM, and Stop zone (grey/red) is on TOP:
-     -> direction = "SHORT"
+For TYPE 1, extract:
+1. "instrument": The trading asset/pair (e.g., "XAUUSD.iux" -> "XAUUSD", "EURUSD.raw" -> "EURUSD", "BTCUSD", "GBPUSD", "US30", "NAS100"). Strip broker suffixes like ".iux", ".raw", ".m", ".pro", ".ecn", etc.
+2. "direction": "LONG" (if Buy / Long) or "SHORT" (if Sell / Short).
+3. "lotSize": Number of lots / contract size as a float (e.g., "Sell 0.03 lots" -> 0.03).
+4. "entryPrice": Open price (e.g., "Open price 3,895.47" -> 3895.47).
+5. "exitPrice": Close price if closed (e.g., "Close price 3,889.56" -> 3889.56). If order is still open or running, set to null.
+6. "stopLoss": Stop Loss price if specified (e.g., "Stop Loss 3,900.37" -> 3900.37). If none, 0 or null.
+7. "takeProfit": Take Profit price if specified (e.g., "Take Profit 3,885.41" -> 3885.41). If none, 0 or null.
+8. "netPnL": Net profit/loss amount in USD/currency as a float (e.g., "+17.73 USD" -> 17.73, "-25.00 USD" -> -25.00). If not closed, set null.
+9. "grossPnL": Gross profit/loss amount as a float (e.g., 17.73).
+10. "commission": Commission fee (e.g., 0.00).
+11. "swap": Swap / rollover fee (e.g., 0.00).
+12. "currency": "USD" or whatever currency is shown.
+13. "status":
+    - "WIN" if closed with netPnL > 0
+    - "LOSS" if closed with netPnL < 0
+    - "BREAK_EVEN" if closed with netPnL == 0
+    - "OPEN" if order is still running / not closed yet
+14. "entryDate": Open Time as ISO-8601 string "YYYY-MM-DDTHH:mm:ss" (e.g., "Oct 30, 2026, 16:45:44" -> "2026-10-30T16:45:44").
+15. "exitDate": Close Time as ISO-8601 string "YYYY-MM-DDTHH:mm:ss" if closed (e.g., "Oct 30, 2026, 17:10:44" -> "2026-10-30T17:10:44"). If open, null.
+16. "ticket": Position ID / Order ID / Ticket number (e.g., "1845218").
+17. "notes": Brief summary notes, e.g. "Position #1845218 | Close Reason: Close by user | Gross: +17.73 USD".
 
-3. READ THE 3 PRICE BADGES ON THE RIGHT VERTICAL PRICE AXIS:
-   TradingView draws specific badge labels on the right vertical price scale corresponding to the position tool:
-   - For a "LONG" position:
-     * "takeProfit": The badge aligned with the TOP boundary of the blue/green target box. (HIGHEST of the 3 numbers).
-     * "entryPrice": The badge aligned with the horizontal dividing line between target and stop zones. (MIDDLE of the 3 numbers).
-     * "stopLoss": The badge aligned with the BOTTOM boundary of the grey/red stop box. (LOWEST of the 3 numbers).
-   - For a "SHORT" position:
-     * "stopLoss": The badge aligned with the TOP boundary of the stop box. (HIGHEST of the 3 numbers).
-     * "entryPrice": The badge aligned with the horizontal dividing line. (MIDDLE of the 3 numbers).
-     * "takeProfit": The badge aligned with the BOTTOM boundary of the target box. (LOWEST of the 3 numbers).
+---
 
-4. ⚠️ CRITICAL BADGES TO IGNORE (DO NOT USE THESE!):
-   - DO NOT use the black badge that has a countdown timer (e.g. "00:14", "00:49", etc.). That is the CURRENT LIVE MARKET PRICE.
-   - DO NOT use any badge connected to a dashed mouse crosshair with a (+) plus icon (e.g. at the bottom of the screen).
-   - DO NOT use the regular grey price scale grid marks (e.g. 4020.000, 4018.000, 4016.000, etc.).
+TYPE 2: TRADINGVIEW CHART WITH POSITION TOOL
+(A screenshot of a candlestick chart with a Long or Short Position drawing tool with green/blue target zone and red/grey stop zone).
+Extract:
+1. "instrument": From top-left or watermark (e.g., "XAUUSD").
+2. "direction": "LONG" (target zone on top) or "SHORT" (target zone on bottom).
+3. "entryPrice": From horizontal line separating zones.
+4. "stopLoss": Boundary of stop zone.
+5. "takeProfit": Boundary of profit zone.
+6. "lotSize": 0.01 (or default).
+7. "status": "OPEN"
+8. "timeframe": e.g. "1m", "5m", "15m", "1h".
 
-5. IDENTIFY INSTRUMENT & TIMEFRAME:
-   - Check the top-left text (e.g. "XAUUSD · 1 · OANDA" -> instrument="XAUUSD", timeframe="1m")
-   - Or the large faint watermark in the center of the chart (e.g. "XAUUSD, 1" -> instrument="XAUUSD", timeframe="1m")
-   - Common symbols: XAUUSD, BTCUSDT, EURUSD, GBPUSD, USDJPY, US30, NAS100, ETHUSDT, etc.
+CRITICAL INSTRUCTIONS:
+- All numbers must be clean floating point numbers without commas (e.g. 3895.47, NOT "3,895.47").
+- Return strictly a valid JSON object matching the schema below.
 
-IMPORTANT: Prices in the JSON output must be pure floating point numbers without commas (e.g. 4010.302, NOT "4,010.302").
-
-Return ONLY a valid JSON object matching this schema:
+JSON Schema:
 {
+  "imageType": "ORDER_SLIP" | "TRADINGVIEW_CHART",
   "instrument": "XAUUSD",
-  "direction": "LONG",
-  "entryPrice": 4010.302,
-  "stopLoss": 4007.114,
-  "takeProfit": 4017.628,
-  "timeframe": "1m",
-  "notes": "Long setup on XAUUSD"
+  "direction": "SHORT",
+  "lotSize": 0.03,
+  "entryPrice": 3895.47,
+  "exitPrice": 3889.56,
+  "stopLoss": 3900.37,
+  "takeProfit": 3885.41,
+  "netPnL": 17.73,
+  "grossPnL": 17.73,
+  "commission": 0.0,
+  "swap": 0.0,
+  "currency": "USD",
+  "status": "WIN",
+  "entryDate": "2026-10-30T16:45:44",
+  "exitDate": "2026-10-30T17:10:44",
+  "ticket": "1845218",
+  "timeframe": "",
+  "riskRewardRatio": 2.05,
+  "notes": "Position #1845218 | Close Reason: Close by user | Gross: +17.73 USD"
 }
 `;
 
-    // Try models in cascade: gemini-2.0-flash, gemini-1.5-flash, gemini-1.5-pro
+    // Try models in cascade
     const models = ['gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-1.5-pro'];
     let lastError: any = null;
     let geminiResponse: any = null;
@@ -196,7 +218,15 @@ Return ONLY a valid JSON object matching this schema:
     }
 
     const cleanedText = rawText.replace(/```json/gi, '').replace(/```/g, '').trim();
-    const parsedData = JSON.parse(cleanedText);
+    let parsedData: any = {};
+    try {
+      parsedData = JSON.parse(cleanedText);
+    } catch {
+      return NextResponse.json(
+        { success: false, error: 'PARSE_ERROR', message: 'ไม่สามารถแปลงผลลัพธ์จาก AI เป็น JSON ได้' },
+        { status: 422 }
+      );
+    }
 
     const cleanNumber = (val: any): number => {
       if (typeof val === 'number') return val;
@@ -206,39 +236,121 @@ Return ONLY a valid JSON object matching this schema:
       return isNaN(num) ? 0 : num;
     };
 
-    let direction: 'LONG' | 'SHORT' = parsedData.direction === 'SHORT' ? 'SHORT' : 'LONG';
+    const parseToIsoDateTime = (val: any): string | null => {
+      if (!val) return null;
+      const str = String(val).trim();
+      // Match ISO 8601 YYYY-MM-DDTHH:mm
+      if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(str)) {
+        return str.slice(0, 16);
+      }
+      const d = new Date(str);
+      if (!isNaN(d.getTime())) {
+        const year = d.getFullYear();
+        const month = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        const hours = String(d.getHours()).padStart(2, '0');
+        const minutes = String(d.getMinutes()).padStart(2, '0');
+        return `${year}-${month}-${day}T${hours}:${minutes}`;
+      }
+      return null;
+    };
+
+    const imageType = parsedData.imageType === 'TRADINGVIEW_CHART' ? 'TRADINGVIEW_CHART' : 'ORDER_SLIP';
+    let direction: 'LONG' | 'SHORT' = String(parsedData.direction).toUpperCase().includes('SHORT') || String(parsedData.direction).toUpperCase().includes('SELL') ? 'SHORT' : 'LONG';
     let entryPrice = cleanNumber(parsedData.entryPrice);
+    let exitPrice = parsedData.exitPrice !== null && parsedData.exitPrice !== undefined ? cleanNumber(parsedData.exitPrice) : 0;
     let stopLoss = cleanNumber(parsedData.stopLoss);
     let takeProfit = cleanNumber(parsedData.takeProfit);
+    let lotSize = Math.max(0.01, cleanNumber(parsedData.lotSize) || 0.01);
 
-    // Geometric Sanity Check for TradingView Position Tools
-    // In Long: TakeProfit > EntryPrice > StopLoss
-    // In Short: StopLoss > EntryPrice > TakeProfit
-    const validPrices = [entryPrice, stopLoss, takeProfit].filter(p => p > 0);
-    if (validPrices.length === 3) {
-      const sorted = [...validPrices].sort((a, b) => a - b);
-      if (direction === 'LONG') {
-        // [lowest = SL, middle = Entry, highest = TP]
-        stopLoss = sorted[0];
-        entryPrice = sorted[1];
-        takeProfit = sorted[2];
-      } else {
-        // [lowest = TP, middle = Entry, highest = SL]
-        takeProfit = sorted[0];
-        entryPrice = sorted[1];
-        stopLoss = sorted[2];
+    // Only apply geometric sort for TradingView Charts where badges might be misordered
+    if (imageType === 'TRADINGVIEW_CHART') {
+      const validPrices = [entryPrice, stopLoss, takeProfit].filter(p => p > 0);
+      if (validPrices.length === 3) {
+        const sorted = [...validPrices].sort((a, b) => a - b);
+        if (direction === 'LONG') {
+          stopLoss = sorted[0];
+          entryPrice = sorted[1];
+          takeProfit = sorted[2];
+        } else {
+          takeProfit = sorted[0];
+          entryPrice = sorted[1];
+          stopLoss = sorted[2];
+        }
       }
     }
 
+    // Clean instrument (strip .iux, .raw, .pro, etc.)
+    let rawInst = typeof parsedData.instrument === 'string' ? parsedData.instrument : '';
+    let cleanInstrument = rawInst
+      .replace(/\.(iux|raw|pro|ecn|std|m|c|stp|micro)$/i, '')
+      .replace(/[/]/g, '')
+      .toUpperCase()
+      .trim();
+
+    // Default to XAUUSD if looks like Gold
+    if (cleanInstrument.includes('GOLD') || cleanInstrument.includes('XAU')) {
+      cleanInstrument = 'XAUUSD';
+    }
+
+    // Net PnL & Financials
+    const netPnL = parsedData.netPnL !== undefined && parsedData.netPnL !== null ? cleanNumber(parsedData.netPnL) : (exitPrice > 0 ? 0 : null);
+    const grossPnL = parsedData.grossPnL !== undefined && parsedData.grossPnL !== null ? cleanNumber(parsedData.grossPnL) : netPnL;
+    const commission = cleanNumber(parsedData.commission);
+    const swap = cleanNumber(parsedData.swap);
+    const currency = parsedData.currency || 'USD';
+
+    // Status resolution
+    let status: 'WIN' | 'LOSS' | 'BREAK_EVEN' | 'OPEN' = 'OPEN';
+    if (parsedData.status && ['WIN', 'LOSS', 'BREAK_EVEN', 'OPEN'].includes(parsedData.status)) {
+      status = parsedData.status;
+    } else if (exitPrice > 0 || netPnL !== null) {
+      if (netPnL !== null) {
+        if (netPnL > 0) status = 'WIN';
+        else if (netPnL < 0) status = 'LOSS';
+        else status = 'BREAK_EVEN';
+      } else {
+        const isLong = direction === 'LONG';
+        const diff = isLong ? exitPrice - entryPrice : entryPrice - exitPrice;
+        if (diff > 0) status = 'WIN';
+        else if (diff < 0) status = 'LOSS';
+        else status = 'BREAK_EVEN';
+      }
+    }
+
+    // RR calculations
+    const risk = direction === 'LONG' ? entryPrice - stopLoss : stopLoss - entryPrice;
+    const plannedReward = direction === 'LONG' ? takeProfit - entryPrice : entryPrice - takeProfit;
+    const plannedRR = risk > 0 && plannedReward > 0 ? parseFloat((plannedReward / risk).toFixed(2)) : null;
+
+    const actualReward = exitPrice > 0 ? (direction === 'LONG' ? exitPrice - entryPrice : entryPrice - exitPrice) : 0;
+    const actualRR = risk > 0 && actualReward > 0 ? parseFloat((actualReward / risk).toFixed(2)) : null;
+
+    const entryDate = parseToIsoDateTime(parsedData.entryDate) || new Date().toISOString().slice(0, 16);
+    const exitDate = parseToIsoDateTime(parsedData.exitDate) || (status !== 'OPEN' ? entryDate : null);
+
     const result = {
-      instrument: typeof parsedData.instrument === 'string' ? parsedData.instrument.replace(/[/]/g, '').toUpperCase().trim() : '',
+      imageType,
+      instrument: cleanInstrument || 'XAUUSD',
       direction,
+      lotSize,
       entryPrice,
-      stopLoss,
-      takeProfit,
+      exitPrice: exitPrice > 0 ? exitPrice : null,
+      stopLoss: stopLoss > 0 ? stopLoss : null,
+      takeProfit: takeProfit > 0 ? takeProfit : null,
+      netPnL,
+      grossPnL,
+      commission,
+      swap,
+      currency,
+      status,
+      entryDate,
+      exitDate,
+      ticket: parsedData.ticket ? String(parsedData.ticket) : '',
       timeframe: parsedData.timeframe || '',
-      riskRewardRatio: cleanNumber(parsedData.riskRewardRatio),
-      notes: parsedData.notes || ''
+      plannedRR,
+      actualRR,
+      notes: parsedData.notes || (parsedData.ticket ? `Order Ticket #${parsedData.ticket}` : '')
     };
 
     return NextResponse.json({
