@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 
 import { getTrades } from '@/lib/clientStorage';
+import TradingCalendar from '@/components/TradingCalendar';
 
 export default function Dashboard() {
   const [trades, setTrades] = useState<Trade[]>([]);
@@ -348,6 +349,9 @@ export default function Dashboard() {
           </div>
         </div>
       </div>
+
+      {/* Monthly P&L & Daily Breakdown Calendar */}
+      <TradingCalendar trades={accountTrades} />
 
       {/* Recent Trades Table */}
       <div className="bg-white dark:bg-[#1a1a1a] border border-slate-200 dark:border-white/[0.06] rounded-xl overflow-hidden">

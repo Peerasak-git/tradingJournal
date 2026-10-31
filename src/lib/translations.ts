@@ -237,7 +237,19 @@ export const translations = {
     sessionDays7: '7 Days',
     sessionDays30: '30 Days (Recommended)',
     sessionDays90: '90 Days',
-    sessionDays365: '1 Year (Permanent)'
+    sessionDays365: '1 Year (Permanent)',
+    tradingCalendar: 'Monthly P&L Calendar',
+    tradingCalendarSubtitle: 'Monthly summary and daily trading performance breakdown',
+    monthlyPnL: 'Monthly Net P&L',
+    tradingDaysCount: 'Trading Days',
+    winningDays: 'Win Days',
+    losingDays: 'Loss Days',
+    dailyWinRate: 'Day Win Rate',
+    bestDay: 'Best Day',
+    worstDay: 'Worst Day',
+    clickDayForDetails: 'Click any day to view trade details',
+    selectedDayDetails: 'Daily Trade Breakdown',
+    noTradesOnSelectedDay: 'No trades recorded on this day'
   },
   th: {
     dashboard: 'แดชบอร์ดการเทรด',
@@ -475,7 +487,19 @@ export const translations = {
     sessionDays7: '7 วัน',
     sessionDays30: '30 วัน (แนะนำ)',
     sessionDays90: '90 วัน',
-    sessionDays365: '1 ปี (ถาวร)'
+    sessionDays365: '1 ปี (ถาวร)',
+    tradingCalendar: 'ปฏิทินสรุปผลการเทรดรายเดือน & รายวัน',
+    tradingCalendarSubtitle: 'ภาพรวมกำไร/ขาดทุนทั้งเดือน และเจาะลึกรายการเทรดในแต่ละวัน',
+    monthlyPnL: 'กำไร/ขาดทุนสุทธิเดือนนี้',
+    tradingDaysCount: 'วันที่เข้าเทรด',
+    winningDays: 'วันที่มีกำไร',
+    losingDays: 'วันที่ขาดทุน',
+    dailyWinRate: 'อัตราชนะรายวัน',
+    bestDay: 'วันที่กำไรสูงสุด',
+    worstDay: 'วันที่ขาดทุนหนักสุด',
+    clickDayForDetails: 'คลิกที่วันที่ในปฏิทินเพื่อดูรายการเทรดรายวัน',
+    selectedDayDetails: 'รายละเอียดการเทรดประจำวัน',
+    noTradesOnSelectedDay: 'ไม่มีรายการเทรดในวันที่เลือก'
   }
 };
 
