@@ -362,6 +362,15 @@ export default function LoginPage() {
                     className="w-full bg-black/40 border border-white/10 rounded-xl pl-10 pr-4 py-3 text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
                   />
                 </div>
+                {mode === 'signin' && !email && (
+                  <button
+                    type="button"
+                    onClick={() => setEmail('cs.peerasak@gmail.com')}
+                    className="mt-1.5 inline-flex items-center gap-1.5 text-[11px] font-bold text-blue-400 hover:text-blue-300 transition cursor-pointer"
+                  >
+                    <span>⚡ คลิกเพื่อใช้อีเมล Admin: cs.peerasak@gmail.com</span>
+                  </button>
+                )}
               </div>
             )}
 

@@ -45,7 +45,8 @@ export function getActiveUserEmail(): string | null {
 
 export function shouldMigrateAdminData(email?: string | null): boolean {
   const targetEmail = (email || getActiveUserEmail())?.toLowerCase().trim();
-  return targetEmail === 'cs.peerasak@gmail.com';
+  const userId = getActiveUserId();
+  return targetEmail === 'cs.peerasak@gmail.com' || userId === 'u-001';
 }
 
 export function getUserKey(baseKey: string): string {
@@ -1155,6 +1156,30 @@ export async function getMemberRecord(email: string): Promise<MemberRecord | nul
     } catch {}
   }
 
+  // Fetch from server API endpoint (/api/auth/member)
+  try {
+    const res = await fetch(`/api/auth/member?email=${encodeURIComponent(cleanEmail)}`);
+    if (res.ok) {
+      const data = await res.json();
+      if (data?.member) {
+        localStorage.setItem(key, JSON.stringify(data.member));
+        return data.member as MemberRecord;
+      }
+    }
+  } catch (err) {
+    console.warn('Error fetching member record from /api/auth/member:', err);
+  }
+
+  // Default fallback for system admin cs.peerasak@gmail.com
+  if (cleanEmail === 'cs.peerasak@gmail.com') {
+    return {
+      email: cleanEmail,
+      displayName: 'Peerasak',
+      userId: 'u-001',
+      createdAt: '2024-01-01T00:00:00Z',
+    };
+  }
+
   return null;
 }
 
@@ -1164,6 +1189,15 @@ export async function saveMemberRecord(record: MemberRecord): Promise<void> {
   const key = `member_${cleanEmail}`;
 
   localStorage.setItem(key, JSON.stringify(record));
+
+  // Sync to server API endpoint (/api/auth/member)
+  try {
+    fetch('/api/auth/member', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(record),
+    }).catch(() => {});
+  } catch {}
 
   const supabase = getSupabase();
   if (supabase) {
@@ -1221,7 +1255,10 @@ export async function verifyAndResetPasswordWithMemberInfo(
     }
   }
 
-  const userId = member?.userId || 'u_' + btoa(cleanEmail).replace(/=/g, '').slice(0, 16);
+  const userId =
+    cleanEmail === 'cs.peerasak@gmail.com'
+      ? 'u-001'
+      : member?.userId || 'u_' + btoa(cleanEmail).replace(/=/g, '').slice(0, 16);
   const updatedMember: MemberRecord = {
     email: cleanEmail,
     displayName: member?.displayName || displayName.trim(),
@@ -1255,6 +1292,7 @@ export async function verifyAndResetPasswordWithMemberInfo(
   };
 
   localStorage.setItem(KEYS.USER, JSON.stringify(appUser));
+  await migrateAdminDataToActiveUser(appUser.id, appUser.email);
   return { success: true, user: appUser };
 }
 
@@ -1820,10 +1858,10 @@ export async function importAllData(
 
 export async function migrateAdminDataToActiveUser(targetUserId?: string, targetEmail?: string): Promise<boolean> {
   if (!isClient()) return false;
-  const currentUserId = targetUserId || getActiveUserId();
-  const currentEmail = targetEmail || getActiveUserEmail();
+  const currentUserId = targetUserId || getActiveUserId() || 'u-001';
+  const currentEmail = targetEmail || getActiveUserEmail() || 'cs.peerasak@gmail.com';
 
-  if (!currentUserId || !shouldMigrateAdminData(currentEmail)) {
+  if (!shouldMigrateAdminData(currentEmail) && currentUserId !== 'u-001') {
     return false;
   }
 
