@@ -226,7 +226,18 @@ export const translations = {
     filterAll: 'All Time',
     filter30Days: 'Last 30 Days',
     filter7Days: 'Last 7 Days',
-    filterThisMonth: 'This Month'
+    filterThisMonth: 'This Month',
+    sessionDuration: 'Login Session Lifespan',
+    sessionDurationDesc: 'Choose how long you stay logged in without needing to enter your password again.',
+    rememberMeLogin: 'Remember me for 30 days (Stay logged in)',
+    sessionActive: 'Active Session',
+    sessionExpiresOn: 'Session expires on',
+    extendSessionBtn: 'Extend Session (+30 Days)',
+    sessionExtendedSuccess: 'Login session extended successfully!',
+    sessionDays7: '7 Days',
+    sessionDays30: '30 Days (Recommended)',
+    sessionDays90: '90 Days',
+    sessionDays365: '1 Year (Permanent)'
   },
   th: {
     dashboard: 'แดชบอร์ดการเทรด',
@@ -453,7 +464,18 @@ export const translations = {
     filterAll: 'ข้อมูลทั้งหมด',
     filter30Days: '30 วันล่าสุด',
     filter7Days: '7 วันล่าสุด',
-    filterThisMonth: 'เดือนนี้'
+    filterThisMonth: 'เดือนนี้',
+    sessionDuration: 'ระยะเวลาเซสชันการเข้าสู่ระบบ',
+    sessionDurationDesc: 'เลือกระยะเวลาที่ต้องการให้ระบบจดจำการเข้าสู่ระบบไว้ โดยไม่ต้องกรอกรหัสผ่านใหม่บ่อยๆ',
+    rememberMeLogin: 'จดจำการเข้าสู่ระบบ 30 วัน (ไม่ต้องล็อกอินบ่อย)',
+    sessionActive: 'เซสชันกำลังทำงาน',
+    sessionExpiresOn: 'เซสชันจะหมดอายุวันที่',
+    extendSessionBtn: 'ต่ออายุเซสชันอีก (+30 วัน)',
+    sessionExtendedSuccess: 'ต่ออายุเซสชันการเข้าสู่ระบบเรียบร้อยแล้ว!',
+    sessionDays7: '7 วัน',
+    sessionDays30: '30 วัน (แนะนำ)',
+    sessionDays90: '90 วัน',
+    sessionDays365: '1 ปี (ถาวร)'
   }
 };
 

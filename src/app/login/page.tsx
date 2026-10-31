@@ -32,6 +32,7 @@ export default function LoginPage() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [displayName, setDisplayName] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [rememberMe, setRememberMe] = useState(true);
 
   const [submitting, setSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
@@ -186,7 +187,7 @@ export default function LoginPage() {
 
     try {
       if (mode === 'signin') {
-        const { error } = await signIn(email, password);
+        const { error } = await signIn(email, password, rememberMe);
         if (error) {
           setErrorMessage(formatAuthError(error.message));
         } else {
@@ -408,6 +409,21 @@ export default function LoginPage() {
                 </div>
               </div>
             ) : null}
+
+            {/* Remember Me Option (SignIn Mode) */}
+            {mode === 'signin' && (
+              <div className="flex items-center justify-between pt-1 pb-1">
+                <label className="flex items-center gap-2.5 cursor-pointer select-none text-xs text-slate-300 hover:text-white transition">
+                  <input
+                    type="checkbox"
+                    checked={rememberMe}
+                    onChange={(e) => setRememberMe(e.target.checked)}
+                    className="w-4 h-4 rounded border-white/20 bg-black/40 text-blue-600 focus:ring-blue-500 focus:ring-offset-0 cursor-pointer"
+                  />
+                  <span>{t('rememberMeLogin') || 'จดจำการเข้าสู่ระบบ 30 วัน (ไม่ต้องล็อกอินบ่อย)'}</span>
+                </label>
+              </div>
+            )}
 
             {/* Confirm Password (In SignUp, updatePassword, or forgot via member) */}
             {(mode === 'signup' || mode === 'updatePassword' || (mode === 'forgot' && forgotMethod === 'member')) && (

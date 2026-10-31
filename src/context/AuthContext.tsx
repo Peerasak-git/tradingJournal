@@ -16,8 +16,12 @@ interface AuthContextType {
   hasPin: boolean;
   isLocked: boolean;
   isPasswordRecovery: boolean;
+  sessionExpiresAt: number | null;
+  sessionDurationDays: number;
+  extendSession: (days?: number) => void;
+  setSessionDurationDays: (days: number) => void;
   setIsPasswordRecovery: (value: boolean) => void;
-  signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
+  signIn: (email: string, password: string, rememberMe?: boolean) => Promise<{ error: Error | null }>;
   signUp: (email: string, password: string, displayName?: string) => Promise<{ error: Error | null; needsConfirmation?: boolean }>;
   signOut: () => Promise<void>;
   resetPasswordForEmail: (email: string) => Promise<{ error: Error | null }>;
@@ -28,6 +32,59 @@ interface AuthContextType {
   unlockWithPin: (pin: string) => boolean;
   lockSession: () => void;
   skipPinSetup: () => void;
+}
+
+const SESSION_KEYS = {
+  USER: 'tj_user',
+  EXPIRES_AT: 'tj_session_expires_at',
+  DURATION_DAYS: 'tj_session_duration_days',
+};
+
+const DEFAULT_SESSION_DAYS = 30;
+
+export function getStoredSessionDurationDays(): number {
+  if (typeof window === 'undefined') return DEFAULT_SESSION_DAYS;
+  const stored = localStorage.getItem(SESSION_KEYS.DURATION_DAYS);
+  const parsed = stored ? Number(stored) : DEFAULT_SESSION_DAYS;
+  return isNaN(parsed) || parsed <= 0 ? DEFAULT_SESSION_DAYS : parsed;
+}
+
+export function setStoredSessionDurationDays(days: number): void {
+  if (typeof window === 'undefined') return;
+  localStorage.setItem(SESSION_KEYS.DURATION_DAYS, String(days));
+}
+
+export function calculateSessionExpiry(days?: number): number {
+  const d = days || getStoredSessionDurationDays();
+  return Date.now() + d * 24 * 60 * 60 * 1000;
+}
+
+export function isLocalSessionValid(): boolean {
+  if (typeof window === 'undefined') return false;
+  const userStr = localStorage.getItem(SESSION_KEYS.USER);
+  if (!userStr) return false;
+
+  const expiresStr = localStorage.getItem(SESSION_KEYS.EXPIRES_AT);
+  if (!expiresStr) {
+    // If user has tj_user but no expires_at (legacy or fresh login), grant default 30 days
+    const newExpiry = calculateSessionExpiry();
+    localStorage.setItem(SESSION_KEYS.EXPIRES_AT, String(newExpiry));
+    return true;
+  }
+
+  const expiresAt = Number(expiresStr);
+  if (isNaN(expiresAt) || Date.now() >= expiresAt) {
+    return false;
+  }
+  return true;
+}
+
+export function extendSessionExpiry(days?: number): number {
+  const newExpiry = calculateSessionExpiry(days);
+  if (typeof window !== 'undefined') {
+    localStorage.setItem(SESSION_KEYS.EXPIRES_AT, String(newExpiry));
+  }
+  return newExpiry;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -54,6 +111,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [hasPin, setHasPin] = useState(false);
   const [isLocked, setIsLocked] = useState(false);
   const [isPasswordRecovery, setIsPasswordRecovery] = useState(false);
+  const [sessionExpiresAt, setSessionExpiresAt] = useState<number | null>(null);
+  const [sessionDurationDays, setSessionDurationDaysState] = useState<number>(DEFAULT_SESSION_DAYS);
+
+  // Initialize stored session duration and expiry on mount
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const days = getStoredSessionDurationDays();
+      setSessionDurationDaysState(days);
+      const exp = localStorage.getItem(SESSION_KEYS.EXPIRES_AT);
+      if (exp) {
+        setSessionExpiresAt(Number(exp));
+      }
+    }
+  }, []);
 
   // Auto-migrate admin data when user logs in or session is restored
   useEffect(() => {
@@ -69,28 +140,69 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     async function initAuth() {
       try {
+        // 1. Immediately verify local persistent session to prevent premature logout
+        if (typeof window !== 'undefined') {
+          if (isLocalSessionValid()) {
+            try {
+              const localUser = JSON.parse(localStorage.getItem(SESSION_KEYS.USER) || '');
+              if (localUser?.id && mounted) {
+                setUser(localUser);
+                const exp = Number(localStorage.getItem(SESSION_KEYS.EXPIRES_AT)) || extendSessionExpiry();
+                setSessionExpiresAt(exp);
+              }
+            } catch (e) {
+              console.error('Error parsing local user session:', e);
+            }
+          } else {
+            // Expired local session
+            localStorage.removeItem(SESSION_KEYS.USER);
+            localStorage.removeItem(SESSION_KEYS.EXPIRES_AT);
+            if (mounted) {
+              setUser(null);
+              setSessionExpiresAt(null);
+            }
+          }
+        }
+
+        // 2. Sync with Supabase session if configured
         if (supabase) {
           const { data: { session }, error } = await supabase.auth.getSession();
           if (!error && session?.user && mounted) {
             const mapped = mapSupabaseUserToAppUser(session.user);
             setUser(mapped);
             if (typeof window !== 'undefined') {
-              localStorage.setItem('tj_user', JSON.stringify(mapped));
+              localStorage.setItem(SESSION_KEYS.USER, JSON.stringify(mapped));
+              const newExp = extendSessionExpiry();
+              setSessionExpiresAt(newExp);
             }
           } else if (mounted) {
-            setUser(null);
-            if (typeof window !== 'undefined') {
-              localStorage.removeItem('tj_user');
-            }
-          }
-        } else if (mounted) {
-          // If Supabase is not configured, check local storage
-          const localUser = localStorage.getItem('tj_user');
-          if (localUser) {
-            try {
-              setUser(JSON.parse(localUser));
-            } catch {
+            // Supabase session is null/expired.
+            // DO NOT kick user out if local session is still within valid expiry window!
+            if (isLocalSessionValid()) {
+              // Local session is still active! Keep user logged in.
+              const activeEmail = typeof window !== 'undefined'
+                ? (JSON.parse(localStorage.getItem(SESSION_KEYS.USER) || '{}')?.email || '')
+                : '';
+              if (activeEmail) {
+                getMemberRecord(activeEmail).then(async (member) => {
+                  if (member?.password && supabase) {
+                    try {
+                      await supabase.auth.signInWithPassword({
+                        email: activeEmail,
+                        password: member.password,
+                      });
+                    } catch {}
+                  }
+                }).catch(() => {});
+              }
+            } else {
+              // Truly expired
               setUser(null);
+              setSessionExpiresAt(null);
+              if (typeof window !== 'undefined') {
+                localStorage.removeItem(SESSION_KEYS.USER);
+                localStorage.removeItem(SESSION_KEYS.EXPIRES_AT);
+              }
             }
           }
         }
@@ -114,10 +226,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (session?.user) {
           const mapped = mapSupabaseUserToAppUser(session.user);
           setUser(mapped);
-          localStorage.setItem('tj_user', JSON.stringify(mapped));
-        } else {
-          setUser(null);
-          localStorage.removeItem('tj_user');
+          localStorage.setItem(SESSION_KEYS.USER, JSON.stringify(mapped));
+          const exp = extendSessionExpiry();
+          setSessionExpiresAt(exp);
+        } else if (event === 'SIGNED_OUT') {
+          // Only sign out if local session is also invalid or expired
+          if (!isLocalSessionValid()) {
+            setUser(null);
+            setSessionExpiresAt(null);
+            localStorage.removeItem(SESSION_KEYS.USER);
+            localStorage.removeItem(SESSION_KEYS.EXPIRES_AT);
+          }
         }
         setLoading(false);
       });
@@ -159,9 +278,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
   }, []);
 
-  const signIn = useCallback(async (email: string, password: string): Promise<{ error: Error | null }> => {
+  const signIn = useCallback(async (email: string, password: string, rememberMe: boolean = true): Promise<{ error: Error | null }> => {
     const cleanEmail = email.trim().toLowerCase();
     const supabase = getSupabase();
+    const sessionDays = rememberMe ? getStoredSessionDurationDays() : 1;
 
     // 1. Try Supabase Auth
     if (supabase) {
@@ -174,7 +294,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (!error && data?.user) {
           const mapped = mapSupabaseUserToAppUser(data.user);
           setUser(mapped);
-          localStorage.setItem('tj_user', JSON.stringify(mapped));
+          localStorage.setItem(SESSION_KEYS.USER, JSON.stringify(mapped));
+          const exp = extendSessionExpiry(sessionDays);
+          setSessionExpiresAt(exp);
+
           // Keep member record synced
           saveMemberRecord({
             email: cleanEmail,
@@ -199,7 +322,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             createdAt: member?.createdAt || new Date().toISOString(),
           };
           setUser(appUser);
-          localStorage.setItem('tj_user', JSON.stringify(appUser));
+          localStorage.setItem(SESSION_KEYS.USER, JSON.stringify(appUser));
+          const exp = extendSessionExpiry(sessionDays);
+          setSessionExpiresAt(exp);
+
           await saveMemberRecord({
             email: cleanEmail,
             displayName: appUser.name,
@@ -226,7 +352,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         createdAt: member.createdAt || new Date().toISOString(),
       };
       setUser(appUser);
-      localStorage.setItem('tj_user', JSON.stringify(appUser));
+      localStorage.setItem(SESSION_KEYS.USER, JSON.stringify(appUser));
+      const exp = extendSessionExpiry(sessionDays);
+      setSessionExpiresAt(exp);
       return { error: null };
     }
 
@@ -237,6 +365,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const cleanEmail = email.trim().toLowerCase();
     const finalName = displayName?.trim() || cleanEmail.split('@')[0];
     const supabase = getSupabase();
+    const sessionDays = getStoredSessionDurationDays();
 
     if (!supabase) {
       return { error: new Error('Supabase is not configured. Please check settings.') };
@@ -270,7 +399,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (data?.user && data.session) {
         const mapped = mapSupabaseUserToAppUser(data.user);
         setUser(mapped);
-        localStorage.setItem('tj_user', JSON.stringify(mapped));
+        localStorage.setItem(SESSION_KEYS.USER, JSON.stringify(mapped));
+        const exp = extendSessionExpiry(sessionDays);
+        setSessionExpiresAt(exp);
         return { error: null, needsConfirmation: false };
       }
 
@@ -286,7 +417,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           createdAt: new Date().toISOString(),
         };
         setUser(appUser);
-        localStorage.setItem('tj_user', JSON.stringify(appUser));
+        localStorage.setItem(SESSION_KEYS.USER, JSON.stringify(appUser));
+        const exp = extendSessionExpiry(sessionDays);
+        setSessionExpiresAt(exp);
         return { error: null, needsConfirmation: false };
       }
 
@@ -300,10 +433,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const res = await verifyAndResetPasswordWithMemberInfo(email, displayName, newPassword);
     if (res.success && res.user) {
       setUser(res.user);
-      localStorage.setItem('tj_user', JSON.stringify(res.user));
+      localStorage.setItem(SESSION_KEYS.USER, JSON.stringify(res.user));
+      const exp = extendSessionExpiry();
+      setSessionExpiresAt(exp);
       return { success: true };
     }
     return { success: false, message: res.message || 'ไม่สามารถยืนยันข้อมูลสมาชิกได้' };
+  }, []);
+
+  const extendSession = useCallback((days?: number) => {
+    const newExp = extendSessionExpiry(days);
+    setSessionExpiresAt(newExp);
+  }, []);
+
+  const setSessionDurationDays = useCallback((days: number) => {
+    setStoredSessionDurationDays(days);
+    setSessionDurationDaysState(days);
+    const newExp = extendSessionExpiry(days);
+    setSessionExpiresAt(newExp);
   }, []);
 
   const signOut = useCallback(async () => {
@@ -316,8 +463,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     }
     setUser(null);
+    setSessionExpiresAt(null);
     if (typeof window !== 'undefined') {
-      localStorage.removeItem('tj_user');
+      localStorage.removeItem(SESSION_KEYS.USER);
+      localStorage.removeItem(SESSION_KEYS.EXPIRES_AT);
       sessionStorage.removeItem('tj_unlocked');
       sessionStorage.removeItem('tj_pin_skipped');
     }
@@ -411,6 +560,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       hasPin,
       isLocked,
       isPasswordRecovery,
+      sessionExpiresAt,
+      sessionDurationDays,
+      extendSession,
+      setSessionDurationDays,
       setIsPasswordRecovery,
       signIn,
       signUp,

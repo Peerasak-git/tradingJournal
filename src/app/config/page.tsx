@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import { useConfig } from '@/context/ConfigContext';
 import { useAuth } from '@/context/AuthContext';
-import { Settings2, Palette, CheckCircle2, Database, Download, Upload, RotateCcw, Lock, KeyRound, ShieldCheck, ShieldAlert, X, Cloud, RefreshCw, Sparkles, ExternalLink, Loader2, AlertTriangle } from 'lucide-react';
+import { Settings2, Palette, CheckCircle2, Database, Download, Upload, RotateCcw, Lock, KeyRound, ShieldCheck, ShieldAlert, X, Cloud, RefreshCw, Sparkles, ExternalLink, Loader2, AlertTriangle, Clock } from 'lucide-react';
 import ColorPicker from '@/components/ColorPicker';
 import { exportAllData, importAllData } from '@/lib/clientStorage';
 import { isSupabaseConfigured, getSupabaseCredentials } from '@/lib/supabase';
@@ -11,7 +11,11 @@ import SupabaseSyncModal from '@/components/SupabaseSyncModal';
 
 export default function ConfigPage() {
   const { colorScheme, setColorScheme, customWinColor, setCustomWinColor, customLossColor, setCustomLossColor } = useConfig();
-  const { hasPin, setPin, removePin, lockSession } = useAuth();
+  const {
+    hasPin, setPin, removePin, lockSession,
+    sessionExpiresAt, sessionDurationDays, extendSession, setSessionDurationDays
+  } = useAuth();
+  const [sessionExtendedAlert, setSessionExtendedAlert] = useState(false);
   const [isPinModalOpen, setIsPinModalOpen] = useState(false);
   const [isSyncModalOpen, setIsSyncModalOpen] = useState(false);
   const [syncModalTab, setSyncModalTab] = useState<'sync' | 'storage' | 'backup'>('sync');
@@ -325,6 +329,75 @@ export default function ConfigPage() {
                   <span>ตั้งรหัส PIN ตอนนี้</span>
                 </button>
               )}
+            </div>
+          </div>
+
+          {/* Login Session Lifespan Section */}
+          <div className="mt-5 p-5 rounded-2xl bg-slate-50/80 dark:bg-slate-900/40 border border-slate-200/70 dark:border-white/[0.07] space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="flex items-center gap-3.5">
+                <div className="w-12 h-12 rounded-2xl bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 flex items-center justify-center">
+                  <Clock size={24} />
+                </div>
+                <div>
+                  <h3 className="font-bold text-sm text-slate-900 dark:text-white flex items-center gap-2">
+                    <span>ระยะเวลาเซสชันการเข้าสู่ระบบ (Login Session)</span>
+                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-400 border border-emerald-300 dark:border-emerald-800">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                      เข้าสู่ระบบอยู่
+                    </span>
+                  </h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                    {sessionExpiresAt
+                      ? `เซสชันปัจจุบันใช้งานได้ถึง: ${new Date(sessionExpiresAt).toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' })} น.`
+                      : 'ระบบจดจำการเข้าสู่ระบบอัตโนมัติ (30 วัน)'}
+                  </p>
+                </div>
+              </div>
+
+              <button
+                onClick={() => {
+                  extendSession();
+                  setSessionExtendedAlert(true);
+                  setTimeout(() => setSessionExtendedAlert(false), 3000);
+                }}
+                className="py-2.5 px-4 bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs rounded-xl transition flex items-center justify-center gap-1.5 shadow-sm cursor-pointer"
+              >
+                <RefreshCw size={14} className={sessionExtendedAlert ? 'animate-spin' : ''} />
+                <span>{sessionExtendedAlert ? 'ต่ออายุแล้ว!' : 'ต่ออายุเซสชัน (+30 วัน)'}</span>
+              </button>
+            </div>
+
+            <div className="pt-3 border-t border-slate-200/60 dark:border-white/[0.05] flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="text-xs text-slate-600 dark:text-slate-400">
+                <span className="font-bold text-slate-700 dark:text-slate-300">เลือกระยะเวลาหมดอายุ: </span>
+                ระบบจะคงการล็อกอินไว้ตลอดระยะเวลานี้โดยไม่ต้องกรอกรหัสผ่านใหม่
+              </div>
+
+              <div className="flex items-center gap-1.5 bg-white dark:bg-slate-800/80 p-1 rounded-xl border border-slate-200 dark:border-white/10">
+                {[
+                  { days: 7, label: '7 วัน' },
+                  { days: 30, label: '30 วัน (แนะนำ)' },
+                  { days: 90, label: '90 วัน' },
+                  { days: 365, label: '1 ปี (ถาวร)' },
+                ].map(option => (
+                  <button
+                    key={option.days}
+                    onClick={() => {
+                      setSessionDurationDays(option.days);
+                      setSessionExtendedAlert(true);
+                      setTimeout(() => setSessionExtendedAlert(false), 3000);
+                    }}
+                    className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+                      sessionDurationDays === option.days
+                        ? 'bg-blue-600 text-white shadow-sm'
+                        : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
+                    }`}
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
         </section>
