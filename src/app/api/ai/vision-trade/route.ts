@@ -110,8 +110,54 @@ JSON Schema:
 }
 `;
 
-    // Try models in cascade
-    const models = ['gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-1.5-pro'];
+    // 1. Discover models that are actually available and supported for this API key
+    let models: string[] = [];
+    try {
+      const listRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`);
+      if (listRes.ok) {
+        const listData = await listRes.json();
+        if (Array.isArray(listData.models)) {
+          const supported = listData.models
+            .filter((m: any) => Array.isArray(m.supportedGenerationMethods) && m.supportedGenerationMethods.includes('generateContent'))
+            .map((m: any) => String(m.name).replace(/^models\//, ''));
+
+          const preference = [
+            'gemini-2.5-flash',
+            'gemini-2.0-flash',
+            'gemini-2.0-flash-exp',
+            'gemini-1.5-flash-latest',
+            'gemini-1.5-flash',
+            'gemini-1.5-flash-002',
+            'gemini-1.5-flash-001',
+            'gemini-2.5-pro',
+            'gemini-2.0-pro-exp',
+            'gemini-1.5-pro-latest',
+            'gemini-1.5-pro-002',
+          ];
+
+          models = preference.filter(p => supported.includes(p));
+          supported.forEach((m: string) => {
+            if (!models.includes(m)) models.push(m);
+          });
+        }
+      }
+    } catch (e) {
+      console.warn('Could not list models dynamically:', e);
+    }
+
+    // Fallback if ListModels fails or returns empty
+    if (models.length === 0) {
+      models = [
+        'gemini-2.0-flash',
+        'gemini-2.5-flash',
+        'gemini-1.5-flash-latest',
+        'gemini-1.5-flash',
+        'gemini-1.5-flash-002',
+        'gemini-2.0-flash-exp',
+        'gemini-1.5-pro-latest'
+      ];
+    }
+
     let lastError: any = null;
     let geminiResponse: any = null;
 

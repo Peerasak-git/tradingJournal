@@ -14,19 +14,16 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [{ parts: [{ text: 'ping' }] }]
-      })
-    });
+    // Test API key by listing available models
+    const url = `https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`;
+    const res = await fetch(url);
 
     if (res.ok) {
+      const data = await res.json().catch(() => ({}));
+      const modelCount = Array.isArray(data.models) ? data.models.length : 0;
       return NextResponse.json({
         success: true,
-        message: 'เชื่อมต่อ Gemini API สำเร็จ! Key ถูกต้องและพร้อมใช้งาน'
+        message: `เชื่อมต่อ Gemini API สำเร็จ! Key ถูกต้องและพร้อมใช้งาน (${modelCount} models available)`
       });
     }
 
