@@ -249,7 +249,22 @@ export const translations = {
     worstDay: 'Worst Day',
     clickDayForDetails: 'Click any day to view trade details',
     selectedDayDetails: 'Daily Trade Breakdown',
-    noTradesOnSelectedDay: 'No trades recorded on this day'
+    noTradesOnSelectedDay: 'No trades recorded on this day',
+    dashTabOverview: 'Overview & Charts',
+    dashTabCalendar: 'P&L Calendar',
+    dashTabCategories: 'By Category',
+    dashTabRecentTrades: 'Trade List',
+    dashTabAllView: 'All-in-One',
+    categoryByInstrument: 'By Instrument (Symbol)',
+    categoryByDirection: 'By Direction (LONG vs SHORT)',
+    categoryByStrategy: 'By Strategy / Setup',
+    categoryBySession: 'By Market Session',
+    categoryByDayOfWeek: 'By Day of Week',
+    categoryByStatus: 'By Outcome Status',
+    allInstruments: 'All Instruments',
+    allDirections: 'All Directions',
+    allStatuses: 'All Statuses',
+    resetFilter: 'Reset Filters'
   },
   th: {
     dashboard: 'แดชบอร์ดการเทรด',
@@ -499,7 +514,22 @@ export const translations = {
     worstDay: 'วันที่ขาดทุนหนักสุด',
     clickDayForDetails: 'คลิกที่วันที่ในปฏิทินเพื่อดูรายการเทรดรายวัน',
     selectedDayDetails: 'รายละเอียดการเทรดประจำวัน',
-    noTradesOnSelectedDay: 'ไม่มีรายการเทรดในวันที่เลือก'
+    noTradesOnSelectedDay: 'ไม่มีรายการเทรดในวันที่เลือก',
+    dashTabOverview: 'ภาพรวม & กราฟ',
+    dashTabCalendar: 'ปฏิทิน P&L',
+    dashTabCategories: 'แยกประเภทสถิติ',
+    dashTabRecentTrades: 'รายการเทรด',
+    dashTabAllView: 'แสดงทั้งหมด',
+    categoryByInstrument: 'แยกตามสินทรัพย์ (คู่เงิน / ทองคำ)',
+    categoryByDirection: 'แยกตามฝั่งออเดอร์ (LONG vs SHORT)',
+    categoryByStrategy: 'แยกตามกลยุทธ์ (Strategy / Setup)',
+    categoryBySession: 'แยกตามช่วงเวลาตลาด (Session)',
+    categoryByDayOfWeek: 'แยกตามวันในสัปดาห์ (จันทร์ - ศุกร์)',
+    categoryByStatus: 'แยกตามผลลัพธ์ (WIN / LOSS / BE)',
+    allInstruments: 'ทุกสินทรัพย์',
+    allDirections: 'ทุกทิศทาง',
+    allStatuses: 'ทุกสถานะ',
+    resetFilter: 'ล้างตัวกรอง'
   }
 };
 
