@@ -119,6 +119,15 @@ export async function getTrades(): Promise<Trade[]> {
       } else {
         parsed = parsed.filter(t => !t.userId || t.userId === 'u-001');
       }
+
+      // Auto-heal legacy or invalid account IDs (e.g. 'acc-1' -> 'acc-001')
+      parsed = parsed.map(t => {
+        if (!t.accountId || t.accountId === 'acc-1') {
+          return { ...t, accountId: 'acc-001' };
+        }
+        return t;
+      });
+
       if (parsed.length > 0) return parsed;
     } catch (e) {
       console.error('Error parsing trades from localStorage', e);
@@ -181,20 +190,30 @@ export function saveTrades(trades: Trade[]): void {
 }
 
 export async function addOrUpdateTrade(trade: Trade): Promise<Trade> {
-  const currentUserId = getActiveUserId();
-  if (!trade.userId && currentUserId) {
+  const currentUserId = getActiveUserId() || 'u-001';
+  if (!trade.userId) {
     trade.userId = currentUserId;
   }
   const trades = await getTrades();
   const index = trades.findIndex(t => t.id === trade.id);
   const accounts = await getAccounts();
-  const accIndex = accounts.findIndex(a => a.id === trade.accountId);
+
+  // Normalize legacy or invalid account IDs (e.g. 'acc-1' -> 'acc-001')
+  if (!trade.accountId || trade.accountId === 'acc-1') {
+    trade.accountId = accounts[0]?.id || 'acc-001';
+  }
+
+  let accIndex = accounts.findIndex(a => a.id === trade.accountId);
+  if (accIndex === -1 && accounts.length > 0) {
+    trade.accountId = accounts[0].id;
+    accIndex = 0;
+  }
 
   if (index === -1) {
     // New trade
     trades.unshift(trade);
     if (accIndex !== -1 && trade.status !== 'OPEN' && trade.financials.netPnL != null) {
-      accounts[accIndex].balance += trade.financials.netPnL;
+      accounts[accIndex].balance = Number((accounts[accIndex].balance + trade.financials.netPnL).toFixed(2));
       saveAccounts(accounts);
     }
   } else {
@@ -204,10 +223,10 @@ export async function addOrUpdateTrade(trade: Trade): Promise<Trade> {
 
     if (accIndex !== -1) {
       if (oldTrade.status !== 'OPEN' && oldTrade.financials.netPnL != null) {
-        accounts[accIndex].balance -= oldTrade.financials.netPnL;
+        accounts[accIndex].balance = Number((accounts[accIndex].balance - oldTrade.financials.netPnL).toFixed(2));
       }
       if (trade.status !== 'OPEN' && trade.financials.netPnL != null) {
-        accounts[accIndex].balance += trade.financials.netPnL;
+        accounts[accIndex].balance = Number((accounts[accIndex].balance + trade.financials.netPnL).toFixed(2));
       }
       saveAccounts(accounts);
     }
@@ -216,6 +235,9 @@ export async function addOrUpdateTrade(trade: Trade): Promise<Trade> {
   // Save to local cache
   if (isClient()) {
     localStorage.setItem(getUserKey(KEYS.TRADES), JSON.stringify(trades));
+    // Trigger global update events so all components and pages re-render immediately
+    window.dispatchEvent(new Event('tradesUpdated'));
+    window.dispatchEvent(new Event('accountsUpdated'));
   }
 
   // Sync to Supabase
@@ -255,6 +277,8 @@ export async function deleteTrade(id: string): Promise<boolean> {
 
   if (isClient()) {
     localStorage.setItem(getUserKey(KEYS.TRADES), JSON.stringify(filtered));
+    window.dispatchEvent(new Event('tradesUpdated'));
+    window.dispatchEvent(new Event('accountsUpdated'));
   }
 
   // Revert balance if closed
@@ -262,7 +286,7 @@ export async function deleteTrade(id: string): Promise<boolean> {
     const accounts = await getAccounts();
     const accIndex = accounts.findIndex(a => a.id === oldTrade.accountId);
     if (accIndex !== -1) {
-      accounts[accIndex].balance -= oldTrade.financials.netPnL;
+      accounts[accIndex].balance = Number((accounts[accIndex].balance - oldTrade.financials.netPnL).toFixed(2));
       saveAccounts(accounts);
     }
   }

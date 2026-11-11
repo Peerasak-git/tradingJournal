@@ -55,6 +55,20 @@ export function AccountProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     refreshAccounts();
+
+    const handleUpdate = () => {
+      refreshAccounts();
+    };
+    if (typeof window !== 'undefined') {
+      window.addEventListener('accountsUpdated', handleUpdate);
+      window.addEventListener('tradesUpdated', handleUpdate);
+    }
+    return () => {
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('accountsUpdated', handleUpdate);
+        window.removeEventListener('tradesUpdated', handleUpdate);
+      }
+    };
   }, [user]);
 
   const setSelectedAccount = (account: Account) => {

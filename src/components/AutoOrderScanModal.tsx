@@ -142,8 +142,8 @@ export default function AutoOrderScanModal({
 
       const tradeToSave: Trade = {
         id: newTradeId,
-        userId: user?.id,
-        accountId: selectedAccount?.id || 'acc-1',
+        userId: user?.id || 'u-001',
+        accountId: selectedAccount?.id || 'acc-001',
         instrument: tradeRaw.instrument || 'XAUUSD',
         direction: (tradeRaw.direction === 'SHORT' ? 'SHORT' : 'LONG') as Direction,
         lotSize: tradeRaw.lotSize || 0.01,
@@ -153,7 +153,7 @@ export default function AutoOrderScanModal({
         stopLoss: tradeRaw.stopLoss || null,
         takeProfit: tradeRaw.takeProfit || null,
         entryDate: tradeRaw.entryDate || new Date().toISOString(),
-        exitDate: tradeRaw.exitDate || (tradeRaw.status !== 'OPEN' ? new Date().toISOString() : null),
+        exitDate: tradeRaw.exitDate || new Date().toISOString(),
         financials: {
           grossPnL: tradeRaw.grossPnL !== undefined ? tradeRaw.grossPnL : tradeRaw.netPnL,
           commission: tradeRaw.commission || 0,

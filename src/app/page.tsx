@@ -197,9 +197,20 @@ export default function Dashboard() {
       });
   }, [user?.id, selectedAccount?.id]);
 
+  useEffect(() => {
+    const handleTradesUpdated = () => {
+      getTrades().then((data) => setTrades(data)).catch(console.error);
+    };
+    window.addEventListener('tradesUpdated', handleTradesUpdated);
+    return () => window.removeEventListener('tradesUpdated', handleTradesUpdated);
+  }, []);
+
   // All trades for the selected account
   const rawAccountTrades = useMemo(
-    () => trades.filter((t) => t.accountId === selectedAccount?.id),
+    () => trades.filter((t) => {
+      if (!selectedAccount) return true;
+      return t.accountId === selectedAccount.id || (!t.accountId && selectedAccount.id === 'acc-001') || (t.accountId === 'acc-1' && selectedAccount.id === 'acc-001');
+    }),
     [trades, selectedAccount?.id]
   );
 

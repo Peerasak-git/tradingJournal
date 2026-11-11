@@ -35,7 +35,7 @@ interface TradeModalProps {
 
 export default function TradeModal({ isOpen, onClose, onSave, initialData }: TradeModalProps) {
   const { t } = useLanguage();
-  const { selectedAccount } = useAccount();
+  const { selectedAccount, accounts } = useAccount();
   const [strategies, setStrategies] = useState<string[]>(['โซนอุปสงค์/อุปทาน (S/D)', 'จุดตัดเส้นแนวโน้ม', 'SMC', 'EMA Cross', 'Price Action', 'โซนแนวรับ/แนวต้าน']);
   const [isStrategyOpen, setIsStrategyOpen] = useState(false);
   const [strategySearch, setStrategySearch] = useState('');
@@ -73,16 +73,18 @@ export default function TradeModal({ isOpen, onClose, onSave, initialData }: Tra
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [formData, setFormData] = useState({
+    accountId: '',
     instrument: '',
     direction: 'LONG' as Direction,
     lotSize: 0.01,
-    status: 'OPEN' as TradeStatus,
+    status: 'WIN' as TradeStatus,
     entryPrice: 0,
     stopLoss: 0,
     takeProfit: 0,
     exitPrice: 0,
     strategy: '',
     entryDate: new Date().toISOString().slice(0, 16),
+    exitDate: new Date().toISOString().slice(0, 16),
     netPnL: 0,
     preTrade: '',
     duringTrade: '',
@@ -177,6 +179,7 @@ export default function TradeModal({ isOpen, onClose, onSave, initialData }: Tra
 
     if (initialData) {
       setFormData({
+        accountId: (initialData.accountId && initialData.accountId !== 'acc-1') ? initialData.accountId : (selectedAccount?.id || 'acc-001'),
         instrument: initialData.instrument,
         direction: initialData.direction,
         lotSize: initialData.lotSize,
@@ -185,30 +188,33 @@ export default function TradeModal({ isOpen, onClose, onSave, initialData }: Tra
         stopLoss: initialData.stopLoss || 0,
         takeProfit: initialData.takeProfit || 0,
         exitPrice: initialData.exitPrice || 0,
-        strategy: initialData.analysis.strategy || '',
-        entryDate: initialData.entryDate.slice(0, 16),
-        netPnL: initialData.financials.netPnL || 0,
-        preTrade: initialData.notes.preTrade || '',
-        duringTrade: initialData.notes.duringTrade || '',
-        postTrade: initialData.notes.postTrade || '',
-        notes: initialData.notes.detailedNotes || '',
-        selfAssessment: initialData.notes.selfAssessment || 0,
-        tradingViewUrl: initialData.notes.tradingViewUrl || '',
-        exitTradingViewUrl: initialData.notes.exitTradingViewUrl || '',
-        entryImage: initialData.notes.entryImage || '',
+        strategy: initialData.analysis?.strategy || '',
+        entryDate: initialData.entryDate ? initialData.entryDate.slice(0, 16) : new Date().toISOString().slice(0, 16),
+        exitDate: initialData.exitDate ? initialData.exitDate.slice(0, 16) : new Date().toISOString().slice(0, 16),
+        netPnL: initialData.financials?.netPnL || 0,
+        preTrade: initialData.notes?.preTrade || '',
+        duringTrade: initialData.notes?.duringTrade || '',
+        postTrade: initialData.notes?.postTrade || '',
+        notes: initialData.notes?.detailedNotes || '',
+        selfAssessment: initialData.notes?.selfAssessment || 0,
+        tradingViewUrl: initialData.notes?.tradingViewUrl || '',
+        exitTradingViewUrl: initialData.notes?.exitTradingViewUrl || '',
+        entryImage: initialData.notes?.entryImage || '',
       });
     } else {
       setFormData({
+        accountId: selectedAccount?.id || 'acc-001',
         instrument: '',
         direction: 'LONG',
         lotSize: 0.01,
-        status: 'OPEN',
+        status: 'WIN',
         entryPrice: 0,
         stopLoss: 0,
         takeProfit: 0,
         exitPrice: 0,
         strategy: '',
         entryDate: new Date().toISOString().slice(0, 16),
+        exitDate: new Date().toISOString().slice(0, 16),
         netPnL: 0,
         preTrade: '',
         duringTrade: '',
@@ -220,31 +226,28 @@ export default function TradeModal({ isOpen, onClose, onSave, initialData }: Tra
         entryImage: '',
       });
     }
-  }, [initialData, isOpen]);
+  }, [initialData, isOpen, selectedAccount?.id]);
 
-  // Auto PnL Calculation
-  useEffect(() => {
-    if (formData.status !== 'OPEN' && formData.exitPrice > 0 && formData.entryPrice > 0 && formData.lotSize > 0) {
-      const diff = formData.direction === 'LONG' 
-        ? formData.exitPrice - formData.entryPrice 
-        : formData.entryPrice - formData.exitPrice;
-      
-      let multiplier = 1;
-      const inst = formData.instrument.toUpperCase();
-      
-      // Smart Multiplier Detection based on instrument
-      if (inst.includes('XAU') || inst.includes('GOLD')) multiplier = 100;
-      else if (inst.includes('XAG') || inst.includes('SILVER')) multiplier = 5000;
-      else if (inst.length === 6 && !inst.includes('BTC') && !inst.includes('ETH') && !inst.includes('USDT')) {
-        // Standard Forex pairs (e.g. EURUSD, GBPJPY)
-        multiplier = 100000;
-      }
-      
-      const calcPnL = Number((diff * formData.lotSize * multiplier).toFixed(2));
-      
-      setFormData(prev => ({ ...prev, netPnL: calcPnL }));
+  // Helper for PnL Calculation
+  const calculateEstimatedPnL = (inst: string, dir: Direction, entry: number, exit: number, lot: number) => {
+    if (!inst || !entry || !exit || !lot) return null;
+    const diff = dir === 'LONG' ? exit - entry : entry - exit;
+    let multiplier = 1;
+    const cleanInst = inst.toUpperCase();
+    if (cleanInst.includes('XAU') || cleanInst.includes('GOLD')) multiplier = 100;
+    else if (cleanInst.includes('XAG') || cleanInst.includes('SILVER')) multiplier = 5000;
+    else if (cleanInst.length === 6 && !cleanInst.includes('BTC') && !cleanInst.includes('ETH') && !cleanInst.includes('USDT')) {
+      multiplier = 100000;
     }
-  }, [formData.exitPrice, formData.entryPrice, formData.direction, formData.lotSize, formData.instrument, formData.status]);
+    return Number((diff * lot * multiplier).toFixed(2));
+  };
+
+  const handleRecalculatePnL = () => {
+    const est = calculateEstimatedPnL(formData.instrument, formData.direction, formData.entryPrice, formData.exitPrice, formData.lotSize);
+    if (est !== null) {
+      setFormData(prev => ({ ...prev, netPnL: est }));
+    }
+  };
 
   if (!isOpen) return null;
 
@@ -277,18 +280,19 @@ export default function TradeModal({ isOpen, onClose, onSave, initialData }: Tra
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
-    // Check if checklist is complete
-    if (checklistItems.length > 0 && !initialData) {
+    // Check if checklist is complete (only prompt if user is opening a trade)
+    if (checklistItems.length > 0 && !initialData && formData.status === 'OPEN') {
       const checkedCount = Object.keys(checkedItems).filter(k => checkedItems[k]).length;
       if (checkedCount < checklistItems.length) {
-        alert('กรุณาติ๊ก Checklist ก่อนเข้าออร์เดอร์ให้ครบทุกข้อก่อนบันทึกครับ');
-        return;
+        const proceed = confirm('คุณยังติ๊ก Checklist ก่อนเข้าออร์เดอร์ไม่ครบ ต้องการบันทึกต่อไปหรือไม่?');
+        if (!proceed) return;
       }
     }
 
-    let finalNetPnL = formData.netPnL;
+    let finalNetPnL = formData.netPnL || 0;
     if (formData.status === 'WIN' && finalNetPnL < 0) finalNetPnL = Math.abs(finalNetPnL);
-    if (formData.status === 'LOSS' && finalNetPnL > 0) finalNetPnL = -finalNetPnL;
+    if (formData.status === 'LOSS' && finalNetPnL > 0) finalNetPnL = -Math.abs(finalNetPnL);
+    if (formData.status === 'BREAK_EVEN') finalNetPnL = 0;
     if (formData.status === 'OPEN') finalNetPnL = 0;
 
     const isLong = formData.direction === 'LONG';
@@ -312,11 +316,21 @@ export default function TradeModal({ isOpen, onClose, onSave, initialData }: Tra
       ? parseFloat((actualReward / risk).toFixed(2))
       : null;
 
+    const targetAccountId = (formData.accountId && formData.accountId !== 'acc-1')
+      ? formData.accountId
+      : (initialData?.accountId && initialData.accountId !== 'acc-1' ? initialData.accountId : (selectedAccount?.id || 'acc-001'));
+
+    const finalExitDate = formData.status !== 'OPEN'
+      ? (formData.exitDate ? new Date(formData.exitDate).toISOString() : (initialData?.exitDate || new Date().toISOString()))
+      : null;
+
+    const finalExitPrice = formData.status === 'OPEN' ? null : (formData.exitPrice || 0);
+
     onSave({
       ...initialData,
       ...formData,
       id: initialData ? initialData.id : Math.random().toString(36).substr(2, 9),
-      accountId: initialData?.accountId || selectedAccount?.id || 'acc-1',
+      accountId: targetAccountId,
       financials: {
         ...(initialData ? initialData.financials : {
           grossPnL: null,
@@ -348,8 +362,8 @@ export default function TradeModal({ isOpen, onClose, onSave, initialData }: Tra
         entryImage: formData.entryImage || formData.tradingViewUrl?.trim() || initialData?.notes?.entryImage || null,
         exitImage: formData.exitTradingViewUrl?.trim() || initialData?.notes?.exitImage || null,
       },
-      exitDate: initialData ? initialData.exitDate : (formData.status !== 'OPEN' ? new Date().toISOString() : null),
-      exitPrice: formData.status === 'OPEN' ? null : formData.exitPrice
+      exitDate: finalExitDate,
+      exitPrice: finalExitPrice
     });
     onClose();
   };
@@ -909,10 +923,38 @@ export default function TradeModal({ isOpen, onClose, onSave, initialData }: Tra
                         type="button"
                         onClick={() => {
                           let newExitPrice = formData.exitPrice;
-                          if (s === 'WIN') newExitPrice = formData.takeProfit;
-                          else if (s === 'LOSS') newExitPrice = formData.stopLoss;
-                          else if (s === 'BREAK_EVEN') newExitPrice = formData.entryPrice;
-                          setFormData({ ...formData, status: s, exitPrice: newExitPrice });
+                          if (s === 'WIN') {
+                            newExitPrice = (formData.exitPrice > 0 && formData.status !== 'OPEN') 
+                              ? formData.exitPrice 
+                              : (formData.takeProfit > 0 ? formData.takeProfit : formData.entryPrice);
+                          } else if (s === 'LOSS') {
+                            newExitPrice = (formData.exitPrice > 0 && formData.status !== 'OPEN') 
+                              ? formData.exitPrice 
+                              : (formData.stopLoss > 0 ? formData.stopLoss : formData.entryPrice);
+                          } else if (s === 'BREAK_EVEN') {
+                            newExitPrice = formData.entryPrice;
+                          }
+
+                          let newPnL = formData.netPnL;
+                          if (s === 'WIN') {
+                            const est = calculateEstimatedPnL(formData.instrument, formData.direction, formData.entryPrice, newExitPrice, formData.lotSize);
+                            newPnL = (newPnL > 0) ? newPnL : (est && est > 0 ? est : Math.abs(newPnL) || 10);
+                          } else if (s === 'LOSS') {
+                            const est = calculateEstimatedPnL(formData.instrument, formData.direction, formData.entryPrice, newExitPrice, formData.lotSize);
+                            newPnL = (newPnL < 0) ? newPnL : (est && est < 0 ? est : -Math.abs(newPnL || 10));
+                          } else if (s === 'BREAK_EVEN') {
+                            newPnL = 0;
+                          } else if (s === 'OPEN') {
+                            newPnL = 0;
+                          }
+
+                          setFormData(prev => ({
+                            ...prev,
+                            status: s,
+                            exitPrice: newExitPrice,
+                            netPnL: newPnL,
+                            exitDate: prev.exitDate || new Date().toISOString().slice(0, 16)
+                          }));
                         }}
                         className={`relative z-10 py-2 rounded-lg text-[11px] font-medium transition-colors duration-200 ${
                           formData.status === s ? 'text-white' : 'text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-400'
@@ -950,20 +992,47 @@ export default function TradeModal({ isOpen, onClose, onSave, initialData }: Tra
                 })()}
 
                 {formData.status !== 'OPEN' && (
-                  <div className="animate-fade-in space-y-5">
-                    <div className="grid grid-cols-2 gap-5">
-                      <div className="space-y-2">
+                  <div className="animate-fade-in space-y-4 pt-3 border-t border-slate-100 dark:border-white/[0.06]">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                        ผลลัพธ์การเทรด (Trade Result)
+                      </span>
+                      <button
+                        type="button"
+                        onClick={handleRecalculatePnL}
+                        className="text-[11px] font-bold text-blue-500 hover:text-blue-600 flex items-center gap-1 hover:underline cursor-pointer"
+                        title="คำนวณกำไร/ขาดทุนอัตโนมัติจากราคาเข้า-ออกและล็อต"
+                      >
+                        <Sparkles size={11} />
+                        คำนวณ PnL อัตโนมัติ
+                      </button>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-1.5">
                         <label className={labelClasses}>{t('exitPrice')}</label>
                         <input
                           type="number"
                           step="0.00001"
                           className={`${inputClasses} font-mono`}
                           placeholder="0.00000"
-                          value={formData.exitPrice}
-                          onChange={e => setFormData({...formData, exitPrice: parseFloat(e.target.value) || 0})}
+                          value={formData.exitPrice || ''}
+                          onChange={e => {
+                            const newExit = parseFloat(e.target.value) || 0;
+                            setFormData(prev => {
+                              const est = (prev.netPnL === 0 && newExit > 0)
+                                ? calculateEstimatedPnL(prev.instrument, prev.direction, prev.entryPrice, newExit, prev.lotSize)
+                                : null;
+                              return {
+                                ...prev,
+                                exitPrice: newExit,
+                                netPnL: est !== null ? est : prev.netPnL
+                              };
+                            });
+                          }}
                         />
                       </div>
-                      <div className="space-y-2">
+                      <div className="space-y-1.5">
                         <label className={labelClasses}>{t('pnl')} (USD)</label>
                         <div className="relative">
                           <div className={`absolute left-4 top-1/2 -translate-y-1/2 font-semibold ${formData.netPnL >= 0 ? 'text-win-600 dark:text-win-500' : 'text-loss-500 dark:text-loss-500'}`}>$</div>
@@ -975,6 +1044,19 @@ export default function TradeModal({ isOpen, onClose, onSave, initialData }: Tra
                             onChange={e => setFormData({...formData, netPnL: parseFloat(e.target.value) || 0})}
                           />
                         </div>
+                      </div>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <label className={labelClasses}>วัน-เวลาปิดออร์เดอร์ (Exit Date)</label>
+                      <div className="relative group">
+                        <Calendar size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 transition-colors group-focus-within:text-blue-500" />
+                        <input
+                          type="datetime-local"
+                          className={`${inputClasses} pl-12 font-medium`}
+                          value={formData.exitDate}
+                          onChange={e => setFormData({...formData, exitDate: e.target.value})}
+                        />
                       </div>
                     </div>
                   </div>
@@ -990,6 +1072,23 @@ export default function TradeModal({ isOpen, onClose, onSave, initialData }: Tra
               </div>
 
               <div className="space-y-4">
+                {/* Account Selection */}
+                {accounts && accounts.length > 0 && (
+                  <div>
+                    <label className={labelClasses}>บัญชีเทรด (Account)</label>
+                    <select
+                      value={formData.accountId}
+                      onChange={e => setFormData({...formData, accountId: e.target.value})}
+                      className={`${inputClasses} font-semibold text-slate-800 dark:text-slate-200 cursor-pointer`}
+                    >
+                      {accounts.map(acc => (
+                        <option key={acc.id} value={acc.id}>
+                          {acc.name} (${acc.balance?.toLocaleString()} {acc.currency})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
                 <div ref={instrumentRef} className="relative z-[60]">
                   <label className={labelClasses}>{t('instrument')}</label>
                   <button

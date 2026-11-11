@@ -60,7 +60,7 @@ export default function HistoryPage() {
   const [isChecklistModalOpen, setIsChecklistModalOpen] = useState(false);
   const [isScanModalOpen, setIsScanModalOpen] = useState(false);
   const [selectedTrade, setSelectedTrade] = useState<Trade | null>(null);
-  const { selectedAccount } = useAccount();
+  const { selectedAccount, refreshAccounts } = useAccount();
   const { user } = useAuth();
   const [liveAsset, setLiveAsset] = useState(LIVE_ASSETS[0]);
   const [livePrice, setLivePrice] = useState<string | null>(null);
@@ -164,17 +164,26 @@ export default function HistoryPage() {
       });
   }, [user?.id, selectedAccount?.id]);
 
+  useEffect(() => {
+    const handleTradesUpdated = () => {
+      getTrades().then(data => setTrades(data)).catch(console.error);
+    };
+    window.addEventListener('tradesUpdated', handleTradesUpdated);
+    return () => window.removeEventListener('tradesUpdated', handleTradesUpdated);
+  }, []);
+
   const handleSaveTrade = async (trade: Trade) => {
     const isEditing = !!selectedTrade;
-    const tradeWithAccount = { ...trade, accountId: trade.accountId || selectedAccount?.id || '' };
+    const tradeWithAccount = { ...trade, accountId: trade.accountId || selectedAccount?.id || 'acc-001' };
 
     try {
-      await addOrUpdateTrade(tradeWithAccount);
+      const saved = await addOrUpdateTrade(tradeWithAccount);
       if (isEditing) {
-        setTrades(trades.map(t => t.id === trade.id ? tradeWithAccount : t));
+        setTrades(prev => prev.map(t => t.id === trade.id ? saved : t));
       } else {
-        setTrades([tradeWithAccount, ...trades]);
+        setTrades(prev => [saved, ...prev.filter(t => t.id !== saved.id)]);
       }
+      await refreshAccounts();
     } catch (err) {
       console.error('Error saving trade:', err);
     }
@@ -186,6 +195,7 @@ export default function HistoryPage() {
     try {
       await deleteTrade(id);
       setTrades(trades.filter(t => t.id !== id));
+      await refreshAccounts();
     } catch (err) {
       console.error('Error deleting trade:', err);
     }
@@ -202,7 +212,9 @@ export default function HistoryPage() {
   };
 
   const filteredTrades = useMemo(() => trades.filter(t => {
-    const isSameAccount = selectedAccount ? t.accountId === selectedAccount.id : (!user);
+    const isSameAccount = selectedAccount 
+      ? (t.accountId === selectedAccount.id || (!t.accountId && selectedAccount.id === 'acc-001') || (t.accountId === 'acc-1' && selectedAccount.id === 'acc-001')) 
+      : (!user);
     if (!isSameAccount) return false;
 
     const matchSearch =
@@ -473,7 +485,20 @@ export default function HistoryPage() {
                     </span>
                   </td>
                   <td className="px-5 py-4 text-right pr-6">
-                    <div className="flex items-center justify-end gap-1">
+                    <div className="flex items-center justify-end gap-1.5">
+                      {trade.status === 'OPEN' && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            openEditModal(trade);
+                          }}
+                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 hover:bg-amber-500 hover:text-white transition-all shadow-sm"
+                          title="ปิดออร์เดอร์ / บันทึกผลกำไร-ขาดทุน"
+                        >
+                          <Sparkles size={11} />
+                          บันทึกผล
+                        </button>
+                      )}
                       {(trade.notes?.tradingViewUrl || trade.notes?.exitTradingViewUrl) && (
                         <a 
                           href={trade.notes.tradingViewUrl || trade.notes.exitTradingViewUrl || '#'}
@@ -489,12 +514,14 @@ export default function HistoryPage() {
                       <button 
                         onClick={(e) => { e.stopPropagation(); openEditModal(trade); }}
                         className="p-1.5 rounded-lg text-slate-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-500/10 transition-all"
+                        title="แก้ไขรายการ"
                       >
                         <Edit2 size={13} />
                       </button>
                       <button 
                         onClick={(e) => { e.stopPropagation(); handleDeleteTrade(trade.id); }}
                         className="p-1.5 rounded-lg text-slate-400 hover:text-loss-500 hover:bg-loss-50 dark:hover:bg-loss-500/10 transition-all"
+                        title="ลบรายการ"
                       >
                         <Trash2 size={13} />
                       </button>
