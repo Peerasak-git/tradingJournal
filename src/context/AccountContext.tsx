@@ -22,16 +22,10 @@ export function AccountProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   const refreshAccounts = async () => {
-    if (!user) {
-      setAccounts([]);
-      setSelectedAccountState(null);
-      setLoading(false);
-      return;
-    }
     try {
       const data = await getAccounts();
       setAccounts(data);
-      const storageKey = `selectedAccountId_${user.id}`;
+      const storageKey = user ? `selectedAccountId_${user.id}` : 'selectedAccountId_guest';
       const savedId = typeof window !== 'undefined' ? localStorage.getItem(storageKey) : null;
       let found = data.find(a => a.id === savedId);
       // Prefer standard acc-001 if previous selection was placeholder account with balance 10000
@@ -44,7 +38,7 @@ export function AccountProvider({ children }: { children: React.ReactNode }) {
           localStorage.setItem(storageKey, found.id);
         }
       } else {
-        setSelectedAccountState(null);
+        setSelectedAccountState(data[0] || null);
       }
     } catch (error) {
       console.error('Error fetching accounts:', error);

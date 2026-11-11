@@ -78,11 +78,17 @@ export default function AnalysisPage() {
     loadData();
   }, [user?.id, selectedAccount?.id]);
 
+  useEffect(() => {
+    const handleUpdate = () => loadData();
+    window.addEventListener('tradesUpdated', handleUpdate);
+    return () => window.removeEventListener('tradesUpdated', handleUpdate);
+  }, []);
+
   // Filter trades based on account and date range
   const filteredTrades = useMemo(() => {
     let list = trades;
     if (selectedAccount?.id) {
-      list = list.filter(t => t.accountId === selectedAccount.id);
+      list = list.filter(t => t.accountId === selectedAccount.id || (!t.accountId && selectedAccount.id === 'acc-001') || (t.accountId === 'acc-1' && selectedAccount.id === 'acc-001'));
     }
 
     if (dateFilter === 'all') return list;

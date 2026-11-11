@@ -61,6 +61,19 @@ export async function getTrades(): Promise<Trade[]> {
   const supabase = getSupabase();
   const currentUserId = getActiveUserId();
   const isTargetAdmin = shouldMigrateAdminData();
+  const localKey = getUserKey(KEYS.TRADES);
+
+  // 1. Read existing local trades first
+  let localTrades: Trade[] = [];
+  try {
+    const rawLocal = localStorage.getItem(localKey) || localStorage.getItem(KEYS.TRADES);
+    if (rawLocal) {
+      const parsed = JSON.parse(rawLocal);
+      if (Array.isArray(parsed)) localTrades = parsed;
+    }
+  } catch (e) {
+    console.error('Error parsing local trades:', e);
+  }
 
   if (supabase) {
     try {
@@ -70,36 +83,44 @@ export async function getTrades(): Promise<Trade[]> {
         .order('created_at', { ascending: false });
 
       if (!error && data) {
-        let trades: Trade[] = data.map((row: any) => ({
+        let remoteTrades: Trade[] = data.map((row: any) => ({
           ...(row.data as Trade),
           userId: row.data?.userId || row.user_id || undefined,
         }));
 
         if (isTargetAdmin && currentUserId) {
-          let claimed = false;
-          trades = trades.map(t => {
+          remoteTrades = remoteTrades.map(t => {
             if (!t.userId || t.userId === 'u-001' || t.userId === currentUserId) {
-              if (t.userId !== currentUserId) claimed = true;
               return { ...t, userId: currentUserId };
             }
             return t;
           }).filter(t => t.userId === currentUserId);
-
-          if (claimed || trades.length > 0) {
-            localStorage.setItem(getUserKey(KEYS.TRADES), JSON.stringify(trades));
-            if (claimed) syncTradesToSupabase(trades).catch(console.error);
-            if (trades.length > 0) return trades;
-          }
         } else if (currentUserId) {
-          trades = trades.filter(t => t.userId === currentUserId);
-        } else {
-          trades = trades.filter(t => !t.userId || t.userId === 'u-001');
+          remoteTrades = remoteTrades.filter(t => !t.userId || t.userId === currentUserId || t.userId === 'u-001');
         }
 
-        if (trades.length > 0) {
-          localStorage.setItem(getUserKey(KEYS.TRADES), JSON.stringify(trades));
-          return trades;
-        }
+        // Merge: keep all remote trades and overlay any local trades that haven't synced yet
+        const tradeMap = new Map<string, Trade>();
+        remoteTrades.forEach(t => tradeMap.set(t.id, t));
+        localTrades.forEach(t => {
+          if (!tradeMap.has(t.id)) {
+            tradeMap.set(t.id, t);
+          }
+        });
+
+        let merged = Array.from(tradeMap.values());
+        merged.sort((a, b) => new Date(b.entryDate || 0).getTime() - new Date(a.entryDate || 0).getTime());
+
+        // Auto-heal legacy or invalid account IDs
+        merged = merged.map(t => {
+          if (!t.accountId || t.accountId === 'acc-1') {
+            return { ...t, accountId: 'acc-001' };
+          }
+          return t;
+        });
+
+        localStorage.setItem(localKey, JSON.stringify(merged));
+        return merged;
       }
     } catch (err) {
       console.warn('Supabase fetch failed, falling back to local cache:', err);
@@ -107,31 +128,23 @@ export async function getTrades(): Promise<Trade[]> {
   }
 
   // Local fallback (strictly user-scoped if logged in)
-  const localKey = getUserKey(KEYS.TRADES);
-  const local = localStorage.getItem(localKey);
-  if (local) {
-    try {
-      let parsed: Trade[] = JSON.parse(local);
-      if (isTargetAdmin && currentUserId) {
-        parsed = parsed.map(t => ({ ...t, userId: currentUserId }));
-      } else if (currentUserId) {
-        parsed = parsed.filter(t => t.userId === currentUserId);
-      } else {
-        parsed = parsed.filter(t => !t.userId || t.userId === 'u-001');
-      }
-
-      // Auto-heal legacy or invalid account IDs (e.g. 'acc-1' -> 'acc-001')
-      parsed = parsed.map(t => {
-        if (!t.accountId || t.accountId === 'acc-1') {
-          return { ...t, accountId: 'acc-001' };
-        }
-        return t;
-      });
-
-      if (parsed.length > 0) return parsed;
-    } catch (e) {
-      console.error('Error parsing trades from localStorage', e);
+  if (localTrades.length > 0) {
+    let parsed: Trade[] = localTrades;
+    if (isTargetAdmin && currentUserId) {
+      parsed = parsed.map(t => ({ ...t, userId: currentUserId }));
+    } else if (currentUserId) {
+      parsed = parsed.filter(t => !t.userId || t.userId === currentUserId || t.userId === 'u-001');
     }
+
+    // Auto-heal legacy or invalid account IDs (e.g. 'acc-1' -> 'acc-001')
+    parsed = parsed.map(t => {
+      if (!t.accountId || t.accountId === 'acc-1') {
+        return { ...t, accountId: 'acc-001' };
+      }
+      return t;
+    });
+
+    return parsed;
   }
 
   // Check unscoped local cache if target admin
@@ -234,7 +247,11 @@ export async function addOrUpdateTrade(trade: Trade): Promise<Trade> {
 
   // Save to local cache
   if (isClient()) {
-    localStorage.setItem(getUserKey(KEYS.TRADES), JSON.stringify(trades));
+    const key = getUserKey(KEYS.TRADES);
+    localStorage.setItem(key, JSON.stringify(trades));
+    if (key !== KEYS.TRADES) {
+      localStorage.setItem(KEYS.TRADES, JSON.stringify(trades));
+    }
     // Trigger global update events so all components and pages re-render immediately
     window.dispatchEvent(new Event('tradesUpdated'));
     window.dispatchEvent(new Event('accountsUpdated'));
@@ -249,6 +266,7 @@ export async function addOrUpdateTrade(trade: Trade): Promise<Trade> {
         .upsert({
           id: trade.id,
           account_id: trade.accountId || null,
+          user_id: currentUserId || null,
           instrument: trade.instrument || null,
           direction: trade.direction || null,
           status: trade.status || null,

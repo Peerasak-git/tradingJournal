@@ -23,11 +23,13 @@ import {
   Compass,
   Filter,
   RotateCcw,
+  PlusCircle,
 } from 'lucide-react';
 
-import { getTrades } from '@/lib/clientStorage';
+import { getTrades, addOrUpdateTrade } from '@/lib/clientStorage';
 import TradingCalendar from '@/components/TradingCalendar';
 import AutoOrderScanModal from '@/components/AutoOrderScanModal';
+import TradeModal from '@/components/TradeModal';
 
 type DashboardTab = 'overview' | 'calendar' | 'categories' | 'recent' | 'all';
 type CategoryDimension = 'instrument' | 'direction' | 'strategy' | 'session' | 'dayOfWeek';
@@ -173,15 +175,27 @@ export default function Dashboard() {
   const [selectedDirection, setSelectedDirection] = useState<string>('ALL');
   const [selectedStatus, setSelectedStatus] = useState<string>('ALL');
 
-  // Auto Order Slip Scanner Modal
+  // Auto Order Slip Scanner Modal & Trade Modal
   const [isScanModalOpen, setIsScanModalOpen] = useState(false);
+  const [isTradeModalOpen, setIsTradeModalOpen] = useState(false);
 
   const { t, language } = useLanguage();
-  const { selectedAccount } = useAccount();
+  const { selectedAccount, refreshAccounts } = useAccount();
   const { user } = useAuth();
 
   const reloadTrades = () => {
     getTrades().then(setTrades).catch(console.error);
+  };
+
+  const handleSaveTrade = async (trade: Trade) => {
+    try {
+      await addOrUpdateTrade({ ...trade, accountId: trade.accountId || selectedAccount?.id || 'acc-001' });
+      reloadTrades();
+      refreshAccounts();
+      setActiveTab('recent');
+    } catch (err) {
+      console.error('Error saving trade from dashboard:', err);
+    }
   };
 
   useEffect(() => {
@@ -532,6 +546,14 @@ export default function Dashboard() {
         </div>
 
         <div className="flex flex-wrap items-center gap-2.5">
+          <button
+            onClick={() => setIsTradeModalOpen(true)}
+            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-md shadow-blue-500/25 transition active:scale-95 shrink-0 cursor-pointer"
+          >
+            <PlusCircle size={14} />
+            <span>{language === 'th' ? 'เพิ่มรายการเทรด' : 'Add Trade'}</span>
+          </button>
+
           <button
             onClick={() => setIsScanModalOpen(true)}
             className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 hover:from-blue-700 hover:to-indigo-700 text-white text-xs font-bold shadow-md shadow-blue-500/25 transition active:scale-95 shrink-0 cursor-pointer"
@@ -1347,7 +1369,18 @@ export default function Dashboard() {
       <AutoOrderScanModal
         isOpen={isScanModalOpen}
         onClose={() => setIsScanModalOpen(false)}
-        onTradeSaved={() => reloadTrades()}
+        onTradeSaved={() => {
+          reloadTrades();
+          refreshAccounts();
+          setActiveTab('recent');
+        }}
+      />
+
+      {/* Manual Trade Modal */}
+      <TradeModal
+        isOpen={isTradeModalOpen}
+        onClose={() => setIsTradeModalOpen(false)}
+        onSave={handleSaveTrade}
       />
     </main>
   );

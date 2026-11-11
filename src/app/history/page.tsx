@@ -50,12 +50,7 @@ export default function HistoryPage() {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
-  const [dateFilter, setDateFilter] = useState<string>(() => {
-    const today = new Date();
-    // Format YYYY-MM-DD adjusted for local timezone offset
-    const offset = today.getTimezoneOffset() * 60000;
-    return new Date(today.getTime() - offset).toISOString().split('T')[0];
-  });
+  const [dateFilter, setDateFilter] = useState<string>('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isChecklistModalOpen, setIsChecklistModalOpen] = useState(false);
   const [isScanModalOpen, setIsScanModalOpen] = useState(false);
@@ -214,18 +209,20 @@ export default function HistoryPage() {
   const filteredTrades = useMemo(() => trades.filter(t => {
     const isSameAccount = selectedAccount 
       ? (t.accountId === selectedAccount.id || (!t.accountId && selectedAccount.id === 'acc-001') || (t.accountId === 'acc-1' && selectedAccount.id === 'acc-001')) 
-      : (!user);
+      : true;
     if (!isSameAccount) return false;
 
-    const matchSearch =
-      t.instrument.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      t.status.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      t.direction.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (t.analysis.strategy || '').toLowerCase().includes(searchTerm.toLowerCase());
+    const inst = (t.instrument || '').toLowerCase();
+    const stat = (t.status || '').toLowerCase();
+    const dir = (t.direction || '').toLowerCase();
+    const strat = (t.analysis?.strategy || '').toLowerCase();
+    const search = searchTerm.toLowerCase();
+
+    const matchSearch = !search || inst.includes(search) || stat.includes(search) || dir.includes(search) || strat.includes(search);
     const matchStatus = statusFilter === 'ALL' || t.status === statusFilter;
-    const matchDate = !dateFilter || t.entryDate.startsWith(dateFilter);
+    const matchDate = !dateFilter || (t.entryDate && t.entryDate.startsWith(dateFilter));
     return matchSearch && matchStatus && matchDate;
-  }), [trades, searchTerm, statusFilter, dateFilter, selectedAccount, user]);
+  }), [trades, searchTerm, statusFilter, dateFilter, selectedAccount]);
 
   if (loading) return (
     <main className="p-6 md:p-8 animate-pulse">
@@ -566,7 +563,10 @@ export default function HistoryPage() {
       <AutoOrderScanModal
         isOpen={isScanModalOpen}
         onClose={() => setIsScanModalOpen(false)}
-        onTradeSaved={(trade) => setTrades(prev => [trade, ...prev])}
+        onTradeSaved={(trade) => {
+          setTrades(prev => [trade, ...prev.filter(t => t.id !== trade.id)]);
+          refreshAccounts();
+        }}
       />
     </main>
   );
