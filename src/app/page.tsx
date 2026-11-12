@@ -180,7 +180,7 @@ export default function Dashboard() {
   const [isTradeModalOpen, setIsTradeModalOpen] = useState(false);
 
   const { t, language } = useLanguage();
-  const { selectedAccount, refreshAccounts } = useAccount();
+  const { selectedAccount, accounts, refreshAccounts } = useAccount();
   const { user } = useAuth();
 
   const reloadTrades = () => {
@@ -188,13 +188,17 @@ export default function Dashboard() {
   };
 
   const handleSaveTrade = async (trade: Trade) => {
+    const targetAccId = selectedAccount?.id || accounts[0]?.id || trade.accountId || 'acc-001';
     try {
-      await addOrUpdateTrade({ ...trade, accountId: trade.accountId || selectedAccount?.id || 'acc-001' });
+      const saved = await addOrUpdateTrade({ ...trade, accountId: targetAccId });
+      setTrades(prev => [saved, ...prev.filter(t => t.id !== saved.id)]);
       reloadTrades();
       refreshAccounts();
       setActiveTab('recent');
-    } catch (err) {
+      alert('บันทึกข้อมูลการเทรดสำเร็จเรียบร้อยแล้ว!');
+    } catch (err: any) {
       console.error('Error saving trade from dashboard:', err);
+      alert('เกิดข้อผิดพลาดในการบันทึก: ' + (err?.message || err));
     }
   };
 
@@ -222,10 +226,10 @@ export default function Dashboard() {
   // All trades for the selected account
   const rawAccountTrades = useMemo(
     () => trades.filter((t) => {
-      if (!selectedAccount) return true;
-      return t.accountId === selectedAccount.id || (!t.accountId && selectedAccount.id === 'acc-001') || (t.accountId === 'acc-1' && selectedAccount.id === 'acc-001');
+      if (!selectedAccount || accounts.length <= 1 || !t.accountId) return true;
+      return t.accountId === selectedAccount.id || t.accountId === 'acc-001' || t.accountId === 'acc-1';
     }),
-    [trades, selectedAccount?.id]
+    [trades, selectedAccount?.id, accounts.length]
   );
 
   // Unique instruments in this account for category filter pills
@@ -1335,13 +1339,13 @@ export default function Dashboard() {
                     <td className="px-5 py-3.5">
                       <span
                         className={`text-sm font-semibold ${
-                          (trade.financials.netPnL || 0) >= 0
+                          (trade.financials?.netPnL || 0) >= 0
                             ? 'text-win-600 dark:text-win-400'
                             : 'text-loss-600 dark:text-loss-400'
                         }`}
                       >
-                        {trade.financials.netPnL !== null ? (
-                          `${trade.financials.netPnL >= 0 ? '+' : ''}$${trade.financials.netPnL.toFixed(2)}`
+                        {trade.financials?.netPnL != null ? (
+                          `${trade.financials.netPnL >= 0 ? '+' : ''}$${Number(trade.financials.netPnL).toFixed(2)}`
                         ) : (
                           <span className="text-slate-400 dark:text-slate-600 font-normal">—</span>
                         )}
@@ -1350,7 +1354,7 @@ export default function Dashboard() {
                     <td className="px-5 py-3.5">
                       <span className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400">
                         <Calendar size={11} />
-                        {new Date(trade.entryDate).toLocaleDateString('en-US', {
+                        {new Date(trade.entryDate || Date.now()).toLocaleDateString('en-US', {
                           month: 'short',
                           day: 'numeric',
                           year: 'numeric',

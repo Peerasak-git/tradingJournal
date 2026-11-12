@@ -55,7 +55,7 @@ export default function HistoryPage() {
   const [isChecklistModalOpen, setIsChecklistModalOpen] = useState(false);
   const [isScanModalOpen, setIsScanModalOpen] = useState(false);
   const [selectedTrade, setSelectedTrade] = useState<Trade | null>(null);
-  const { selectedAccount, refreshAccounts } = useAccount();
+  const { selectedAccount, accounts, refreshAccounts } = useAccount();
   const { user } = useAuth();
   const [liveAsset, setLiveAsset] = useState(LIVE_ASSETS[0]);
   const [livePrice, setLivePrice] = useState<string | null>(null);
@@ -169,7 +169,8 @@ export default function HistoryPage() {
 
   const handleSaveTrade = async (trade: Trade) => {
     const isEditing = !!selectedTrade;
-    const tradeWithAccount = { ...trade, accountId: trade.accountId || selectedAccount?.id || 'acc-001' };
+    const targetAccId = selectedAccount?.id || accounts[0]?.id || trade.accountId || 'acc-001';
+    const tradeWithAccount = { ...trade, accountId: targetAccId };
 
     try {
       const saved = await addOrUpdateTrade(tradeWithAccount);
@@ -179,8 +180,10 @@ export default function HistoryPage() {
         setTrades(prev => [saved, ...prev.filter(t => t.id !== saved.id)]);
       }
       await refreshAccounts();
-    } catch (err) {
+      alert('บันทึกข้อมูลการเทรดสำเร็จเรียบร้อยแล้ว!');
+    } catch (err: any) {
       console.error('Error saving trade:', err);
+      alert('เกิดข้อผิดพลาดในการบันทึก: ' + (err?.message || err));
     }
   };
 
@@ -207,8 +210,8 @@ export default function HistoryPage() {
   };
 
   const filteredTrades = useMemo(() => trades.filter(t => {
-    const isSameAccount = selectedAccount 
-      ? (t.accountId === selectedAccount.id || (!t.accountId && selectedAccount.id === 'acc-001') || (t.accountId === 'acc-1' && selectedAccount.id === 'acc-001')) 
+    const isSameAccount = (selectedAccount && accounts.length > 1)
+      ? (t.accountId === selectedAccount.id || !t.accountId || t.accountId === 'acc-001' || t.accountId === 'acc-1') 
       : true;
     if (!isSameAccount) return false;
 
@@ -222,7 +225,7 @@ export default function HistoryPage() {
     const matchStatus = statusFilter === 'ALL' || t.status === statusFilter;
     const matchDate = !dateFilter || (t.entryDate && t.entryDate.startsWith(dateFilter));
     return matchSearch && matchStatus && matchDate;
-  }), [trades, searchTerm, statusFilter, dateFilter, selectedAccount]);
+  }), [trades, searchTerm, statusFilter, dateFilter, selectedAccount, accounts.length]);
 
   if (loading) return (
     <main className="p-6 md:p-8 animate-pulse">
@@ -413,43 +416,44 @@ export default function HistoryPage() {
                     </span>
                   </td>
                   <td className="px-5 py-4 font-mono text-sm font-bold text-slate-600 dark:text-slate-300">
-                    {trade.lotSize}
+                    {trade.lotSize ?? 0.01}
                   </td>
                   <td className="px-5 py-4 font-mono text-sm text-slate-700 dark:text-slate-300">
-                    {trade.entryPrice.toFixed(2)}
+                    {(Number(trade.entryPrice) || 0).toFixed(2)}
                   </td>
                   <td className="px-5 py-4 font-mono text-sm text-slate-700 dark:text-slate-300">
-                    {trade.exitPrice?.toFixed(2) ?? '—'}
+                    {trade.exitPrice != null ? (Number(trade.exitPrice) || 0).toFixed(2) : '—'}
                   </td>
                   <td className="px-5 py-4">
-                    {trade.analysis.strategy
+                    {trade.analysis?.strategy
                       ? <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-md">{trade.analysis.strategy}</span>
                       : <span className="text-slate-400 dark:text-slate-600">—</span>}
                   </td>
                   <td className="px-5 py-4">
-                    <StatusBadge status={trade.status} />
+                    <StatusBadge status={trade.status || 'OPEN'} />
                   </td>
                   <td className="px-5 py-4">
                     {(() => {
                       if (trade.status !== 'OPEN') {
+                        const pnl = trade.financials?.netPnL;
                         return (
-                          <span className={`font-black text-sm ${(trade.financials.netPnL || 0) >= 0 ? 'text-win-500 dark:text-win-400' : 'text-loss-500 dark:text-loss-400'}`}>
-                            {trade.financials.netPnL !== null
-                              ? `${trade.financials.netPnL >= 0 ? '+' : ''}$${trade.financials.netPnL.toFixed(2)}`
+                          <span className={`font-black text-sm ${(pnl || 0) >= 0 ? 'text-win-500 dark:text-win-400' : 'text-loss-500 dark:text-loss-400'}`}>
+                            {pnl != null
+                              ? `${pnl >= 0 ? '+' : ''}$${Number(pnl).toFixed(2)}`
                               : <span className="text-slate-400 dark:text-slate-600 font-normal">—</span>}
                           </span>
                         );
                       }
                       
                       // For OPEN trades, calculate floating PnL
-                      const symbol = getMappedSymbol(trade.instrument);
+                      const symbol = getMappedSymbol(trade.instrument || 'XAUUSD');
                       if (symbol && allPrices[symbol]) {
                         const currentPrice = allPrices[symbol];
-                        const diff = trade.direction === 'LONG' ? (currentPrice - trade.entryPrice) : (trade.entryPrice - currentPrice);
-                        const multiplier = getMultiplier(trade.instrument);
-                        const commission = trade.financials.commission || 0;
-                        const swap = trade.financials.swap || 0;
-                        const floatingPnL = (diff * trade.lotSize * multiplier) - (commission + swap);
+                        const diff = trade.direction === 'LONG' ? (currentPrice - (trade.entryPrice || 0)) : ((trade.entryPrice || 0) - currentPrice);
+                        const multiplier = getMultiplier(trade.instrument || 'XAUUSD');
+                        const commission = trade.financials?.commission || 0;
+                        const swap = trade.financials?.swap || 0;
+                        const floatingPnL = (diff * (trade.lotSize || 0.01) * multiplier) - (commission + swap);
                         
                         return (
                           <div className="flex flex-col">
@@ -466,19 +470,19 @@ export default function HistoryPage() {
                   </td>
                   <td className="px-5 py-4">
                     <span className={`text-xs font-bold ${
-                      (trade.analysis.actualRR ?? 0) > 0
+                      (trade.analysis?.actualRR ?? 0) > 0
                         ? 'text-win-500 dark:text-win-400'
-                        : (trade.analysis.actualRR ?? 0) < 0
+                        : (trade.analysis?.actualRR ?? 0) < 0
                         ? 'text-loss-500 dark:text-loss-400'
                         : 'text-slate-400 dark:text-slate-600'
                     }`}>
-                      {trade.analysis.actualRR !== null ? `${trade.analysis.actualRR}R` : '—'}
+                      {trade.analysis?.actualRR != null ? `${trade.analysis.actualRR}R` : '—'}
                     </span>
                   </td>
                   <td className="px-5 py-4">
                     <span className="flex items-center gap-1.5 text-xs text-slate-400 dark:text-slate-500 font-medium whitespace-nowrap">
                       <Calendar size={11} />
-                      {new Date(trade.entryDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                      {new Date(trade.entryDate || Date.now()).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                     </span>
                   </td>
                   <td className="px-5 py-4 text-right pr-6">

@@ -203,8 +203,8 @@ export default function TradeModal({ isOpen, onClose, onSave, initialData }: Tra
       });
     } else {
       setFormData({
-        accountId: selectedAccount?.id || 'acc-001',
-        instrument: '',
+        accountId: selectedAccount?.id || accounts[0]?.id || 'acc-001',
+        instrument: 'XAUUSD',
         direction: 'LONG',
         lotSize: 0.01,
         status: 'WIN',
@@ -226,7 +226,7 @@ export default function TradeModal({ isOpen, onClose, onSave, initialData }: Tra
         entryImage: '',
       });
     }
-  }, [initialData, isOpen, selectedAccount?.id]);
+  }, [initialData, isOpen, selectedAccount?.id, accounts]);
 
   // Helper for PnL Calculation
   const calculateEstimatedPnL = (inst: string, dir: Direction, entry: number, exit: number, lot: number) => {
@@ -277,6 +277,12 @@ export default function TradeModal({ isOpen, onClose, onSave, initialData }: Tra
     }
   };
 
+  const toValidIsoString = (val: string | null | undefined): string => {
+    if (!val || typeof val !== 'string' || !val.trim()) return new Date().toISOString();
+    const d = new Date(val);
+    return isNaN(d.getTime()) ? new Date().toISOString() : d.toISOString();
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -289,83 +295,95 @@ export default function TradeModal({ isOpen, onClose, onSave, initialData }: Tra
       }
     }
 
-    let finalNetPnL = formData.netPnL || 0;
-    if (formData.status === 'WIN' && finalNetPnL < 0) finalNetPnL = Math.abs(finalNetPnL);
-    if (formData.status === 'LOSS' && finalNetPnL > 0) finalNetPnL = -Math.abs(finalNetPnL);
-    if (formData.status === 'BREAK_EVEN') finalNetPnL = 0;
-    if (formData.status === 'OPEN') finalNetPnL = 0;
+    try {
+      let finalNetPnL = Number(formData.netPnL) || 0;
+      if (formData.status === 'WIN' && finalNetPnL < 0) finalNetPnL = Math.abs(finalNetPnL);
+      if (formData.status === 'LOSS' && finalNetPnL > 0) finalNetPnL = -Math.abs(finalNetPnL);
+      if (formData.status === 'BREAK_EVEN') finalNetPnL = 0;
+      if (formData.status === 'OPEN') finalNetPnL = 0;
 
-    const isLong = formData.direction === 'LONG';
-    const risk = isLong 
-      ? formData.entryPrice - formData.stopLoss 
-      : formData.stopLoss - formData.entryPrice;
-      
-    const plannedReward = isLong 
-      ? formData.takeProfit - formData.entryPrice 
-      : formData.entryPrice - formData.takeProfit;
-      
-    const plannedRR = risk > 0 && plannedReward > 0 
-      ? parseFloat((plannedReward / risk).toFixed(2)) 
-      : 0;
+      const isLong = formData.direction === 'LONG';
+      const entryPriceNum = Number(formData.entryPrice) || 0;
+      const stopLossNum = Number(formData.stopLoss) || 0;
+      const takeProfitNum = Number(formData.takeProfit) || 0;
+      const exitPriceNum = Number(formData.exitPrice) || 0;
 
-    const actualReward = isLong
-      ? formData.exitPrice - formData.entryPrice
-      : formData.entryPrice - formData.exitPrice;
-      
-    const actualRR = formData.status !== 'OPEN' && risk > 0 
-      ? parseFloat((actualReward / risk).toFixed(2))
-      : null;
+      const risk = isLong 
+        ? entryPriceNum - stopLossNum 
+        : stopLossNum - entryPriceNum;
+        
+      const plannedReward = isLong 
+        ? takeProfitNum - entryPriceNum 
+        : entryPriceNum - takeProfitNum;
+        
+      const plannedRR = risk > 0 && plannedReward > 0 
+        ? parseFloat((plannedReward / risk).toFixed(2)) 
+        : 0;
 
-    const targetAccountId = (formData.accountId && formData.accountId !== 'acc-1')
-      ? formData.accountId
-      : (initialData?.accountId && initialData.accountId !== 'acc-1' ? initialData.accountId : (selectedAccount?.id || 'acc-001'));
+      const actualReward = isLong
+        ? exitPriceNum - entryPriceNum
+        : entryPriceNum - exitPriceNum;
+        
+      const actualRR = formData.status !== 'OPEN' && risk > 0 
+        ? parseFloat((actualReward / risk).toFixed(2))
+        : null;
 
-    const finalExitDate = formData.status !== 'OPEN'
-      ? (formData.exitDate ? new Date(formData.exitDate).toISOString() : (initialData?.exitDate || new Date().toISOString()))
-      : null;
+      const targetAccountId = selectedAccount?.id || accounts[0]?.id || (formData.accountId && formData.accountId !== 'acc-1' ? formData.accountId : 'acc-001');
 
-    const finalExitPrice = formData.status === 'OPEN' ? null : (formData.exitPrice || 0);
+      const finalExitDate = formData.status !== 'OPEN'
+        ? toValidIsoString(formData.exitDate || initialData?.exitDate)
+        : null;
 
-    onSave({
-      ...initialData,
-      ...formData,
-      id: initialData ? initialData.id : Math.random().toString(36).substr(2, 9),
-      accountId: targetAccountId,
-      financials: {
-        ...(initialData ? initialData.financials : {
-          grossPnL: null,
-          commission: 0,
-          swap: 0,
-          currency: 'USD'
-        }),
-        netPnL: formData.status === 'OPEN' ? null : finalNetPnL,
-      },
-      analysis: {
-        timeframe: null,
-        ...(initialData ? initialData.analysis : {}),
-        strategy: formData.strategy,
-        plannedRR: plannedRR > 0 ? plannedRR : null,
-        actualRR: actualRR
-      },
-      notes: {
-        ...(initialData ? initialData.notes : {
-          entryImage: null,
-          exitImage: null
-        }),
-        preTrade: formData.preTrade,
-        duringTrade: formData.duringTrade,
-        postTrade: formData.postTrade,
-        detailedNotes: formData.notes,
-        selfAssessment: formData.selfAssessment > 0 ? formData.selfAssessment : null,
-        tradingViewUrl: formData.tradingViewUrl?.trim() || null,
-        exitTradingViewUrl: formData.exitTradingViewUrl?.trim() || null,
-        entryImage: formData.entryImage || formData.tradingViewUrl?.trim() || initialData?.notes?.entryImage || null,
-        exitImage: formData.exitTradingViewUrl?.trim() || initialData?.notes?.exitImage || null,
-      },
-      exitDate: finalExitDate,
-      exitPrice: finalExitPrice
-    });
-    onClose();
+      const finalEntryDate = toValidIsoString(formData.entryDate);
+      const finalInstrument = (formData.instrument && formData.instrument.trim()) ? formData.instrument.trim().toUpperCase() : 'XAUUSD';
+
+      onSave({
+        ...initialData,
+        ...formData,
+        id: initialData ? initialData.id : Math.random().toString(36).substr(2, 9),
+        accountId: targetAccountId,
+        instrument: finalInstrument,
+        entryPrice: entryPriceNum,
+        entryDate: finalEntryDate,
+        exitDate: finalExitDate,
+        exitPrice: formData.status === 'OPEN' ? null : exitPriceNum,
+        financials: {
+          ...(initialData ? initialData.financials : {
+            grossPnL: null,
+            commission: 0,
+            swap: 0,
+            currency: 'USD'
+          }),
+          netPnL: formData.status === 'OPEN' ? null : finalNetPnL,
+        },
+        analysis: {
+          timeframe: null,
+          ...(initialData ? initialData.analysis : {}),
+          strategy: formData.strategy,
+          plannedRR: plannedRR > 0 ? plannedRR : null,
+          actualRR: actualRR
+        },
+        notes: {
+          ...(initialData ? initialData.notes : {
+            entryImage: null,
+            exitImage: null
+          }),
+          preTrade: formData.preTrade,
+          duringTrade: formData.duringTrade,
+          postTrade: formData.postTrade,
+          detailedNotes: formData.notes,
+          selfAssessment: formData.selfAssessment > 0 ? formData.selfAssessment : null,
+          tradingViewUrl: formData.tradingViewUrl?.trim() || null,
+          exitTradingViewUrl: formData.exitTradingViewUrl?.trim() || null,
+          entryImage: formData.entryImage || formData.tradingViewUrl?.trim() || initialData?.notes?.entryImage || null,
+          exitImage: formData.exitTradingViewUrl?.trim() || initialData?.notes?.exitImage || null,
+        },
+      });
+      onClose();
+    } catch (err: any) {
+      console.error('Error during trade submission:', err);
+      alert('เกิดข้อผิดพลาดในการบันทึกข้อมูล: ' + (err?.message || err));
+    }
   };
 
   const inputClasses = "w-full bg-slate-50/80 dark:bg-slate-900/30 border border-slate-200/70 dark:border-white/[0.07] rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-slate-300/40 dark:focus:ring-slate-600/40 focus:border-slate-300 dark:focus:border-slate-600 transition-colors font-medium placeholder:text-slate-300 dark:placeholder:text-slate-600";
