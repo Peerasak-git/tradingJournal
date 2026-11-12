@@ -22,6 +22,140 @@ function isClient(): boolean {
   return typeof window !== 'undefined';
 }
 
+export async function compressBase64Image(
+  base64: string,
+  maxWidth = 800,
+  maxHeight = 800,
+  quality = 0.6
+): Promise<string> {
+  if (!base64 || typeof base64 !== 'string' || !base64.startsWith('data:image')) {
+    return base64;
+  }
+  // If already small (< 60KB), return as is
+  if (base64.length < 60000) return base64;
+
+  return new Promise((resolve) => {
+    try {
+      if (typeof window === 'undefined' || typeof Image === 'undefined') {
+        resolve(base64);
+        return;
+      }
+      const img = new Image();
+      img.onload = () => {
+        try {
+          let { width, height } = img;
+          if (width > maxWidth || height > maxHeight) {
+            if (width > height) {
+              height = Math.round((height * maxWidth) / width);
+              width = maxWidth;
+            } else {
+              width = Math.round((width * maxHeight) / height);
+              height = maxHeight;
+            }
+          }
+
+          const canvas = document.createElement('canvas');
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          if (!ctx) {
+            resolve(base64);
+            return;
+          }
+          ctx.drawImage(img, 0, 0, width, height);
+          const compressed = canvas.toDataURL('image/jpeg', quality);
+          resolve(compressed);
+        } catch {
+          resolve(base64);
+        }
+      };
+      img.onerror = () => resolve(base64);
+      img.src = base64;
+    } catch {
+      resolve(base64);
+    }
+  });
+}
+
+export function safeSetLocalStorage(key: string, value: string): void {
+  if (!isClient()) return;
+  try {
+    localStorage.setItem(key, value);
+  } catch (err: any) {
+    const isQuotaError = 
+      err?.name === 'QuotaExceededError' || 
+      err?.name === 'NS_ERROR_DOM_QUOTA_REACHED' ||
+      err?.code === 22 || 
+      err?.code === 1014 ||
+      (typeof err?.message === 'string' && (
+        err.message.toLowerCase().includes('quota') || 
+        err.message.toLowerCase().includes('exceeded')
+      ));
+
+    if (isQuotaError) {
+      console.warn('LocalStorage quota exceeded. Performing automatic cleanup...');
+      // 1. Remove duplicate and legacy un-scoped keys
+      try {
+        if (key !== KEYS.TRADES) localStorage.removeItem(KEYS.TRADES);
+        if (key !== KEYS.ACCOUNTS) localStorage.removeItem(KEYS.ACCOUNTS);
+        if (key !== KEYS.JOURNALS) localStorage.removeItem(KEYS.JOURNALS);
+        if (key !== KEYS.FINANCES) localStorage.removeItem(KEYS.FINANCES);
+        if (key !== KEYS.REVIEWS) localStorage.removeItem(KEYS.REVIEWS);
+      } catch {}
+
+      // 2. If it's trades, prune heavy base64 images from older trades
+      if (key.includes(KEYS.TRADES)) {
+        try {
+          const trades: Trade[] = JSON.parse(value);
+          const prunedTrades = trades.map((t, idx) => {
+            if (idx > 0 && t.notes) {
+              return {
+                ...t,
+                notes: {
+                  ...t.notes,
+                  entryImage: t.notes.entryImage?.startsWith('http') ? t.notes.entryImage : null,
+                  exitImage: t.notes.exitImage?.startsWith('http') ? t.notes.exitImage : null,
+                }
+              };
+            }
+            return t;
+          });
+
+          localStorage.setItem(key, JSON.stringify(prunedTrades));
+          console.info('Successfully saved trades after pruning older base64 screenshots');
+          return;
+        } catch (e2) {
+          // If still fails, strip all base64 screenshots
+          try {
+            const trades: Trade[] = JSON.parse(value);
+            const ultraPruned = trades.map(t => ({
+              ...t,
+              notes: t.notes ? {
+                ...t.notes,
+                entryImage: t.notes.entryImage?.startsWith('http') ? t.notes.entryImage : null,
+                exitImage: t.notes.exitImage?.startsWith('http') ? t.notes.exitImage : null,
+              } : t.notes
+            }));
+            localStorage.setItem(key, JSON.stringify(ultraPruned));
+            console.info('Successfully saved trades after stripping all base64 screenshots');
+            return;
+          } catch {}
+        }
+      }
+
+      // Try setting item once more after cleaning duplicate keys
+      try {
+        localStorage.setItem(key, value);
+        return;
+      } catch {}
+
+      throw err;
+    } else {
+      throw err;
+    }
+  }
+}
+
 export function getActiveUser(): User | null {
   if (!isClient()) return null;
   const local = localStorage.getItem(KEYS.USER);
@@ -119,7 +253,7 @@ export async function getTrades(): Promise<Trade[]> {
           return t;
         });
 
-        localStorage.setItem(localKey, JSON.stringify(merged));
+        safeSetLocalStorage(localKey, JSON.stringify(merged));
         return merged;
       }
     } catch (err) {
@@ -194,7 +328,7 @@ export function saveTrades(trades: Trade[]): void {
     ...t,
     userId: t.userId || currentUserId || undefined,
   }));
-  localStorage.setItem(getUserKey(KEYS.TRADES), JSON.stringify(stamped));
+  safeSetLocalStorage(getUserKey(KEYS.TRADES), JSON.stringify(stamped));
 
   const supabase = getSupabase();
   if (supabase) {
@@ -207,6 +341,14 @@ export async function addOrUpdateTrade(trade: Trade): Promise<Trade> {
   if (!trade.userId) {
     trade.userId = currentUserId;
   }
+
+  // Compress entryImage if large base64
+  if (trade.notes?.entryImage && trade.notes.entryImage.startsWith('data:image') && trade.notes.entryImage.length > 60000) {
+    try {
+      trade.notes.entryImage = await compressBase64Image(trade.notes.entryImage, 800, 800, 0.6);
+    } catch {}
+  }
+
   const trades = await getTrades();
   const index = trades.findIndex(t => t.id === trade.id);
   const accounts = await getAccounts();
@@ -226,7 +368,8 @@ export async function addOrUpdateTrade(trade: Trade): Promise<Trade> {
     // New trade
     trades.unshift(trade);
     if (accIndex !== -1 && trade.status !== 'OPEN' && trade.financials.netPnL != null) {
-      accounts[accIndex].balance = Number((accounts[accIndex].balance + trade.financials.netPnL).toFixed(2));
+      const currentBal = Number(accounts[accIndex].balance) || 0;
+      accounts[accIndex].balance = Number((currentBal + trade.financials.netPnL).toFixed(2));
       saveAccounts(accounts);
     }
   } else {
@@ -235,23 +378,22 @@ export async function addOrUpdateTrade(trade: Trade): Promise<Trade> {
     trades[index] = trade;
 
     if (accIndex !== -1) {
+      let bal = Number(accounts[accIndex].balance) || 0;
       if (oldTrade.status !== 'OPEN' && oldTrade.financials.netPnL != null) {
-        accounts[accIndex].balance = Number((accounts[accIndex].balance - oldTrade.financials.netPnL).toFixed(2));
+        bal = bal - oldTrade.financials.netPnL;
       }
       if (trade.status !== 'OPEN' && trade.financials.netPnL != null) {
-        accounts[accIndex].balance = Number((accounts[accIndex].balance + trade.financials.netPnL).toFixed(2));
+        bal = bal + trade.financials.netPnL;
       }
+      accounts[accIndex].balance = Number(bal.toFixed(2));
       saveAccounts(accounts);
     }
   }
 
-  // Save to local cache
+  // Save to local cache with automatic quota management
   if (isClient()) {
     const key = getUserKey(KEYS.TRADES);
-    localStorage.setItem(key, JSON.stringify(trades));
-    if (key !== KEYS.TRADES) {
-      localStorage.setItem(KEYS.TRADES, JSON.stringify(trades));
-    }
+    safeSetLocalStorage(key, JSON.stringify(trades));
     // Trigger global update events so all components and pages re-render immediately
     window.dispatchEvent(new Event('tradesUpdated'));
     window.dispatchEvent(new Event('accountsUpdated'));
@@ -294,7 +436,7 @@ export async function deleteTrade(id: string): Promise<boolean> {
   const filtered = trades.filter(t => t.id !== id);
 
   if (isClient()) {
-    localStorage.setItem(getUserKey(KEYS.TRADES), JSON.stringify(filtered));
+    safeSetLocalStorage(getUserKey(KEYS.TRADES), JSON.stringify(filtered));
     window.dispatchEvent(new Event('tradesUpdated'));
     window.dispatchEvent(new Event('accountsUpdated'));
   }

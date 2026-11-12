@@ -4,7 +4,7 @@ import { X, Save, TrendingUp, TrendingDown, Clock, Target, ShieldCheck, Info, Ba
 import { Direction, TradeStatus, Trade } from '@/types/trade';
 import { useLanguage } from '@/context/LanguageContext';
 import { useAccount } from '@/context/AccountContext';
-import { getTrades } from '@/lib/clientStorage';
+import { getTrades, compressBase64Image } from '@/lib/clientStorage';
 import { runClientOcr } from '@/lib/clientOcr';
 import { useEffect, useState, useRef } from 'react';
 
@@ -283,7 +283,7 @@ export default function TradeModal({ isOpen, onClose, onSave, initialData }: Tra
     return isNaN(d.getTime()) ? new Date().toISOString() : d.toISOString();
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     // Check if checklist is complete (only prompt if user is opening a trade)
@@ -337,6 +337,13 @@ export default function TradeModal({ isOpen, onClose, onSave, initialData }: Tra
       const finalEntryDate = toValidIsoString(formData.entryDate);
       const finalInstrument = (formData.instrument && formData.instrument.trim()) ? formData.instrument.trim().toUpperCase() : 'XAUUSD';
 
+      let cleanEntryImage = formData.entryImage || formData.tradingViewUrl?.trim() || initialData?.notes?.entryImage || null;
+      if (cleanEntryImage && cleanEntryImage.startsWith('data:image') && cleanEntryImage.length > 50000) {
+        try {
+          cleanEntryImage = await compressBase64Image(cleanEntryImage, 800, 800, 0.6);
+        } catch {}
+      }
+
       onSave({
         ...initialData,
         ...formData,
@@ -375,7 +382,7 @@ export default function TradeModal({ isOpen, onClose, onSave, initialData }: Tra
           selfAssessment: formData.selfAssessment > 0 ? formData.selfAssessment : null,
           tradingViewUrl: formData.tradingViewUrl?.trim() || null,
           exitTradingViewUrl: formData.exitTradingViewUrl?.trim() || null,
-          entryImage: formData.entryImage || formData.tradingViewUrl?.trim() || initialData?.notes?.entryImage || null,
+          entryImage: cleanEntryImage,
           exitImage: formData.exitTradingViewUrl?.trim() || initialData?.notes?.exitImage || null,
         },
       });

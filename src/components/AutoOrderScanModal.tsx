@@ -30,7 +30,7 @@ import { Trade, Direction, TradeStatus } from '@/types/trade';
 import { useAccount } from '@/context/AccountContext';
 import { useAuth } from '@/context/AuthContext';
 import { useLanguage } from '@/context/LanguageContext';
-import { addOrUpdateTrade } from '@/lib/clientStorage';
+import { addOrUpdateTrade, compressBase64Image } from '@/lib/clientStorage';
 import { runClientOcr } from '@/lib/clientOcr';
 
 interface AutoOrderScanModalProps {
@@ -172,7 +172,9 @@ export default function AutoOrderScanModal({
           duringTrade: null,
           postTrade: null,
           detailedNotes: tradeRaw.notes || (tradeRaw.ticket ? `Ticket #${tradeRaw.ticket}` : 'Auto-imported from order slip'),
-          entryImage: previewBase64 || null,
+          entryImage: previewBase64 && previewBase64.length > 50000 
+            ? await compressBase64Image(previewBase64, 800, 800, 0.6) 
+            : (previewBase64 || null),
           exitImage: null,
           tradingViewUrl: null,
           exitTradingViewUrl: null,
