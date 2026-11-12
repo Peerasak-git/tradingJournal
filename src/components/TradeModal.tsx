@@ -411,10 +411,18 @@ export default function TradeModal({ isOpen, onClose, onSave, initialData }: Tra
   };
 
   const handleSmartPasteInput = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const text = e.target.value;
-    setPasteText(text);
+    const rawVal = e.target.value;
+    const text = rawVal.trim();
+    setPasteText(rawVal);
     
     if (!text) return;
+
+    // Detect if pasted value is a Base64 image
+    if (text.startsWith('data:image') || (text.length > 100 && (text.startsWith('/9j/') || text.startsWith('iVBORw0KGgo')))) {
+      setPasteText('');
+      processBase64Image(text);
+      return;
+    }
 
     let entryPrice = formData.entryPrice;
     let stopLoss = formData.stopLoss;
@@ -538,21 +546,24 @@ export default function TradeModal({ isOpen, onClose, onSave, initialData }: Tra
     setTimeout(() => setScanStatusMessage(null), 8000);
   };
 
-  // When an image is pasted or uploaded -> Read directly from image using Client-side OCR
-  const processImage = async (file: File) => {
+  // Process any image directly from Base64 string
+  const processBase64Image = async (base64Input: string) => {
     try {
-      const base64 = await fileToBase64(file);
+      let cleanBase64 = base64Input.trim();
+      if (!cleanBase64.startsWith('data:image') && !cleanBase64.startsWith('http')) {
+        cleanBase64 = `data:image/jpeg;base64,${cleanBase64}`;
+      }
+
       setFormData(prev => ({
         ...prev,
-        entryImage: base64
+        entryImage: cleanBase64
       }));
-      setPendingImageFile(file);
 
       setIsOcrLoading(true);
-      setScanStatusMessage('⚡ กำลังอ่านข้อมูลจากรูปภาพ...');
+      setScanStatusMessage('⚡ กำลังอ่านข้อมูลจากรูปภาพ (Base64)...');
 
       try {
-        const extracted = await runClientOcr(file, (pct) => {
+        const extracted = await runClientOcr(cleanBase64, (pct) => {
           setScanStatusMessage(`⚡ กำลังอ่านข้อมูลจากรูปภาพ... (${pct}%)`);
         });
         applyExtractedData(extracted, 'Local OCR');
@@ -562,10 +573,23 @@ export default function TradeModal({ isOpen, onClose, onSave, initialData }: Tra
       }
     } catch (err: any) {
       console.error('Image load error:', err);
-      setScanStatusMessage(`⚠️ ไม่สามารถโหลดรูปภาพได้: ${err.message || 'โปรดลองใหม่อีกครั้ง'}`);
+      setScanStatusMessage(`⚠️ ไม่สามารถประมวลผลรูปภาพได้: ${err.message || 'โปรดลองใหม่อีกครั้ง'}`);
     } finally {
       setIsOcrLoading(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
+  // When an image file is pasted or uploaded -> Convert to Base64 first then extract
+  const processImage = async (file: File) => {
+    try {
+      const base64 = await fileToBase64(file);
+      setPendingImageFile(file);
+      await processBase64Image(base64);
+    } catch (err: any) {
+      console.error('Image load error:', err);
+      setScanStatusMessage(`⚠️ ไม่สามารถโหลดรูปภาพได้: ${err.message || 'โปรดลองใหม่อีกครั้ง'}`);
+      setIsOcrLoading(false);
     }
   };
 
@@ -628,15 +652,28 @@ export default function TradeModal({ isOpen, onClose, onSave, initialData }: Tra
   };
 
   const handleGlobalPaste = (e: React.ClipboardEvent) => {
-    const items = e.clipboardData.items;
-    for (let i = 0; i < items.length; i++) {
-      if (items[i].type.indexOf('image') !== -1) {
-        e.preventDefault();
-        const file = items[i].getAsFile();
-        if (file) {
-          processImage(file);
+    // 1. Check if clipboard has image file
+    const items = e.clipboardData?.items;
+    if (items) {
+      for (let i = 0; i < items.length; i++) {
+        if (items[i].type.indexOf('image') !== -1) {
+          e.preventDefault();
+          const file = items[i].getAsFile();
+          if (file) {
+            processImage(file);
+            return;
+          }
         }
-        break;
+      }
+    }
+
+    // 2. Check if clipboard has plain text that is Base64
+    const text = e.clipboardData?.getData('text')?.trim();
+    if (text) {
+      if (text.startsWith('data:image') || (text.length > 100 && (text.startsWith('/9j/') || text.startsWith('iVBORw0KGgo')))) {
+        e.preventDefault();
+        processBase64Image(text);
+        return;
       }
     }
   };

@@ -27,13 +27,24 @@ export async function POST(req: NextRequest) {
 
     // Extract mime type and pure base64 data
     let mimeType = 'image/png';
-    let cleanBase64 = imageBase64;
+    let cleanBase64 = String(imageBase64).trim();
 
-    const match = imageBase64.match(/^data:([a-zA-Z0-9]+\/[a-zA-Z0-9-.+]+);base64,(.+)$/);
+    const match = cleanBase64.match(/^data:([a-zA-Z0-9]+\/[a-zA-Z0-9-.+]+);base64,([\s\S]+)$/);
     if (match) {
       mimeType = match[1];
       cleanBase64 = match[2];
+    } else if (cleanBase64.startsWith('/9j/')) {
+      mimeType = 'image/jpeg';
+    } else if (cleanBase64.startsWith('iVBORw0KGgo')) {
+      mimeType = 'image/png';
+    } else if (cleanBase64.startsWith('R0lGOD')) {
+      mimeType = 'image/gif';
+    } else if (cleanBase64.startsWith('UklGR')) {
+      mimeType = 'image/webp';
     }
+
+    // Strip all whitespaces, line breaks, carriage returns from base64 string
+    cleanBase64 = cleanBase64.replace(/\s+/g, '');
 
     const promptText = `
 You are an expert AI trading assistant specializing in financial trade slip OCR and TradingView chart analysis.

@@ -82,18 +82,26 @@ export default function AutoOrderScanModal({
     if (!isOpen) return;
 
     const handlePaste = (e: ClipboardEvent) => {
+      // 1. Check if clipboard has image file
       const items = e.clipboardData?.items;
-      if (!items) return;
-
-      for (let i = 0; i < items.length; i++) {
-        if (items[i].type.indexOf('image') !== -1) {
-          e.preventDefault();
-          const file = items[i].getAsFile();
-          if (file) {
-            handleSelectedFile(file);
+      if (items) {
+        for (let i = 0; i < items.length; i++) {
+          if (items[i].type.indexOf('image') !== -1) {
+            e.preventDefault();
+            const file = items[i].getAsFile();
+            if (file) {
+              handleSelectedFile(file);
+              return;
+            }
           }
-          break;
         }
+      }
+
+      // 2. Check if clipboard has Base64 text
+      const text = e.clipboardData?.getData('text')?.trim();
+      if (text && (text.startsWith('data:image') || (text.length > 100 && (text.startsWith('/9j/') || text.startsWith('iVBORw0KGgo'))))) {
+        e.preventDefault();
+        processBase64Scan(text);
       }
     };
 
@@ -231,21 +239,25 @@ export default function AutoOrderScanModal({
     return json.data;
   };
 
-  const processImageScan = async (file: File, overrideKey?: string) => {
+  const processBase64Scan = async (base64Input: string, overrideKey?: string) => {
     try {
       setIsScanning(true);
       setErrorMessage('');
       setSavedSuccess(false);
 
-      const base64 = await fileToBase64(file);
-      setImagePreview(base64);
+      let cleanBase64 = base64Input.trim();
+      if (!cleanBase64.startsWith('data:image') && !cleanBase64.startsWith('http')) {
+        cleanBase64 = `data:image/jpeg;base64,${cleanBase64}`;
+      }
+
+      setImagePreview(cleanBase64);
 
       let extractedData: any = null;
 
       if (scanEngine === 'local') {
-        extractedData = await processWithLocalOcr(base64);
+        extractedData = await processWithLocalOcr(cleanBase64);
       } else {
-        extractedData = await processWithAi(base64, overrideKey);
+        extractedData = await processWithAi(cleanBase64, overrideKey);
       }
 
       setScannedTrade(extractedData);
@@ -254,7 +266,7 @@ export default function AutoOrderScanModal({
       // If Auto-Save is enabled, automatically save to database immediately!
       if (autoSaveEnabled) {
         setStatusMessage('⚡ กำลังเพิ่มข้อมูลเข้าพอร์ตอัตโนมัติ...');
-        await saveTradeToDatabase(extractedData, base64);
+        await saveTradeToDatabase(extractedData, cleanBase64);
         setStatusMessage('🎉 บันทึกออเดอร์เข้าพอร์ตเรียบร้อยแล้ว!');
       }
     } catch (err: any) {
@@ -262,11 +274,14 @@ export default function AutoOrderScanModal({
       // As a last-ditch effort, try local OCR if not already tried
       if (scanEngine === 'ai') {
         try {
-          const base64 = await fileToBase64(file);
-          const fallbackData = await processWithLocalOcr(base64);
+          let cleanBase64 = base64Input.trim();
+          if (!cleanBase64.startsWith('data:image') && !cleanBase64.startsWith('http')) {
+            cleanBase64 = `data:image/jpeg;base64,${cleanBase64}`;
+          }
+          const fallbackData = await processWithLocalOcr(cleanBase64);
           setScannedTrade(fallbackData);
           if (autoSaveEnabled) {
-            await saveTradeToDatabase(fallbackData, base64);
+            await saveTradeToDatabase(fallbackData, cleanBase64);
           }
           return;
         } catch {}
@@ -274,6 +289,16 @@ export default function AutoOrderScanModal({
       setErrorMessage(err.message || 'เกิดข้อผิดพลาดในการประมวลผลรูปภาพ');
     } finally {
       setIsScanning(false);
+    }
+  };
+
+  const processImageScan = async (file: File, overrideKey?: string) => {
+    try {
+      const base64 = await fileToBase64(file);
+      await processBase64Scan(base64, overrideKey);
+    } catch (err: any) {
+      console.error('File read error:', err);
+      setErrorMessage(err.message || 'เกิดข้อผิดพลาดในการอ่านไฟล์รูปภาพ');
     }
   };
 
@@ -420,33 +445,51 @@ export default function AutoOrderScanModal({
 
           {/* Upload Dropzone */}
           {!imagePreview && (
-            <div
-              onDrop={handleDrop}
-              onDragOver={(e) => e.preventDefault()}
-              onClick={() => fileInputRef.current?.click()}
-              className="border-2 border-dashed border-slate-300 dark:border-white/[0.12] hover:border-emerald-500 dark:hover:border-emerald-400 rounded-2xl p-8 text-center cursor-pointer transition-all bg-slate-50/50 dark:bg-white/[0.01] hover:bg-emerald-50/20 dark:hover:bg-emerald-950/10 group flex flex-col items-center justify-center gap-3"
-            >
-              <input
-                type="file"
-                ref={fileInputRef}
-                onChange={handleFileInputChange}
-                accept="image/*"
-                className="hidden"
-              />
-              <div className="w-14 h-14 rounded-2xl bg-emerald-100 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center group-hover:scale-110 transition-transform">
-                <UploadCloud size={28} />
+            <div className="space-y-3">
+              <div
+                onDrop={handleDrop}
+                onDragOver={(e) => e.preventDefault()}
+                onClick={() => fileInputRef.current?.click()}
+                className="border-2 border-dashed border-slate-300 dark:border-white/[0.12] hover:border-emerald-500 dark:hover:border-emerald-400 rounded-2xl p-8 text-center cursor-pointer transition-all bg-slate-50/50 dark:bg-white/[0.01] hover:bg-emerald-50/20 dark:hover:bg-emerald-950/10 group flex flex-col items-center justify-center gap-3"
+              >
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  onChange={handleFileInputChange}
+                  accept="image/*"
+                  className="hidden"
+                />
+                <div className="w-14 h-14 rounded-2xl bg-emerald-100 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center group-hover:scale-110 transition-transform">
+                  <UploadCloud size={28} />
+                </div>
+                <div>
+                  <p className="text-sm font-bold text-slate-800 dark:text-slate-200">
+                    {language === 'th'
+                      ? 'คลิกเพื่อเลือกรูปสลิป หรือลากไฟล์มาวางที่นี่'
+                      : 'Click to upload or drag and drop order slip here'}
+                  </p>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                    {language === 'th'
+                      ? '💡 หรือกดปุ่ม Ctrl + V (Cmd + V) เพื่อวางรูปภาพ หรือข้อความ Base64 ได้ทันที'
+                      : '💡 Or press Ctrl + V (Cmd + V) to paste screenshot or Base64 directly'}
+                  </p>
+                </div>
               </div>
-              <div>
-                <p className="text-sm font-bold text-slate-800 dark:text-slate-200">
-                  {language === 'th'
-                    ? 'คลิกเพื่อเลือกรูปสลิป หรือลากไฟล์มาวางที่นี่'
-                    : 'Click to upload or drag and drop order slip here'}
-                </p>
-                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                  {language === 'th'
-                    ? '💡 หรือกดปุ่ม Ctrl + V (Cmd + V) เพื่อวางรูปภาพสลิปจากคลิปบอร์ดได้ทันที'
-                    : '💡 Or press Ctrl + V (Cmd + V) to paste screenshot directly'}
-                </p>
+
+              {/* Direct Base64 paste input */}
+              <div className="flex items-center gap-2">
+                <input
+                  type="text"
+                  placeholder={language === 'th' ? 'หรือวางโค้ด Base64 ของรูปภาพที่นี่ (data:image/...)...' : 'Or paste image Base64 code here...'}
+                  className="w-full bg-slate-50 dark:bg-white/[0.04] border border-slate-200/70 dark:border-white/[0.07] rounded-xl px-4 py-2.5 text-xs text-slate-700 dark:text-slate-300 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/40"
+                  onChange={(e) => {
+                    const val = e.target.value.trim();
+                    if (val.startsWith('data:image') || (val.length > 100 && (val.startsWith('/9j/') || val.startsWith('iVBORw0KGgo')))) {
+                      e.target.value = '';
+                      processBase64Scan(val);
+                    }
+                  }}
+                />
               </div>
             </div>
           )}
