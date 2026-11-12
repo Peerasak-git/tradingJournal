@@ -35,7 +35,9 @@ export function AccountProvider({ children }: { children: React.ReactNode }) {
       if (found) {
         setSelectedAccountState(found);
         if (typeof window !== 'undefined') {
-          localStorage.setItem(storageKey, found.id);
+          try {
+            localStorage.setItem(storageKey, found.id);
+          } catch {}
         }
       } else {
         setSelectedAccountState(data[0] || null);
@@ -68,7 +70,9 @@ export function AccountProvider({ children }: { children: React.ReactNode }) {
   const setSelectedAccount = (account: Account) => {
     setSelectedAccountState(account);
     if (user && typeof window !== 'undefined') {
-      localStorage.setItem(`selectedAccountId_${user.id}`, account.id);
+      try {
+        localStorage.setItem(`selectedAccountId_${user.id}`, account.id);
+      } catch {}
     }
   };
 

@@ -179,7 +179,7 @@ export default function HistoryPage() {
       } else {
         setTrades(prev => [saved, ...prev.filter(t => t.id !== saved.id)]);
       }
-      await refreshAccounts();
+      refreshAccounts().catch(console.error);
       alert('บันทึกข้อมูลการเทรดสำเร็จเรียบร้อยแล้ว!');
     } catch (err: any) {
       console.error('Error saving trade:', err);

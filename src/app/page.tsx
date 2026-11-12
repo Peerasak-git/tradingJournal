@@ -193,7 +193,7 @@ export default function Dashboard() {
       const saved = await addOrUpdateTrade({ ...trade, accountId: targetAccId });
       setTrades(prev => [saved, ...prev.filter(t => t.id !== saved.id)]);
       reloadTrades();
-      refreshAccounts();
+      refreshAccounts().catch(console.error);
       setActiveTab('recent');
       alert('บันทึกข้อมูลการเทรดสำเร็จเรียบร้อยแล้ว!');
     } catch (err: any) {

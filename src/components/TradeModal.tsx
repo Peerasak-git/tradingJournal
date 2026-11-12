@@ -338,9 +338,16 @@ export default function TradeModal({ isOpen, onClose, onSave, initialData }: Tra
       const finalInstrument = (formData.instrument && formData.instrument.trim()) ? formData.instrument.trim().toUpperCase() : 'XAUUSD';
 
       let cleanEntryImage = formData.entryImage || formData.tradingViewUrl?.trim() || initialData?.notes?.entryImage || null;
-      if (cleanEntryImage && cleanEntryImage.startsWith('data:image') && cleanEntryImage.length > 50000) {
+      if (cleanEntryImage && cleanEntryImage.startsWith('data:image')) {
         try {
-          cleanEntryImage = await compressBase64Image(cleanEntryImage, 800, 800, 0.6);
+          cleanEntryImage = await compressBase64Image(cleanEntryImage, 600, 600, 0.5);
+        } catch {}
+      }
+
+      let cleanExitImage = formData.exitTradingViewUrl?.trim() || initialData?.notes?.exitImage || null;
+      if (cleanExitImage && cleanExitImage.startsWith('data:image')) {
+        try {
+          cleanExitImage = await compressBase64Image(cleanExitImage, 600, 600, 0.5);
         } catch {}
       }
 
@@ -383,7 +390,7 @@ export default function TradeModal({ isOpen, onClose, onSave, initialData }: Tra
           tradingViewUrl: formData.tradingViewUrl?.trim() || null,
           exitTradingViewUrl: formData.exitTradingViewUrl?.trim() || null,
           entryImage: cleanEntryImage,
-          exitImage: formData.exitTradingViewUrl?.trim() || initialData?.notes?.exitImage || null,
+          exitImage: cleanExitImage,
         },
       });
       onClose();

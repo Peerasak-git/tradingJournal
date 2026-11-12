@@ -22,17 +22,94 @@ function isClient(): boolean {
   return typeof window !== 'undefined';
 }
 
+export function cleanupLocalStorageQuota(): void {
+  if (!isClient()) return;
+  try {
+    const keysToCleanTrades: string[] = [];
+    const keysToRemove: string[] = [];
+
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (!k) continue;
+
+      if (k.includes('trades')) {
+        keysToCleanTrades.push(k);
+      } else if (k === 'trading_journal_trades' || k === 'trading_journal_accounts') {
+        keysToRemove.push(k);
+      }
+    }
+
+    // Clean duplicate legacy keys
+    keysToRemove.forEach(k => {
+      try { localStorage.removeItem(k); } catch {}
+    });
+
+    // Clean base64 images from all trade keys in localStorage
+    for (const k of keysToCleanTrades) {
+      try {
+        const raw = localStorage.getItem(k);
+        if (!raw || !raw.includes('data:image')) continue;
+        const trades = JSON.parse(raw);
+        if (Array.isArray(trades)) {
+          let modified = false;
+          const cleaned = trades.map((t: any) => {
+            if (t?.notes?.entryImage?.startsWith('data:image') || t?.notes?.exitImage?.startsWith('data:image')) {
+              modified = true;
+              return {
+                ...t,
+                notes: {
+                  ...t.notes,
+                  entryImage: t.notes.entryImage?.startsWith('http') ? t.notes.entryImage : null,
+                  exitImage: t.notes.exitImage?.startsWith('http') ? t.notes.exitImage : null,
+                }
+              };
+            }
+            return t;
+          });
+          if (modified) {
+            try {
+              localStorage.setItem(k, JSON.stringify(cleaned));
+              console.info(`Pruned base64 images from ${k} to free localStorage`);
+            } catch {}
+          }
+        }
+      } catch {}
+    }
+
+    // Remove legacy un-scoped keys if scoped keys exist
+    const currentUserId = getActiveUserId();
+    if (currentUserId) {
+      const baseKeys = [KEYS.TRADES, KEYS.ACCOUNTS, KEYS.JOURNALS, KEYS.FINANCES, KEYS.REVIEWS];
+      for (const bk of baseKeys) {
+        const scopedKey = `${bk}_${currentUserId}`;
+        if (localStorage.getItem(scopedKey)) {
+          try { localStorage.removeItem(bk); } catch {}
+        }
+      }
+    }
+  } catch (err) {
+    console.warn('cleanupLocalStorageQuota error:', err);
+  }
+}
+
+// Immediately run cleanup in client environment
+if (isClient()) {
+  try {
+    cleanupLocalStorageQuota();
+  } catch {}
+}
+
 export async function compressBase64Image(
   base64: string,
-  maxWidth = 800,
-  maxHeight = 800,
-  quality = 0.6
+  maxWidth = 600,
+  maxHeight = 600,
+  quality = 0.5
 ): Promise<string> {
   if (!base64 || typeof base64 !== 'string' || !base64.startsWith('data:image')) {
     return base64;
   }
-  // If already small (< 60KB), return as is
-  if (base64.length < 60000) return base64;
+  // If already small (< 30KB), return as is
+  if (base64.length < 30000) return base64;
 
   return new Promise((resolve) => {
     try {
@@ -81,78 +158,67 @@ export function safeSetLocalStorage(key: string, value: string): void {
   if (!isClient()) return;
   try {
     localStorage.setItem(key, value);
+    return;
   } catch (err: any) {
-    const isQuotaError = 
-      err?.name === 'QuotaExceededError' || 
-      err?.name === 'NS_ERROR_DOM_QUOTA_REACHED' ||
-      err?.code === 22 || 
-      err?.code === 1014 ||
-      (typeof err?.message === 'string' && (
-        err.message.toLowerCase().includes('quota') || 
-        err.message.toLowerCase().includes('exceeded')
-      ));
+    console.warn(`safeSetLocalStorage caught error on key "${key}", performing cleanup:`, err?.message || err);
 
-    if (isQuotaError) {
-      console.warn('LocalStorage quota exceeded. Performing automatic cleanup...');
-      // 1. Remove duplicate and legacy un-scoped keys
+    // 1. Run global cleanup on all existing localStorage keys
+    try {
+      cleanupLocalStorageQuota();
+    } catch {}
+
+    // 2. If value being saved has large base64 images, strip them
+    let safeValue = value;
+    if (value.includes('data:image')) {
       try {
-        if (key !== KEYS.TRADES) localStorage.removeItem(KEYS.TRADES);
-        if (key !== KEYS.ACCOUNTS) localStorage.removeItem(KEYS.ACCOUNTS);
-        if (key !== KEYS.JOURNALS) localStorage.removeItem(KEYS.JOURNALS);
-        if (key !== KEYS.FINANCES) localStorage.removeItem(KEYS.FINANCES);
-        if (key !== KEYS.REVIEWS) localStorage.removeItem(KEYS.REVIEWS);
-      } catch {}
-
-      // 2. If it's trades, prune heavy base64 images from older trades
-      if (key.includes(KEYS.TRADES)) {
-        try {
-          const trades: Trade[] = JSON.parse(value);
-          const prunedTrades = trades.map((t, idx) => {
-            if (idx > 0 && t.notes) {
+        const parsed = JSON.parse(value);
+        if (Array.isArray(parsed)) {
+          const stripped = parsed.map((item: any) => {
+            if (item?.notes) {
               return {
-                ...t,
+                ...item,
                 notes: {
-                  ...t.notes,
-                  entryImage: t.notes.entryImage?.startsWith('http') ? t.notes.entryImage : null,
-                  exitImage: t.notes.exitImage?.startsWith('http') ? t.notes.exitImage : null,
+                  ...item.notes,
+                  entryImage: item.notes.entryImage?.startsWith('http') ? item.notes.entryImage : null,
+                  exitImage: item.notes.exitImage?.startsWith('http') ? item.notes.exitImage : null,
                 }
               };
             }
-            return t;
+            return item;
           });
+          safeValue = JSON.stringify(stripped);
+        }
+      } catch {}
+    }
 
-          localStorage.setItem(key, JSON.stringify(prunedTrades));
-          console.info('Successfully saved trades after pruning older base64 screenshots');
-          return;
-        } catch (e2) {
-          // If still fails, strip all base64 screenshots
-          try {
-            const trades: Trade[] = JSON.parse(value);
-            const ultraPruned = trades.map(t => ({
-              ...t,
-              notes: t.notes ? {
-                ...t.notes,
-                entryImage: t.notes.entryImage?.startsWith('http') ? t.notes.entryImage : null,
-                exitImage: t.notes.exitImage?.startsWith('http') ? t.notes.exitImage : null,
-              } : t.notes
-            }));
-            localStorage.setItem(key, JSON.stringify(ultraPruned));
-            console.info('Successfully saved trades after stripping all base64 screenshots');
-            return;
-          } catch {}
+    // 3. Try saving again with safeValue
+    try {
+      localStorage.setItem(key, safeValue);
+      console.info(`safeSetLocalStorage successfully saved key "${key}" after pruning`);
+      return;
+    } catch {}
+
+    // 4. Try clearing non-essential caches (journals, finances, reviews) and saving again
+    try {
+      const keysToPurge: string[] = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (k && k !== key && (k.includes('journal') || k.includes('finance') || k.includes('review'))) {
+          keysToPurge.push(k);
         }
       }
+      keysToPurge.forEach(k => {
+        try { localStorage.removeItem(k); } catch {}
+      });
+      localStorage.setItem(key, safeValue);
+      console.info(`safeSetLocalStorage successfully saved key "${key}" after purging secondary caches`);
+      return;
+    } catch {}
 
-      // Try setting item once more after cleaning duplicate keys
-      try {
-        localStorage.setItem(key, value);
-        return;
-      } catch {}
-
-      throw err;
-    } else {
-      throw err;
-    }
+    // 5. Final fallback: NEVER throw QuotaExceededError.
+    // LocalStorage is an offline cache. Data is stored in Supabase and memory state.
+    console.warn(`safeSetLocalStorage: unable to save "${key}" to localStorage due to browser quota; continuing safely.`);
+    return;
   }
 }
 
@@ -289,7 +355,7 @@ export async function getTrades(): Promise<Trade[]> {
         let parsed: Trade[] = JSON.parse(rawLocal);
         parsed = parsed.map(t => ({ ...t, userId: currentUserId }));
         if (parsed.length > 0) {
-          localStorage.setItem(getUserKey(KEYS.TRADES), JSON.stringify(parsed));
+          safeSetLocalStorage(getUserKey(KEYS.TRADES), JSON.stringify(parsed));
           if (supabase) syncTradesToSupabase(parsed).catch(console.error);
           return parsed;
         }
@@ -306,10 +372,10 @@ export async function getTrades(): Promise<Trade[]> {
         let trades: Trade[] = data.trades || [];
         if (currentUserId && isTargetAdmin) {
           trades = trades.map(t => ({ ...t, userId: currentUserId }));
-          localStorage.setItem(getUserKey(KEYS.TRADES), JSON.stringify(trades));
+          safeSetLocalStorage(getUserKey(KEYS.TRADES), JSON.stringify(trades));
           if (supabase) syncTradesToSupabase(trades).catch(console.error);
         } else {
-          localStorage.setItem(KEYS.TRADES, JSON.stringify(trades));
+          safeSetLocalStorage(KEYS.TRADES, JSON.stringify(trades));
         }
         return trades;
       }
@@ -530,7 +596,7 @@ export async function getAccounts(): Promise<Account[]> {
           }
 
           if (claimed || accounts.length > 0) {
-            localStorage.setItem(getUserKey(KEYS.ACCOUNTS), JSON.stringify(accounts));
+            safeSetLocalStorage(getUserKey(KEYS.ACCOUNTS), JSON.stringify(accounts));
             syncAccountsToSupabase(accounts).catch(console.error);
             if (accounts.length > 0) return accounts;
           }
@@ -558,7 +624,7 @@ export async function getAccounts(): Promise<Account[]> {
         }
 
         if (accounts.length > 0) {
-          localStorage.setItem(getUserKey(KEYS.ACCOUNTS), JSON.stringify(accounts));
+          safeSetLocalStorage(getUserKey(KEYS.ACCOUNTS), JSON.stringify(accounts));
           return accounts;
         }
       }
@@ -598,7 +664,7 @@ export async function getAccounts(): Promise<Account[]> {
           parsed = parsed.filter(a => a.id === 'acc-001' || a.id === 'acc-002' || a.balance !== 10000);
         }
         if (parsed.length > 0) {
-          localStorage.setItem(getUserKey(KEYS.ACCOUNTS), JSON.stringify(parsed));
+          safeSetLocalStorage(getUserKey(KEYS.ACCOUNTS), JSON.stringify(parsed));
           if (supabase) syncAccountsToSupabase(parsed).catch(console.error);
           return parsed;
         }
@@ -615,7 +681,7 @@ export async function getAccounts(): Promise<Account[]> {
         let accounts: Account[] = data.accounts || [];
         if (currentUserId && isTargetAdmin) {
           accounts = accounts.map(a => ({ ...a, userId: currentUserId }));
-          localStorage.setItem(getUserKey(KEYS.ACCOUNTS), JSON.stringify(accounts));
+          safeSetLocalStorage(getUserKey(KEYS.ACCOUNTS), JSON.stringify(accounts));
           if (supabase) syncAccountsToSupabase(accounts).catch(console.error);
         }
         return accounts;
@@ -637,7 +703,7 @@ export async function getAccounts(): Promise<Account[]> {
       createdAt: new Date().toISOString(),
     };
     const newAccs = [defaultAcc];
-    localStorage.setItem(getUserKey(KEYS.ACCOUNTS), JSON.stringify(newAccs));
+    safeSetLocalStorage(getUserKey(KEYS.ACCOUNTS), JSON.stringify(newAccs));
     if (supabase) {
       syncAccountsToSupabase(newAccs).catch(console.error);
     }
@@ -654,7 +720,7 @@ export function saveAccounts(accounts: Account[]): void {
     ...a,
     userId: a.userId || currentUserId || '',
   }));
-  localStorage.setItem(getUserKey(KEYS.ACCOUNTS), JSON.stringify(stamped));
+  safeSetLocalStorage(getUserKey(KEYS.ACCOUNTS), JSON.stringify(stamped));
 
   const supabase = getSupabase();
   if (supabase) {
@@ -753,7 +819,7 @@ export async function getJournals(): Promise<JournalEntry[]> {
           }).filter(j => j.userId === currentUserId);
 
           if (claimed || journals.length > 0) {
-            localStorage.setItem(getUserKey(KEYS.JOURNALS), JSON.stringify(journals));
+            safeSetLocalStorage(getUserKey(KEYS.JOURNALS), JSON.stringify(journals));
             if (claimed) syncJournalsToSupabase(journals).catch(console.error);
             if (journals.length > 0) return journals;
           }
@@ -764,7 +830,7 @@ export async function getJournals(): Promise<JournalEntry[]> {
         }
 
         if (journals.length > 0) {
-          localStorage.setItem(getUserKey(KEYS.JOURNALS), JSON.stringify(journals));
+          safeSetLocalStorage(getUserKey(KEYS.JOURNALS), JSON.stringify(journals));
           return journals;
         }
       }
@@ -799,7 +865,7 @@ export async function getJournals(): Promise<JournalEntry[]> {
         let parsed: JournalEntry[] = JSON.parse(rawLocal);
         parsed = parsed.map(j => ({ ...j, userId: currentUserId }));
         if (parsed.length > 0) {
-          localStorage.setItem(getUserKey(KEYS.JOURNALS), JSON.stringify(parsed));
+          safeSetLocalStorage(getUserKey(KEYS.JOURNALS), JSON.stringify(parsed));
           if (supabase) syncJournalsToSupabase(parsed).catch(console.error);
           return parsed;
         }
@@ -815,12 +881,12 @@ export async function getJournals(): Promise<JournalEntry[]> {
         let journals: JournalEntry[] = data.journals || [];
         if (currentUserId && isTargetAdmin) {
           journals = journals.map(j => ({ ...j, userId: currentUserId }));
-          localStorage.setItem(getUserKey(KEYS.JOURNALS), JSON.stringify(journals));
+          safeSetLocalStorage(getUserKey(KEYS.JOURNALS), JSON.stringify(journals));
           if (supabase && journals.length > 0) {
             syncJournalsToSupabase(journals).catch(console.error);
           }
         } else {
-          localStorage.setItem(KEYS.JOURNALS, JSON.stringify(journals));
+          safeSetLocalStorage(KEYS.JOURNALS, JSON.stringify(journals));
           if (supabase && journals.length > 0) {
             syncJournalsToSupabase(journals).catch(console.error);
           }
@@ -841,7 +907,7 @@ export function saveJournals(journals: JournalEntry[]): void {
     ...j,
     userId: j.userId || currentUserId || undefined,
   }));
-  localStorage.setItem(getUserKey(KEYS.JOURNALS), JSON.stringify(stamped));
+  safeSetLocalStorage(getUserKey(KEYS.JOURNALS), JSON.stringify(stamped));
 
   const supabase = getSupabase();
   if (supabase) {
@@ -931,7 +997,7 @@ export async function getFinances(): Promise<FinanceEntry[]> {
           }).filter(f => f.userId === currentUserId);
 
           if (claimed || finances.length > 0) {
-            localStorage.setItem(getUserKey(KEYS.FINANCES), JSON.stringify(finances));
+            safeSetLocalStorage(getUserKey(KEYS.FINANCES), JSON.stringify(finances));
             if (claimed) syncFinancesToSupabase(finances).catch(console.error);
             if (finances.length > 0) return finances;
           }
@@ -942,7 +1008,7 @@ export async function getFinances(): Promise<FinanceEntry[]> {
         }
 
         if (finances.length > 0) {
-          localStorage.setItem(getUserKey(KEYS.FINANCES), JSON.stringify(finances));
+          safeSetLocalStorage(getUserKey(KEYS.FINANCES), JSON.stringify(finances));
           return finances;
         }
       }
@@ -977,7 +1043,7 @@ export async function getFinances(): Promise<FinanceEntry[]> {
         let parsed: FinanceEntry[] = JSON.parse(rawLocal);
         parsed = parsed.map(f => ({ ...f, userId: currentUserId }));
         if (parsed.length > 0) {
-          localStorage.setItem(getUserKey(KEYS.FINANCES), JSON.stringify(parsed));
+          safeSetLocalStorage(getUserKey(KEYS.FINANCES), JSON.stringify(parsed));
           if (supabase) syncFinancesToSupabase(parsed).catch(console.error);
           return parsed;
         }
@@ -993,12 +1059,12 @@ export async function getFinances(): Promise<FinanceEntry[]> {
         let finances: FinanceEntry[] = data.finances || [];
         if (currentUserId && isTargetAdmin) {
           finances = finances.map(f => ({ ...f, userId: currentUserId }));
-          localStorage.setItem(getUserKey(KEYS.FINANCES), JSON.stringify(finances));
+          safeSetLocalStorage(getUserKey(KEYS.FINANCES), JSON.stringify(finances));
           if (supabase && finances.length > 0) {
             syncFinancesToSupabase(finances).catch(console.error);
           }
         } else {
-          localStorage.setItem(KEYS.FINANCES, JSON.stringify(finances));
+          safeSetLocalStorage(KEYS.FINANCES, JSON.stringify(finances));
           if (supabase && finances.length > 0) {
             syncFinancesToSupabase(finances).catch(console.error);
           }
@@ -1019,7 +1085,7 @@ export function saveFinances(finances: FinanceEntry[]): void {
     ...f,
     userId: f.userId || currentUserId || undefined,
   }));
-  localStorage.setItem(getUserKey(KEYS.FINANCES), JSON.stringify(stamped));
+  safeSetLocalStorage(getUserKey(KEYS.FINANCES), JSON.stringify(stamped));
 
   const supabase = getSupabase();
   if (supabase) {
@@ -1095,7 +1161,7 @@ export async function getReviews(): Promise<Review[]> {
           }).filter(r => r.userId === currentUserId);
 
           if (claimed || reviews.length > 0) {
-            localStorage.setItem(getUserKey(KEYS.REVIEWS), JSON.stringify(reviews));
+            safeSetLocalStorage(getUserKey(KEYS.REVIEWS), JSON.stringify(reviews));
             if (claimed) syncReviewsToSupabase(reviews).catch(console.error);
             if (reviews.length > 0) return reviews;
           }
@@ -1106,7 +1172,7 @@ export async function getReviews(): Promise<Review[]> {
         }
 
         if (reviews.length > 0) {
-          localStorage.setItem(getUserKey(KEYS.REVIEWS), JSON.stringify(reviews));
+          safeSetLocalStorage(getUserKey(KEYS.REVIEWS), JSON.stringify(reviews));
           return reviews;
         }
       }
@@ -1141,7 +1207,7 @@ export async function getReviews(): Promise<Review[]> {
         let parsed: Review[] = JSON.parse(rawLocal);
         parsed = parsed.map(r => ({ ...r, userId: currentUserId }));
         if (parsed.length > 0) {
-          localStorage.setItem(getUserKey(KEYS.REVIEWS), JSON.stringify(parsed));
+          safeSetLocalStorage(getUserKey(KEYS.REVIEWS), JSON.stringify(parsed));
           if (supabase) syncReviewsToSupabase(parsed).catch(console.error);
           return parsed;
         }
@@ -1157,12 +1223,12 @@ export async function getReviews(): Promise<Review[]> {
         let reviews: Review[] = data.reviews || [];
         if (currentUserId && isTargetAdmin) {
           reviews = reviews.map(r => ({ ...r, userId: currentUserId }));
-          localStorage.setItem(getUserKey(KEYS.REVIEWS), JSON.stringify(reviews));
+          safeSetLocalStorage(getUserKey(KEYS.REVIEWS), JSON.stringify(reviews));
           if (supabase && reviews.length > 0) {
             syncReviewsToSupabase(reviews).catch(console.error);
           }
         } else {
-          localStorage.setItem(KEYS.REVIEWS, JSON.stringify(reviews));
+          safeSetLocalStorage(KEYS.REVIEWS, JSON.stringify(reviews));
           if (supabase && reviews.length > 0) {
             syncReviewsToSupabase(reviews).catch(console.error);
           }
@@ -1183,7 +1249,7 @@ export function saveReviews(reviews: Review[]): void {
     ...r,
     userId: r.userId || currentUserId || undefined,
   }));
-  localStorage.setItem(getUserKey(KEYS.REVIEWS), JSON.stringify(stamped));
+  safeSetLocalStorage(getUserKey(KEYS.REVIEWS), JSON.stringify(stamped));
 
   const supabase = getSupabase();
   if (supabase) {
@@ -1257,7 +1323,7 @@ export async function getUser(): Promise<User | null> {
 
       if (!error && data?.value) {
         const u = data.value as User;
-        localStorage.setItem(KEYS.USER, JSON.stringify(u));
+        safeSetLocalStorage(KEYS.USER, JSON.stringify(u));
         return u;
       }
     } catch {
@@ -1279,7 +1345,7 @@ export async function getUser(): Promise<User | null> {
     if (res.ok) {
       const data = await res.json();
       const user: User = data.user;
-      localStorage.setItem(KEYS.USER, JSON.stringify(user));
+      safeSetLocalStorage(KEYS.USER, JSON.stringify(user));
 
       if (supabase && user) {
         Promise.resolve(
@@ -1325,7 +1391,7 @@ export async function getMemberRecord(email: string): Promise<MemberRecord | nul
 
       if (!error && data?.value) {
         const val = typeof data.value === 'string' ? JSON.parse(data.value) : data.value;
-        localStorage.setItem(key, JSON.stringify(val));
+        safeSetLocalStorage(key, JSON.stringify(val));
         return val as MemberRecord;
       }
     } catch (err) {
@@ -1346,7 +1412,7 @@ export async function getMemberRecord(email: string): Promise<MemberRecord | nul
     if (res.ok) {
       const data = await res.json();
       if (data?.member) {
-        localStorage.setItem(key, JSON.stringify(data.member));
+        safeSetLocalStorage(key, JSON.stringify(data.member));
         return data.member as MemberRecord;
       }
     }
@@ -1372,7 +1438,7 @@ export async function saveMemberRecord(record: MemberRecord): Promise<void> {
   const cleanEmail = record.email.trim().toLowerCase();
   const key = `member_${cleanEmail}`;
 
-  localStorage.setItem(key, JSON.stringify(record));
+  safeSetLocalStorage(key, JSON.stringify(record));
 
   // Sync to server API endpoint (/api/auth/member)
   try {
@@ -1475,7 +1541,7 @@ export async function verifyAndResetPasswordWithMemberInfo(
     createdAt: updatedMember.createdAt,
   };
 
-  localStorage.setItem(KEYS.USER, JSON.stringify(appUser));
+  safeSetLocalStorage(KEYS.USER, JSON.stringify(appUser));
   await migrateAdminDataToActiveUser(appUser.id, appUser.email);
   return { success: true, user: appUser };
 }
@@ -1495,7 +1561,7 @@ export async function getCloudPin(): Promise<string | null> {
 
       if (!error && data?.value) {
         const pin = String(data.value.pin || data.value);
-        localStorage.setItem(KEYS.PIN, pin);
+        safeSetLocalStorage(KEYS.PIN, pin);
         return pin;
       }
     } catch {
@@ -1508,7 +1574,7 @@ export async function getCloudPin(): Promise<string | null> {
 
 export async function setCloudPin(pin: string): Promise<void> {
   if (!isClient()) return;
-  localStorage.setItem(KEYS.PIN, pin);
+  safeSetLocalStorage(KEYS.PIN, pin);
 
   const supabase = getSupabase();
   if (supabase) {
@@ -1561,7 +1627,7 @@ export async function getAppState<T = any>(key: string, defaultValue?: T): Promi
       if (!error && data?.value !== undefined) {
         const val = data.value;
         const serialized = typeof val === 'string' ? val : JSON.stringify(val);
-        localStorage.setItem(key, serialized);
+        safeSetLocalStorage(key, serialized);
         return val as T;
       }
     } catch {
@@ -1585,7 +1651,7 @@ export async function setAppState(key: string, value: any): Promise<void> {
   if (!isClient()) return;
 
   const serialized = typeof value === 'string' ? value : JSON.stringify(value);
-  localStorage.setItem(key, serialized);
+  safeSetLocalStorage(key, serialized);
 
   const supabase = getSupabase();
   if (supabase) {
@@ -1673,35 +1739,35 @@ export async function syncAllSupabaseToLocal(): Promise<{ success: boolean; erro
 
     if (tradesRes.data) {
       const trades = tradesRes.data.map((r: any) => r.data as Trade);
-      localStorage.setItem(KEYS.TRADES, JSON.stringify(trades));
+      safeSetLocalStorage(KEYS.TRADES, JSON.stringify(trades));
     }
     if (accountsRes.data) {
       const accounts = accountsRes.data.map((r: any) => r.data as Account);
-      localStorage.setItem(KEYS.ACCOUNTS, JSON.stringify(accounts));
+      safeSetLocalStorage(KEYS.ACCOUNTS, JSON.stringify(accounts));
     }
     if (journalsRes.data) {
       const journals = journalsRes.data.map((r: any) => r.data as JournalEntry);
-      localStorage.setItem(KEYS.JOURNALS, JSON.stringify(journals));
+      safeSetLocalStorage(KEYS.JOURNALS, JSON.stringify(journals));
     }
     if (financesRes.data) {
       const finances = financesRes.data.map((r: any) => r.data as FinanceEntry);
-      localStorage.setItem(KEYS.FINANCES, JSON.stringify(finances));
+      safeSetLocalStorage(KEYS.FINANCES, JSON.stringify(finances));
     }
     if (reviewsRes.data) {
       const reviews = reviewsRes.data.map((r: any) => r.data as Review);
-      localStorage.setItem(KEYS.REVIEWS, JSON.stringify(reviews));
+      safeSetLocalStorage(KEYS.REVIEWS, JSON.stringify(reviews));
     }
 
     if (appStateRes.data) {
       for (const row of appStateRes.data) {
         if (row.key === 'security_pin') {
           const pin = String(row.value.pin || row.value);
-          localStorage.setItem(KEYS.PIN, pin);
+          safeSetLocalStorage(KEYS.PIN, pin);
         } else if (row.key === 'user_profile') {
-          localStorage.setItem(KEYS.USER, JSON.stringify(row.value));
+          safeSetLocalStorage(KEYS.USER, JSON.stringify(row.value));
         } else {
           const val = typeof row.value === 'string' ? row.value : JSON.stringify(row.value);
-          localStorage.setItem(row.key, val);
+          safeSetLocalStorage(row.key, val);
         }
       }
     }
@@ -1989,7 +2055,7 @@ export async function importAllData(
     saveReviews(finalReviews);
 
     if (data.user) {
-      localStorage.setItem(KEYS.USER, JSON.stringify(data.user));
+      safeSetLocalStorage(KEYS.USER, JSON.stringify(data.user));
     }
 
     // Restore appState
@@ -1997,7 +2063,7 @@ export async function importAllData(
       for (const [k, v] of Object.entries(data.appState)) {
         if (v !== undefined) {
           const serialized = typeof v === 'string' ? v : JSON.stringify(v);
-          localStorage.setItem(k, serialized);
+          safeSetLocalStorage(k, serialized);
         }
       }
     }
