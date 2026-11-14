@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { PRESET_EMOTIONS, DailyEmotionalCheckin } from '@/types/emotion';
+import { PRESET_EMOTIONS, DailyEmotionalCheckin, EmotionTag } from '@/types/emotion';
 import { calculateEmotionalScore, getTodayCheckin, saveDailyCheckin } from '@/lib/emotionStorage';
 import { useLanguage } from '@/context/LanguageContext';
 import {
@@ -15,16 +15,25 @@ import {
   ShieldAlert,
   Flame,
   Info,
+  Check,
+  TrendingUp,
+  TrendingDown,
+  Compass,
+  Zap,
 } from 'lucide-react';
+
+type EmotionCategoryTab = 'all' | 'positive' | 'neutral' | 'negative';
 
 export default function DailyEmotionalCheckinCard() {
   const { language } = useLanguage();
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [todayCheckin, setTodayCheckin] = useState<DailyEmotionalCheckin | null>(null);
   const [isExpanded, setIsExpanded] = useState<boolean>(true);
+  const [categoryFilter, setCategoryFilter] = useState<EmotionCategoryTab>('all');
   const [note, setNote] = useState<string>('');
   const [isSaving, setIsSaving] = useState<boolean>(false);
   const [savedNotice, setSavedNotice] = useState<boolean>(false);
+  const [activeTooltip, setActiveTooltip] = useState<string | null>(null);
 
   useEffect(() => {
     getTodayCheckin().then((checkin) => {
@@ -32,10 +41,8 @@ export default function DailyEmotionalCheckinCard() {
         setTodayCheckin(checkin);
         setSelectedIds(checkin.selectedEmotionIds || []);
         setNote(checkin.note || '');
-        // Default collapse if already checked in today to save space
         setIsExpanded(false);
       } else {
-        // Not checked in yet today -> expand so user sees it
         setIsExpanded(true);
       }
     });
@@ -75,7 +82,7 @@ export default function DailyEmotionalCheckinCard() {
       setTimeout(() => {
         setSavedNotice(false);
         setIsExpanded(false);
-      }, 1500);
+      }, 1400);
     } catch (err) {
       console.error('Failed to save daily emotion checkin:', err);
     } finally {
@@ -88,172 +95,303 @@ export default function DailyEmotionalCheckinCard() {
     setNote('');
   };
 
-  // Status visual configurations
+  // Filtered emotions by category
+  const filteredEmotions = useMemo(() => {
+    if (categoryFilter === 'all') return PRESET_EMOTIONS;
+    return PRESET_EMOTIONS.filter((e) => e.category === categoryFilter);
+  }, [categoryFilter]);
+
+  // Status visual themes
   const statusConfig = {
     OPTIMAL: {
       border: 'border-emerald-500/40 dark:border-emerald-500/30',
-      bg: 'bg-emerald-500/5 dark:bg-emerald-500/10',
+      glow: 'shadow-lg shadow-emerald-500/10 dark:shadow-emerald-950/30',
+      bg: 'bg-gradient-to-br from-emerald-500/[0.04] via-teal-500/[0.02] to-transparent',
       badgeBg: 'bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border-emerald-300 dark:border-emerald-500/40',
       text: 'text-emerald-600 dark:text-emerald-400',
-      icon: <Sparkles size={16} className="text-emerald-500 animate-pulse" />,
+      icon: <Sparkles size={16} className="text-emerald-500 animate-spin-slow" />,
       titleTh: '🟢 สภาวะพร้อมเทรด 100% (Optimal Zone)',
       titleEn: '🟢 Optimal Trading Mindset',
-      barColor: 'bg-emerald-500',
+      barColor: 'from-emerald-500 to-teal-400',
+      meterColor: '#10b981',
     },
     NORMAL: {
       border: 'border-amber-500/40 dark:border-amber-500/30',
-      bg: 'bg-amber-500/5 dark:bg-amber-500/10',
+      glow: 'shadow-lg shadow-amber-500/10 dark:shadow-amber-950/30',
+      bg: 'bg-gradient-to-br from-amber-500/[0.04] via-orange-500/[0.02] to-transparent',
       badgeBg: 'bg-amber-100 dark:bg-amber-500/20 text-amber-700 dark:text-amber-300 border-amber-300 dark:border-amber-500/40',
       text: 'text-amber-600 dark:text-amber-400',
       icon: <Info size={16} className="text-amber-500" />,
       titleTh: '🟡 สภาวะปกติ / เฝ้าระวังความเสี่ยง (Normal Zone)',
       titleEn: '🟡 Normal / Guarded Mindset',
-      barColor: 'bg-amber-500',
+      barColor: 'from-amber-500 to-yellow-400',
+      meterColor: '#f59e0b',
     },
     WARNING: {
       border: 'border-rose-500/40 dark:border-rose-500/30',
-      bg: 'bg-rose-500/5 dark:bg-rose-500/10',
+      glow: 'shadow-lg shadow-rose-500/15 dark:shadow-rose-950/40',
+      bg: 'bg-gradient-to-br from-rose-500/[0.06] via-red-500/[0.03] to-transparent',
       badgeBg: 'bg-rose-100 dark:bg-rose-500/20 text-rose-700 dark:text-rose-300 border-rose-300 dark:border-rose-500/40',
       text: 'text-rose-600 dark:text-rose-400',
       icon: <ShieldAlert size={16} className="text-rose-500 animate-bounce" />,
       titleTh: '🔴 เสี่ยงสูง / อารมณ์ไม่พร้อมเทรด (Risk Warning)',
       titleEn: '🔴 High Emotional Risk Warning',
-      barColor: 'bg-rose-500',
+      barColor: 'from-rose-600 to-red-400',
+      meterColor: '#f43f5e',
     },
   }[currentScore.status];
 
+  // SVG Gauge Calculations
+  const radius = 34;
+  const circumference = 2 * Math.PI * radius;
+  const strokeDashoffset = circumference - (currentScore.totalScore / 100) * circumference;
+
   return (
     <div
-      className={`relative mb-6 rounded-2xl transition-all duration-300 border backdrop-blur-md shadow-sm overflow-hidden ${
+      className={`relative mb-6 rounded-2xl transition-all duration-300 border backdrop-blur-md overflow-hidden ${
         statusConfig.border
-      } ${statusConfig.bg} bg-white/70 dark:bg-slate-900/70`}
+      } ${statusConfig.glow} ${statusConfig.bg} bg-white/80 dark:bg-slate-900/80`}
     >
       {/* Top Banner Bar */}
       <div className="px-5 py-4 flex flex-wrap items-center justify-between gap-4">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500/20 to-purple-500/20 border border-indigo-500/30 flex items-center justify-center text-indigo-600 dark:text-indigo-400 shrink-0">
-            <HeartHandshake size={20} />
+          <div className="relative w-11 h-11 rounded-2xl bg-gradient-to-tr from-indigo-600 to-purple-500 text-white flex items-center justify-center shrink-0 shadow-md shadow-indigo-500/25 transition-transform hover:scale-105">
+            <HeartHandshake size={22} className="animate-pulse" />
+            {currentScore.status === 'OPTIMAL' && (
+              <span className="absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full bg-emerald-400 border-2 border-white dark:border-slate-900 animate-ping" />
+            )}
           </div>
           <div>
-            <div className="flex items-center gap-2">
-              <h2 className="text-sm font-bold text-slate-900 dark:text-white">
+            <div className="flex items-center gap-2 flex-wrap">
+              <h2 className="text-sm font-bold tracking-tight text-slate-900 dark:text-white">
                 {language === 'th' ? 'เช็คสภาวะอารมณ์ก่อนเทรดประจำวัน' : 'Daily Pre-Trade Emotional Check-in'}
               </h2>
               {todayCheckin ? (
-                <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-400 border border-emerald-300 dark:border-emerald-500/30">
-                  <CheckCircle2 size={10} />
-                  {language === 'th' ? 'เช็คอินแล้ววันนี้' : 'Checked in today'}
+                <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-500/30">
+                  <CheckCircle2 size={11} />
+                  {language === 'th' ? 'เช็คอินแล้ว' : 'Checked In'}
                 </span>
               ) : (
-                <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-100 dark:bg-blue-500/20 text-blue-700 dark:text-blue-400 border border-blue-300 dark:border-blue-500/30">
-                  <Flame size={10} />
-                  {language === 'th' ? 'รอประเมินวันนี้' : 'Pending check-in'}
+                <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-blue-100 dark:bg-blue-500/20 text-blue-700 dark:text-blue-400 border border-blue-300 dark:border-blue-500/30 animate-pulse">
+                  <Flame size={11} />
+                  {language === 'th' ? 'รอประเมินวันนี้' : 'Pending Today'}
                 </span>
               )}
             </div>
             <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
               {language === 'th'
-                ? 'แตะเลือกอารมณ์ที่รู้สึกเพื่อรวม Score ประเมินความพร้อมก่อนเปิดออเดอร์'
-                : 'Select current emotions to calculate your readiness score before executing'}
+                ? 'แตะเลือกอารมณ์ที่มีผลต่อจิตวิทยาการเทรดเพื่อรวมคะแนนความพร้อมก่อนเปิดไม้'
+                : 'Select current feelings to compute psychological readiness score'}
             </p>
           </div>
         </div>
 
-        {/* Live Score & Toggle Action */}
+        {/* Live Score Display & Toggle Action */}
         <div className="flex items-center gap-3">
-          <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-white/80 dark:bg-black/40 border border-slate-200/80 dark:border-white/[0.08] shadow-xs">
-            <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Score:</span>
-            <span className={`text-base font-black ${statusConfig.text}`}>
-              {currentScore.netScore >= 0 ? `+${currentScore.netScore}` : currentScore.netScore}
-            </span>
-            <span className="text-xs font-bold text-slate-400">({currentScore.totalScore}/100)</span>
+          {/* Mini Gauge / Score Widget */}
+          <div className="flex items-center gap-3 px-3 py-1.5 rounded-xl bg-white/90 dark:bg-black/50 border border-slate-200/80 dark:border-white/[0.08] shadow-xs transition-transform hover:scale-[1.02]">
+            {/* Circular Gauge */}
+            <div className="relative w-9 h-9 flex items-center justify-center shrink-0">
+              <svg className="w-9 h-9 -rotate-90 transform">
+                <circle
+                  cx="18"
+                  cy="18"
+                  r={radius * 0.42}
+                  className="stroke-slate-200 dark:stroke-slate-700"
+                  strokeWidth="3.5"
+                  fill="transparent"
+                />
+                <circle
+                  cx="18"
+                  cy="18"
+                  r={radius * 0.42}
+                  stroke={statusConfig.meterColor}
+                  strokeWidth="3.5"
+                  strokeDasharray={circumference * 0.42}
+                  strokeDashoffset={strokeDashoffset * 0.42}
+                  strokeLinecap="round"
+                  fill="transparent"
+                  className="transition-all duration-700 ease-out"
+                />
+              </svg>
+              <span className={`absolute text-[11px] font-black ${statusConfig.text}`}>
+                {currentScore.totalScore}
+              </span>
+            </div>
+
+            <div className="text-right">
+              <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                Net Score
+              </div>
+              <div className={`text-sm font-black transition-colors ${statusConfig.text}`}>
+                {currentScore.netScore >= 0 ? `+${currentScore.netScore}` : currentScore.netScore}
+              </div>
+            </div>
           </div>
 
           <button
             type="button"
             onClick={() => setIsExpanded(!isExpanded)}
-            className="p-2 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-white/[0.06] dark:hover:bg-white/[0.1] text-slate-600 dark:text-slate-300 transition-colors cursor-pointer"
+            className="p-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-white/[0.06] dark:hover:bg-white/[0.1] text-slate-600 dark:text-slate-300 transition-all duration-200 cursor-pointer active:scale-95"
             title={isExpanded ? 'ย่อการ์ด' : 'ขยายการ์ด'}
           >
-            {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+            {isExpanded ? (
+              <ChevronUp size={16} className="transition-transform duration-200" />
+            ) : (
+              <ChevronDown size={16} className="transition-transform duration-200" />
+            )}
           </button>
         </div>
       </div>
 
-      {/* Expanded Content Area */}
+      {/* Expanded Interactive Area */}
       {isExpanded && (
         <div className="px-5 pb-5 pt-1 space-y-4 border-t border-slate-200/60 dark:border-white/[0.06] animate-fade-in">
-          {/* Emotion Tag Picker */}
-          <div>
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                {language === 'th' ? 'แตะเลือกอารมณ์ของคุณตอนนี้ (เลือกได้หลายข้อ):' : 'Select your current emotions:'}
-              </span>
-              {selectedIds.length > 0 && (
-                <button
-                  type="button"
-                  onClick={handleReset}
-                  className="text-[11px] font-semibold text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 flex items-center gap-1 cursor-pointer transition-colors"
-                >
-                  <RotateCcw size={10} />
-                  {language === 'th' ? 'ล้างค่า' : 'Clear all'}
-                </button>
-              )}
+          {/* Category Tabs & Quick Reset */}
+          <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
+            <div className="flex items-center gap-1.5 p-1 rounded-xl bg-slate-100/90 dark:bg-slate-800/60 border border-slate-200/60 dark:border-white/[0.06] text-xs font-semibold">
+              <button
+                type="button"
+                onClick={() => setCategoryFilter('all')}
+                className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
+                  categoryFilter === 'all'
+                    ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-xs font-bold'
+                    : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'
+                }`}
+              >
+                {language === 'th' ? `ทั้งหมด (${PRESET_EMOTIONS.length})` : `All (${PRESET_EMOTIONS.length})`}
+              </button>
+              <button
+                type="button"
+                onClick={() => setCategoryFilter('positive')}
+                className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer flex items-center gap-1 ${
+                  categoryFilter === 'positive'
+                    ? 'bg-emerald-500 text-white shadow-xs font-bold'
+                    : 'text-emerald-600 dark:text-emerald-400 hover:text-emerald-700'
+                }`}
+              >
+                <span>🟢</span>
+                <span>{language === 'th' ? 'พลังบวก & วินัย' : 'Positive & Edge'}</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setCategoryFilter('neutral')}
+                className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer flex items-center gap-1 ${
+                  categoryFilter === 'neutral'
+                    ? 'bg-slate-600 text-white shadow-xs font-bold'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                }`}
+              >
+                <span>⚪</span>
+                <span>{language === 'th' ? 'เป็นกลาง' : 'Neutral'}</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setCategoryFilter('negative')}
+                className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer flex items-center gap-1 ${
+                  categoryFilter === 'negative'
+                    ? 'bg-rose-500 text-white shadow-xs font-bold'
+                    : 'text-rose-600 dark:text-rose-400 hover:text-rose-700'
+                }`}
+              >
+                <span>🔴</span>
+                <span>{language === 'th' ? 'ความเสี่ยง & กับดัก' : 'Risk & Pitfalls'}</span>
+              </button>
             </div>
 
-            <div className="flex flex-wrap gap-2">
-              {PRESET_EMOTIONS.map((emotion) => {
-                const isSelected = selectedIds.includes(emotion.id);
-                let scoreBadgeColor = 'bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-300';
-                let tagBorderColor = 'border-slate-200 dark:border-white/[0.08]';
-                let tagBgColor = 'bg-white/60 dark:bg-slate-800/40 hover:bg-slate-100 dark:hover:bg-slate-800/80';
-
-                if (emotion.category === 'positive') {
-                  scoreBadgeColor = 'bg-emerald-100 text-emerald-800 dark:bg-emerald-500/20 dark:text-emerald-300';
-                  if (isSelected) {
-                    tagBorderColor = 'border-emerald-500 dark:border-emerald-400 ring-2 ring-emerald-500/30';
-                    tagBgColor = 'bg-emerald-50 dark:bg-emerald-950/40';
-                  }
-                } else if (emotion.category === 'negative') {
-                  scoreBadgeColor = 'bg-rose-100 text-rose-800 dark:bg-rose-500/20 dark:text-rose-300';
-                  if (isSelected) {
-                    tagBorderColor = 'border-rose-500 dark:border-rose-400 ring-2 ring-rose-500/30';
-                    tagBgColor = 'bg-rose-50 dark:bg-rose-950/40';
-                  }
-                } else if (emotion.category === 'neutral') {
-                  scoreBadgeColor = 'bg-slate-200 text-slate-800 dark:bg-slate-700 dark:text-slate-300';
-                  if (isSelected) {
-                    tagBorderColor = 'border-slate-400 dark:border-slate-300 ring-2 ring-slate-400/30';
-                    tagBgColor = 'bg-slate-100 dark:bg-slate-800/80';
-                  }
-                }
-
-                return (
-                  <button
-                    key={emotion.id}
-                    type="button"
-                    onClick={() => toggleEmotion(emotion.id)}
-                    className={`flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold border transition-all cursor-pointer active:scale-95 shadow-2xs ${tagBorderColor} ${tagBgColor}`}
-                  >
-                    <span className="text-base leading-none">{emotion.emoji}</span>
-                    <span className="text-slate-800 dark:text-slate-200">
-                      {language === 'th' ? emotion.labelTh : emotion.labelEn}
-                    </span>
-                    <span
-                      className={`text-[10px] font-black px-1.5 py-0.5 rounded-md ${scoreBadgeColor}`}
-                    >
-                      {emotion.score > 0 ? `+${emotion.score}` : emotion.score}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
+            {selectedIds.length > 0 && (
+              <button
+                type="button"
+                onClick={handleReset}
+                className="text-[11px] font-bold text-slate-500 hover:text-rose-500 dark:hover:text-rose-400 flex items-center gap-1.5 px-2.5 py-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+              >
+                <RotateCcw size={11} />
+                <span>{language === 'th' ? `ล้างค่าที่เลือก (${selectedIds.length})` : `Clear (${selectedIds.length})`}</span>
+              </button>
+            )}
           </div>
 
-          {/* Result & Assessment Box */}
-          <div className="p-4 rounded-xl bg-white/90 dark:bg-slate-900/90 border border-slate-200/80 dark:border-white/[0.08] shadow-xs space-y-3">
+          {/* Emotion Interactive Tag Cloud with Hover Tooltips & Motion */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2.5">
+            {filteredEmotions.map((emotion) => {
+              const isSelected = selectedIds.includes(emotion.id);
+              let scoreBadge = 'bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-300';
+              let borderClass = 'border-slate-200/80 dark:border-white/[0.07]';
+              let bgClass = 'bg-white/70 dark:bg-slate-800/40 hover:bg-white dark:hover:bg-slate-800/90 hover:border-slate-300 dark:hover:border-white/[0.15]';
+
+              if (emotion.category === 'positive') {
+                scoreBadge = 'bg-emerald-100 text-emerald-800 dark:bg-emerald-500/25 dark:text-emerald-300';
+                if (isSelected) {
+                  borderClass = 'border-emerald-500 dark:border-emerald-400 ring-2 ring-emerald-500/30';
+                  bgClass = 'bg-emerald-50/90 dark:bg-emerald-950/60 shadow-sm shadow-emerald-500/10';
+                }
+              } else if (emotion.category === 'negative') {
+                scoreBadge = 'bg-rose-100 text-rose-800 dark:bg-rose-500/25 dark:text-rose-300';
+                if (isSelected) {
+                  borderClass = 'border-rose-500 dark:border-rose-400 ring-2 ring-rose-500/30';
+                  bgClass = 'bg-rose-50/90 dark:bg-rose-950/60 shadow-sm shadow-rose-500/10';
+                }
+              } else if (emotion.category === 'neutral') {
+                scoreBadge = 'bg-slate-200 text-slate-800 dark:bg-slate-700 dark:text-slate-300';
+                if (isSelected) {
+                  borderClass = 'border-slate-400 dark:border-slate-300 ring-2 ring-slate-400/30';
+                  bgClass = 'bg-slate-100 dark:bg-slate-800/80';
+                }
+              }
+
+              return (
+                <div
+                  key={emotion.id}
+                  className="relative"
+                  onMouseEnter={() => setActiveTooltip(emotion.id)}
+                  onMouseLeave={() => setActiveTooltip(null)}
+                >
+                  <button
+                    type="button"
+                    onClick={() => toggleEmotion(emotion.id)}
+                    className={`w-full group text-left p-2.5 rounded-xl border transition-all duration-200 cursor-pointer active:scale-95 flex flex-col justify-between gap-1.5 hover:-translate-y-0.5 hover:shadow-md ${borderClass} ${bgClass}`}
+                  >
+                    <div className="flex items-center justify-between w-full">
+                      <span className="text-xl leading-none transition-transform group-hover:scale-110">
+                        {emotion.emoji}
+                      </span>
+                      <span
+                        className={`text-[10px] font-black px-1.5 py-0.5 rounded-md transition-colors ${scoreBadge}`}
+                      >
+                        {emotion.score > 0 ? `+${emotion.score}` : emotion.score}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center justify-between w-full">
+                      <span className="text-xs font-bold text-slate-800 dark:text-slate-200 truncate">
+                        {language === 'th' ? emotion.labelTh : emotion.labelEn}
+                      </span>
+                      {isSelected && (
+                        <span className="w-4 h-4 rounded-full bg-blue-600 text-white flex items-center justify-center shrink-0 animate-scale-in">
+                          <Check size={10} strokeWidth={3} />
+                        </span>
+                      )}
+                    </div>
+                  </button>
+
+                  {/* Micro-Tooltip for Deep Psychology Context */}
+                  {activeTooltip === emotion.id && emotion.descriptionTh && (
+                    <div className="absolute z-20 bottom-full left-1/2 -translate-x-1/2 mb-2 w-48 p-2 rounded-xl bg-slate-900/95 dark:bg-black/95 text-white text-[11px] shadow-xl backdrop-blur-md border border-white/[0.1] pointer-events-none animate-fade-in text-center">
+                      <div className="font-semibold text-slate-200">
+                        {language === 'th' ? emotion.descriptionTh : emotion.descriptionEn || emotion.descriptionTh}
+                      </div>
+                      <div className="absolute top-full left-1/2 -translate-x-1/2 -mt-1 border-4 border-transparent border-t-slate-900 dark:border-t-black" />
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Assessment & Advice Summary Container */}
+          <div className="p-4 rounded-2xl bg-white/95 dark:bg-slate-900/95 border border-slate-200/80 dark:border-white/[0.08] shadow-sm space-y-3.5 transition-all">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2.5">
                 {statusConfig.icon}
                 <span className="text-xs font-bold text-slate-900 dark:text-white">
                   {language === 'th' ? statusConfig.titleTh : statusConfig.titleEn}
@@ -261,63 +399,79 @@ export default function DailyEmotionalCheckinCard() {
               </div>
               <div className="text-xs font-semibold text-slate-500 dark:text-slate-400">
                 คะแนนความพร้อม:{' '}
-                <strong className={`font-black ${statusConfig.text}`}>{currentScore.totalScore} / 100</strong>
+                <strong className={`font-black text-sm ${statusConfig.text}`}>
+                  {currentScore.totalScore} / 100
+                </strong>
               </div>
             </div>
 
-            {/* Progress Bar */}
-            <div className="w-full h-2 rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden">
+            {/* Dynamic Smooth Gradient Progress Bar */}
+            <div className="relative w-full h-2.5 rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden shadow-inner">
               <div
-                className={`h-full transition-all duration-500 rounded-full ${statusConfig.barColor}`}
+                className={`h-full transition-all duration-700 ease-out rounded-full bg-gradient-to-r ${statusConfig.barColor}`}
                 style={{ width: `${currentScore.totalScore}%` }}
               />
             </div>
 
-            {/* Advice Text */}
-            <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed font-medium">
-              💡 {language === 'th' ? currentScore.adviceTh : currentScore.adviceEn}
-            </p>
+            {/* Contextual Smart Trading Advice */}
+            <div className="p-3 rounded-xl bg-slate-50 dark:bg-white/[0.02] border border-slate-200/60 dark:border-white/[0.04] flex items-start gap-2.5">
+              <Compass size={16} className="text-blue-500 shrink-0 mt-0.5" />
+              <p className="text-xs text-slate-700 dark:text-slate-300 leading-relaxed font-medium">
+                {language === 'th' ? currentScore.adviceTh : currentScore.adviceEn}
+              </p>
+            </div>
 
-            {/* Optional Daily Note / Affirmation */}
-            <div className="pt-2 border-t border-slate-200/50 dark:border-white/[0.04]">
+            {/* Daily Affirmation Note Input */}
+            <div className="flex items-center gap-2">
               <input
                 type="text"
                 placeholder={
                   language === 'th'
-                    ? 'คำเตือนสติตัวเองสั้นๆ วันนี้ (เช่น: รอคอนเฟิร์มก่อนเข้า, ไม่เกิน 2 ไม้)...'
-                    : 'Daily trading affirmation or rule...'
+                    ? '✍️ บันทึกคำเตือนสติตนเองวันนี้ (เช่น: รอสัญญาณชัดเจน, ไม่คันมือ, SL แล้วจบ)...'
+                    : '✍️ Daily trading rule or affirmation...'
                 }
                 value={note}
                 onChange={(e) => setNote(e.target.value)}
-                className="w-full bg-slate-50 dark:bg-white/[0.03] border border-slate-200/70 dark:border-white/[0.07] rounded-xl px-3.5 py-2 text-xs text-slate-700 dark:text-slate-200 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+                className="flex-1 bg-slate-50 dark:bg-white/[0.03] border border-slate-200/70 dark:border-white/[0.07] rounded-xl px-3.5 py-2 text-xs text-slate-700 dark:text-slate-200 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/30 transition-colors"
               />
             </div>
 
-            {/* Save & Action Button */}
-            <div className="flex items-center justify-end gap-2 pt-1">
-              {savedNotice && (
-                <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-1 animate-fade-in">
-                  <CheckCircle2 size={13} />
-                  {language === 'th' ? 'บันทึกสำเร็จเรียบร้อยแล้ว!' : 'Saved successfully!'}
-                </span>
-              )}
-              <button
-                type="button"
-                onClick={handleSave}
-                disabled={isSaving}
-                className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition-all shadow-md shadow-blue-500/25 active:scale-95 cursor-pointer flex items-center gap-1.5"
-              >
-                <CheckCircle2 size={13} />
+            {/* Save & Confirmation Action Bar */}
+            <div className="flex items-center justify-between pt-1 flex-wrap gap-2">
+              <div className="text-[11px] text-slate-400 flex items-center gap-1.5">
+                <Zap size={12} className="text-amber-500" />
                 <span>
-                  {isSaving
-                    ? language === 'th'
-                      ? 'กำลังบันทึก...'
-                      : 'Saving...'
-                    : language === 'th'
-                    ? 'บันทึกผลประเมินวันนี้'
-                    : 'Save Daily Assessment'}
+                  {language === 'th'
+                    ? 'เลือกอารมณ์แล้วกดบันทึกเพื่อนำไปวิเคราะห์ร่วมกับไม้เทรด'
+                    : 'Save to track correlation with your trade P&L'}
                 </span>
-              </button>
+              </div>
+
+              <div className="flex items-center gap-2">
+                {savedNotice && (
+                  <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-1 animate-fade-in">
+                    <CheckCircle2 size={14} className="animate-bounce" />
+                    {language === 'th' ? 'บันทึกสำเร็จเรียบร้อย!' : 'Saved successfully!'}
+                  </span>
+                )}
+                <button
+                  type="button"
+                  onClick={handleSave}
+                  disabled={isSaving}
+                  className="px-4 py-2 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white text-xs font-bold transition-all shadow-md shadow-blue-500/25 active:scale-95 cursor-pointer flex items-center gap-1.5"
+                >
+                  <CheckCircle2 size={14} />
+                  <span>
+                    {isSaving
+                      ? language === 'th'
+                        ? 'กำลังบันทึก...'
+                        : 'Saving...'
+                      : language === 'th'
+                      ? 'บันทึกผลประเมินวันนี้'
+                      : 'Save Daily Assessment'}
+                  </span>
+                </button>
+              </div>
             </div>
           </div>
         </div>
