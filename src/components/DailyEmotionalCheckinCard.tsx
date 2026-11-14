@@ -7,7 +7,6 @@ import { useLanguage } from '@/context/LanguageContext';
 import {
   HeartHandshake,
   Sparkles,
-  AlertTriangle,
   CheckCircle2,
   ChevronDown,
   ChevronUp,
@@ -16,15 +15,27 @@ import {
   Flame,
   Info,
   Check,
-  TrendingUp,
-  TrendingDown,
   Compass,
   Zap,
-  Disc,
+  Hexagon,
   LayoutGrid,
 } from 'lucide-react';
 
 type EmotionCategoryTab = 'all' | 'positive' | 'neutral' | 'negative';
+
+// Helper to partition emotions into interlocking honeycomb rows
+function getHoneycombRows<T>(items: T[], baseRowSize = 5): T[][] {
+  const rows: T[][] = [];
+  let cur = 0;
+  let isEven = true;
+  while (cur < items.length) {
+    const count = isEven ? baseRowSize : Math.max(1, baseRowSize - 1);
+    rows.push(items.slice(cur, cur + count));
+    cur += count;
+    isEven = !isEven;
+  }
+  return rows;
+}
 
 export default function DailyEmotionalCheckinCard() {
   const { language } = useLanguage();
@@ -37,7 +48,7 @@ export default function DailyEmotionalCheckinCard() {
   const [savedNotice, setSavedNotice] = useState<boolean>(false);
   const [activeTooltip, setActiveTooltip] = useState<string | null>(null);
 
-  // Motion & Layout States
+  // Motion & Honeycomb Layout States
   const [viewMode, setViewMode] = useState<'wheel' | 'grid'>('wheel');
   const [wheelRadius, setWheelRadius] = useState<number>(260);
   const [floatingScore, setFloatingScore] = useState<{ id: string; score: number; key: number } | null>(null);
@@ -48,13 +59,13 @@ export default function DailyEmotionalCheckinCard() {
     const handleResize = () => {
       const w = window.innerWidth;
       if (w < 440) {
-        setWheelRadius(140);
+        setWheelRadius(145);
       } else if (w < 640) {
-        setWheelRadius(185);
+        setWheelRadius(190);
       } else if (w < 1024) {
         setWheelRadius(235);
       } else {
-        setWheelRadius(260);
+        setWheelRadius(265);
       }
     };
     handleResize();
@@ -137,6 +148,19 @@ export default function DailyEmotionalCheckinCard() {
     return PRESET_EMOTIONS.filter((e) => e.category === categoryFilter);
   }, [categoryFilter]);
 
+  // Dynamic Honeycomb Grid Rows
+  const honeycombRows = useMemo(() => {
+    if (categoryFilter === 'all') {
+      return getHoneycombRows(filteredEmotions, 5);
+    } else if (categoryFilter === 'negative') {
+      return getHoneycombRows(filteredEmotions, 4);
+    } else if (categoryFilter === 'positive') {
+      return getHoneycombRows(filteredEmotions, 3);
+    } else {
+      return getHoneycombRows(filteredEmotions, 2);
+    }
+  }, [filteredEmotions, categoryFilter]);
+
   // Status visual themes
   const statusConfig = {
     OPTIMAL: {
@@ -150,6 +174,7 @@ export default function DailyEmotionalCheckinCard() {
       titleEn: '🟢 Optimal Trading Mindset',
       barColor: 'from-emerald-500 via-teal-400 to-emerald-400',
       meterColor: '#10b981',
+      meterColorLight: '#34d399',
     },
     NORMAL: {
       border: 'border-amber-500/40 dark:border-amber-500/30',
@@ -162,6 +187,7 @@ export default function DailyEmotionalCheckinCard() {
       titleEn: '🟡 Normal / Guarded Mindset',
       barColor: 'from-amber-500 via-yellow-400 to-orange-400',
       meterColor: '#f59e0b',
+      meterColorLight: '#fbbf24',
     },
     WARNING: {
       border: 'border-rose-500/40 dark:border-rose-500/30',
@@ -174,13 +200,32 @@ export default function DailyEmotionalCheckinCard() {
       titleEn: '🔴 High Emotional Risk Warning',
       barColor: 'from-rose-600 via-red-500 to-rose-400',
       meterColor: '#f43f5e',
+      meterColorLight: '#fb7185',
     },
   }[currentScore.status];
 
-  // SVG Gauge Calculations
-  const radius = 34;
-  const circumference = 2 * Math.PI * radius;
-  const strokeDashoffset = circumference - (currentScore.totalScore / 100) * circumference;
+  // Helper for radial hexagon track coordinates around (380, 360)
+  const outerHexTrack = useMemo(() => {
+    const pts: string[] = [];
+    for (let k = 0; k < 6; k++) {
+      const angle = (k * 60 - 90) * (Math.PI / 180);
+      const x = Math.round((380 + wheelRadius * Math.cos(angle)) * 10) / 10;
+      const y = Math.round((360 + wheelRadius * Math.sin(angle)) * 10) / 10;
+      pts.push(`${x},${y}`);
+    }
+    return pts.join(' ');
+  }, [wheelRadius]);
+
+  const innerHexTrack = useMemo(() => {
+    const pts: string[] = [];
+    for (let k = 0; k < 6; k++) {
+      const angle = (k * 60 - 90) * (Math.PI / 180);
+      const x = Math.round((380 + wheelRadius * 0.65 * Math.cos(angle)) * 10) / 10;
+      const y = Math.round((360 + wheelRadius * 0.65 * Math.sin(angle)) * 10) / 10;
+      pts.push(`${x},${y}`);
+    }
+    return pts.join(' ');
+  }, [wheelRadius]);
 
   return (
     <div
@@ -222,41 +267,39 @@ export default function DailyEmotionalCheckinCard() {
             </div>
             <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
               {language === 'th'
-                ? 'แตะเลือกอารมณ์ที่มีผลต่อจิตวิทยาการเทรดเพื่อรวมคะแนนความพร้อมก่อนเปิดไม้'
-                : 'Select current feelings to compute psychological readiness score'}
+                ? 'แตะเลือกรังผึ้งอารมณ์ (Honeycomb) เพื่อคำนวณคะแนนความพร้อมจิตวิทยาการเทรด'
+                : 'Select emotional honeycomb cells to compute trading readiness score'}
             </p>
           </div>
         </div>
 
         {/* Live Score Display & Toggle Action */}
         <div className="flex items-center gap-3">
-          {/* Mini Gauge / Score Widget */}
+          {/* Mini 6-Sided Hexagon Gauge / Score Widget */}
           <div className="flex items-center gap-3 px-3.5 py-1.5 rounded-2xl bg-white/90 dark:bg-black/50 border border-slate-200/80 dark:border-white/[0.08] shadow-xs transition-transform hover:scale-105">
-            {/* Circular Gauge with Breathing Glow & Spin */}
-            <div className="relative w-11 h-11 flex items-center justify-center shrink-0">
-              {/* Ambient Glow */}
+            <div className="relative w-11 h-12 flex items-center justify-center shrink-0">
+              {/* Mini Hexagon Ambient Glow */}
               <div
-                className="absolute inset-0 rounded-full blur-md opacity-35 animate-glow-pulse pointer-events-none"
+                className="absolute inset-0 blur-md opacity-35 animate-glow-pulse pointer-events-none"
                 style={{ backgroundColor: statusConfig.meterColor }}
               />
-              <svg className="w-11 h-11 -rotate-90 transform" viewBox="0 0 44 44">
-                <circle
-                  cx="22"
-                  cy="22"
-                  r="17"
+              <svg className="w-11 h-12 overflow-visible" viewBox="0 0 40 46">
+                {/* Background track hexagon */}
+                <polygon
+                  points="20,2 38,11.5 38,34.5 20,44 2,34.5 2,11.5"
                   className="stroke-slate-200 dark:stroke-slate-700"
                   strokeWidth="3.5"
+                  strokeLinejoin="round"
                   fill="transparent"
                 />
-                <circle
-                  cx="22"
-                  cy="22"
-                  r="17"
+                {/* Active progress stroke around 6 edges (perimeter ~128) */}
+                <polygon
+                  points="20,2 38,11.5 38,34.5 20,44 2,34.5 2,11.5"
                   stroke={statusConfig.meterColor}
                   strokeWidth="3.5"
-                  strokeDasharray={2 * Math.PI * 17}
-                  strokeDashoffset={2 * Math.PI * 17 - (currentScore.totalScore / 100) * (2 * Math.PI * 17)}
-                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeDasharray={128}
+                  strokeDashoffset={128 - (currentScore.totalScore / 100) * 128}
                   fill="transparent"
                   className="transition-all duration-700 ease-out"
                 />
@@ -347,7 +390,7 @@ export default function DailyEmotionalCheckinCard() {
               </button>
             </div>
 
-            {/* View Mode Toggle: Orbital Wheel vs Grid */}
+            {/* View Mode Toggle: Orbital Honeycomb vs Interlocking Honeycomb Hive */}
             <div className="flex items-center gap-2">
               <div className="flex items-center gap-1 p-1 rounded-xl bg-slate-100/90 dark:bg-slate-800/60 border border-slate-200/60 dark:border-white/[0.06] text-xs font-semibold">
                 <button
@@ -358,10 +401,10 @@ export default function DailyEmotionalCheckinCard() {
                       ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-xs font-bold scale-[1.02]'
                       : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'
                   }`}
-                  title="แสดงผลแบบวงล้อกลม 360 องศา"
+                  title="แสดงผลแบบรังผึ้งรอบแกน 6 เหลี่ยม"
                 >
-                  <Disc size={13} className={viewMode === 'wheel' ? 'animate-spin-slow' : ''} />
-                  <span>{language === 'th' ? 'วงล้อรอบวง' : 'Radial Wheel'}</span>
+                  <Hexagon size={13} className={viewMode === 'wheel' ? 'animate-pulse' : ''} />
+                  <span>{language === 'th' ? 'รังผึ้งรอบแกน' : 'Orbital Honeycomb'}</span>
                 </button>
                 <button
                   type="button"
@@ -371,10 +414,10 @@ export default function DailyEmotionalCheckinCard() {
                       ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-xs font-bold scale-[1.02]'
                       : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'
                   }`}
-                  title="แสดงผลแบบตารางไอคอน"
+                  title="แสดงผลแบบตารางรังผึ้งเต็มระนาบ"
                 >
                   <LayoutGrid size={13} />
-                  <span>{language === 'th' ? 'ตาราง' : 'Grid'}</span>
+                  <span>{language === 'th' ? 'ตารางรังผึ้ง' : 'Honeycomb Hive'}</span>
                 </button>
               </div>
 
@@ -391,46 +434,44 @@ export default function DailyEmotionalCheckinCard() {
             </div>
           </div>
 
-          {/* Interactive Emotion Selection Area */}
+          {/* Interactive Emotion Honeycomb Area */}
           {viewMode === 'wheel' ? (
             /* ============================================================ */
-            /* 1. ORBITAL RADIAL EMOTION WHEEL (วงกลมแบบมีอารมณ์อยู่รอบๆ) */
+            /* 1. ORBITAL 6-SIDED HONEYCOMB (รังผึ้ง 6 เหลี่ยมรอบศูนย์กลาง) */
             /* ============================================================ */
-            <div className="relative w-full max-w-[760px] h-[520px] sm:h-[640px] md:h-[720px] mx-auto flex items-center justify-center my-3 select-none overflow-visible">
-              {/* Concentric Orbital Rings & Connecting Rays SVG */}
+            <div className="relative w-full max-w-[760px] h-[540px] sm:h-[660px] md:h-[730px] mx-auto flex items-center justify-center my-3 select-none overflow-visible">
+              {/* Concentric Hexagonal Guide Tracks & Connecting Laser Rays */}
               <svg className="absolute inset-0 w-full h-full pointer-events-none" viewBox="0 0 760 720">
                 <defs>
-                  <radialGradient id="wheelCenterAura" cx="50%" cy="50%" r="50%">
-                    <stop offset="0%" stopColor={statusConfig.meterColor} stopOpacity="0.2" />
+                  <radialGradient id="hexWheelCenterAura" cx="50%" cy="50%" r="50%">
+                    <stop offset="0%" stopColor={statusConfig.meterColor} stopOpacity="0.22" />
                     <stop offset="65%" stopColor={statusConfig.meterColor} stopOpacity="0.05" />
                     <stop offset="100%" stopColor="transparent" stopOpacity="0" />
                   </radialGradient>
                 </defs>
 
                 {/* Ambient Radial Wheel Center Backdrop Glow */}
-                <circle cx="380" cy="360" r={wheelRadius + 55} fill="url(#wheelCenterAura)" />
+                <circle cx="380" cy="360" r={wheelRadius + 60} fill="url(#hexWheelCenterAura)" />
 
-                {/* Outer & Inner Orbit Guide Track Rings */}
-                <circle
-                  cx="380"
-                  cy="360"
-                  r={wheelRadius}
+                {/* Outer & Inner 6-Sided Hexagonal Guide Tracks */}
+                <polygon
+                  points={outerHexTrack}
                   className="stroke-slate-300/40 dark:stroke-white/10"
                   strokeWidth="1.5"
                   strokeDasharray="6 6"
+                  strokeLinejoin="round"
                   fill="none"
                 />
-                <circle
-                  cx="380"
-                  cy="360"
-                  r={wheelRadius * 0.65}
+                <polygon
+                  points={innerHexTrack}
                   className="stroke-slate-200/50 dark:stroke-white/[0.05]"
                   strokeWidth="1"
                   strokeDasharray="4 4"
+                  strokeLinejoin="round"
                   fill="none"
                 />
 
-                {/* Glowing Laser Connecting Rays to Selected Emotions */}
+                {/* Glowing Laser Connecting Rays to Selected Honeycomb Cells */}
                 {filteredEmotions.map((emotion, idx) => {
                   const isSelected = selectedIds.includes(emotion.id);
                   if (!isSelected) return null;
@@ -475,74 +516,99 @@ export default function DailyEmotionalCheckinCard() {
                 })}
               </svg>
 
-              {/* Center Core Hub: Prominent Circular Readiness Gauge & Score */}
-              <div className="absolute z-20 left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-48 h-48 sm:w-56 sm:h-56 md:w-64 md:h-64 rounded-full flex flex-col items-center justify-center p-3 shadow-2xl backdrop-blur-xl bg-white/95 dark:bg-slate-900/95 border-2 border-slate-200/90 dark:border-white/15">
+              {/* Center Core Hub: 6-Sided Hexagon Honeycomb Hub & Gauge */}
+              <div
+                className="absolute z-20 left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-52 h-60 sm:w-60 sm:h-68 md:w-68 md:h-78 flex flex-col items-center justify-center select-none"
+              >
                 {/* Outer Breathing Aura Glow */}
                 <div
-                  className="absolute inset-0 rounded-full blur-2xl transition-all duration-700 animate-glow-pulse pointer-events-none"
-                  style={{ backgroundColor: statusConfig.meterColor, opacity: 0.38 }}
+                  className="absolute inset-0 blur-2xl transition-all duration-700 animate-glow-pulse pointer-events-none"
+                  style={{
+                    backgroundColor: statusConfig.meterColor,
+                    opacity: 0.35,
+                    clipPath: 'polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%)',
+                  }}
                 />
 
-                {/* Orbit decorative dashed ring with spin */}
-                <div className="absolute inset-2 rounded-full border border-dashed border-slate-300/60 dark:border-white/20 animate-gauge-spin pointer-events-none" />
-
-                {/* Score Bump Ripple Ring */}
+                {/* Score Bump Ripple Polygon */}
                 {scoreBump && (
                   <div
-                    className="absolute inset-0 rounded-full border-2 animate-ring-pulse pointer-events-none"
-                    style={{ borderColor: statusConfig.meterColor }}
+                    className="absolute inset-0 border-2 animate-ring-pulse pointer-events-none"
+                    style={{
+                      borderColor: statusConfig.meterColor,
+                      clipPath: 'polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%)',
+                    }}
                   />
                 )}
 
-                {/* SVG Circular Progress Meter in Center Hub */}
-                <svg className="absolute inset-0 w-full h-full -rotate-90 transform p-2" viewBox="0 0 200 200">
+                {/* SVG 6-Sided Hexagon Progress Meter in Center Hub */}
+                <svg className="absolute inset-0 w-full h-full overflow-visible" viewBox="0 0 240 276">
                   <defs>
-                    <linearGradient id="hubGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                      <stop offset="0%" stopColor={statusConfig.meterColor} stopOpacity="0.85" />
-                      <stop offset="100%" stopColor={statusConfig.meterColor} stopOpacity="1" />
+                    <linearGradient id="hubHexGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                      <stop offset="0%" stopColor={statusConfig.meterColor} stopOpacity="0.9" />
+                      <stop offset="100%" stopColor={statusConfig.meterColorLight} stopOpacity="1" />
                     </linearGradient>
-                    <filter id="hubShadow" x="-20%" y="-20%" width="140%" height="140%">
-                      <feDropShadow dx="0" dy="0" stdDeviation="5" floodColor={statusConfig.meterColor} floodOpacity="0.5" />
+                    <filter id="hubHexShadow" x="-20%" y="-20%" width="140%" height="140%">
+                      <feDropShadow dx="0" dy="0" stdDeviation="6" floodColor={statusConfig.meterColor} floodOpacity="0.55" />
                     </filter>
                   </defs>
-                  <circle
-                    cx="100"
-                    cy="100"
-                    r="82"
+
+                  {/* Backdrop Hexagon Fill with Glassmorphism */}
+                  <polygon
+                    points="120,6 234,69 234,207 120,270 6,207 6,69"
+                    className="fill-white/95 dark:fill-slate-900/95"
+                    strokeLinejoin="round"
+                  />
+
+                  {/* Outer decorative dashed spinning hexagon frame */}
+                  <polygon
+                    points="120,2 238,67 238,209 120,274 2,209 2,67"
+                    className="stroke-slate-300/60 dark:stroke-white/20 animate-gauge-spin origin-center"
+                    strokeWidth="1.5"
+                    strokeDasharray="8 8"
+                    strokeLinejoin="round"
+                    fill="none"
+                  />
+
+                  {/* Background Track Hexagon (perimeter ~797) */}
+                  <polygon
+                    points="120,6 234,69 234,207 120,270 6,207 6,69"
                     className="stroke-slate-100 dark:stroke-slate-800"
                     strokeWidth="10"
-                    fill="transparent"
+                    strokeLinejoin="round"
+                    fill="none"
                   />
-                  <circle
-                    cx="100"
-                    cy="100"
-                    r="82"
-                    stroke="url(#hubGradient)"
+
+                  {/* Active Animated Hexagon Progress Stroke along 6 Edges */}
+                  <polygon
+                    points="120,6 234,69 234,207 120,270 6,207 6,69"
+                    stroke="url(#hubHexGradient)"
                     strokeWidth="10"
-                    strokeDasharray={2 * Math.PI * 82}
-                    strokeDashoffset={2 * Math.PI * 82 - (currentScore.totalScore / 100) * (2 * Math.PI * 82)}
+                    strokeLinejoin="round"
                     strokeLinecap="round"
-                    fill="transparent"
-                    filter="url(#hubShadow)"
+                    strokeDasharray={797}
+                    strokeDashoffset={797 - (currentScore.totalScore / 100) * 797}
+                    fill="none"
+                    filter="url(#hubHexShadow)"
                     className="transition-all duration-700 ease-out"
                   />
                 </svg>
 
                 {/* Inside Center Metrics */}
-                <div className="relative z-10 flex flex-col items-center justify-center text-center select-none pointer-events-none">
+                <div className="relative z-10 flex flex-col items-center justify-center text-center select-none pointer-events-none px-4">
                   <div className="flex items-center gap-1.5 -mb-1">
                     {statusConfig.icon}
-                    <span className="text-[11px] sm:text-xs font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                    <span className="text-[10px] sm:text-xs font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">
                       {currentScore.status === 'OPTIMAL' ? 'Optimal Edge' : currentScore.status === 'WARNING' ? 'High Risk' : 'Normal'}
                     </span>
                   </div>
-                  <span className={`text-4xl sm:text-5xl font-black tracking-tight transition-transform duration-300 ${scoreBump ? 'animate-score-bump scale-110' : ''} ${statusConfig.text}`}>
+                  <span className={`text-4xl sm:text-5xl md:text-6xl font-black tracking-tight transition-transform duration-300 ${scoreBump ? 'animate-score-bump scale-110' : ''} ${statusConfig.text}`}>
                     {currentScore.totalScore}
                   </span>
                   <span className="text-[10px] sm:text-[11px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500 -mt-1">
                     / 100 PTS
                   </span>
-                  <div className="flex items-center gap-2 mt-1.5">
+                  <div className="flex items-center gap-2 mt-2">
                     <span className={`text-[11px] sm:text-xs font-black px-2.5 py-0.5 rounded-full shadow-xs ${
                       currentScore.netScore >= 0
                         ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30'
@@ -559,7 +625,7 @@ export default function DailyEmotionalCheckinCard() {
                 </div>
               </div>
 
-              {/* Orbiting Emotion Nodes (Positioned along 360-degree circle around the hub) */}
+              {/* Orbiting 6-Sided Honeycomb Nodes (Positioned along 360-degree radial ring) */}
               {filteredEmotions.map((emotion, idx) => {
                 const isSelected = selectedIds.includes(emotion.id);
                 const isJustToggled = lastToggledId === emotion.id;
@@ -568,36 +634,41 @@ export default function DailyEmotionalCheckinCard() {
                 const x = Math.cos(angle) * wheelRadius;
                 const y = Math.sin(angle) * wheelRadius;
 
-                let circleBg = 'bg-white/95 dark:bg-slate-800/95 border-slate-200/90 dark:border-white/[0.1] hover:border-slate-400 dark:hover:border-white/40 shadow-md';
+                let strokeColor = 'rgba(148, 163, 184, 0.5)';
+                let fillColor = 'rgba(255, 255, 255, 0.95)';
+                let darkFillColor = 'rgba(30, 41, 59, 0.95)';
                 let scoreColor = 'bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-300';
-                let activeRing = '';
                 let glowColor = 'rgba(100, 116, 139, 0.4)';
 
                 if (emotion.category === 'positive') {
                   scoreColor = 'bg-emerald-500 text-white';
                   glowColor = 'rgba(16, 185, 129, 0.5)';
                   if (isSelected) {
-                    circleBg = 'bg-gradient-to-tr from-emerald-50 to-teal-50 dark:from-emerald-950/90 dark:to-teal-950/90 border-emerald-500 dark:border-emerald-400';
-                    activeRing = 'ring-4 ring-emerald-500/40 shadow-xl shadow-emerald-500/40 scale-115';
+                    strokeColor = '#10b981';
+                    fillColor = 'rgba(16, 185, 129, 0.15)';
+                    darkFillColor = 'rgba(6, 78, 59, 0.7)';
                   }
                 } else if (emotion.category === 'negative') {
                   scoreColor = 'bg-rose-500 text-white';
                   glowColor = 'rgba(244, 63, 94, 0.5)';
                   if (isSelected) {
-                    circleBg = 'bg-gradient-to-tr from-rose-50 to-red-50 dark:from-rose-950/90 dark:to-red-950/90 border-rose-500 dark:border-rose-400';
-                    activeRing = 'ring-4 ring-rose-500/40 shadow-xl shadow-rose-500/40 scale-115';
+                    strokeColor = '#f43f5e';
+                    fillColor = 'rgba(244, 63, 94, 0.15)';
+                    darkFillColor = 'rgba(136, 19, 55, 0.7)';
                   }
                 } else if (emotion.category === 'neutral') {
                   scoreColor = 'bg-slate-500 text-white';
                   glowColor = 'rgba(100, 116, 139, 0.5)';
                   if (isSelected) {
-                    circleBg = 'bg-slate-100 dark:bg-slate-800 border-slate-400 dark:border-slate-300';
-                    activeRing = 'ring-4 ring-slate-400/40 shadow-lg shadow-slate-500/30 scale-115';
+                    strokeColor = '#94a3b8';
+                    fillColor = 'rgba(148, 163, 184, 0.2)';
+                    darkFillColor = 'rgba(51, 65, 85, 0.7)';
                   }
                 }
 
-                // Size adjustment: larger circle buttons
-                const nodeSize = total <= 10 ? 'w-14 h-14 sm:w-16 sm:h-16 md:w-18 md:h-18' : 'w-11 h-11 sm:w-13 sm:h-13 md:w-15 md:h-15';
+                // Sizing of honeycomb nodes
+                const nodeWidthClass = total <= 10 ? 'w-16 sm:w-18 md:w-20' : 'w-13 sm:w-15 md:w-17';
+                const nodeHeightClass = total <= 10 ? 'h-18 sm:h-21 md:h-23' : 'h-15 sm:h-17 md:h-19';
 
                 return (
                   <div
@@ -614,7 +685,7 @@ export default function DailyEmotionalCheckinCard() {
                     {floatingScore?.id === emotion.id && (
                       <div
                         key={floatingScore.key}
-                        className={`absolute z-40 -top-6 left-1/2 -translate-x-1/2 pointer-events-none text-xs font-black px-2.5 py-0.5 rounded-full shadow-lg border animate-pop-float whitespace-nowrap ${
+                        className={`absolute z-40 -top-7 left-1/2 -translate-x-1/2 pointer-events-none text-xs font-black px-2.5 py-0.5 rounded-full shadow-lg border animate-pop-float whitespace-nowrap ${
                           floatingScore.score > 0
                             ? 'bg-emerald-500 text-white border-emerald-300 shadow-emerald-500/40'
                             : floatingScore.score < 0
@@ -626,51 +697,83 @@ export default function DailyEmotionalCheckinCard() {
                       </div>
                     )}
 
-                    {/* Circular Button */}
+                    {/* 6-Sided Hexagon Honeycomb Button */}
                     <button
                       type="button"
                       onClick={() => toggleEmotion(emotion)}
-                      className={`relative ${nodeSize} rounded-full border-2 flex items-center justify-center transition-all duration-300 cursor-pointer hover:scale-125 hover:z-30 active:scale-95 group ${circleBg} ${activeRing}`}
+                      className={`relative ${nodeWidthClass} ${nodeHeightClass} flex items-center justify-center transition-all duration-300 cursor-pointer hover:scale-125 hover:z-30 active:scale-95 group ${
+                        isSelected ? 'scale-115' : ''
+                      }`}
                       title={language === 'th' ? emotion.labelTh : emotion.labelEn}
                     >
+                      {/* SVG Hexagon Shape with Anti-Aliased Border & Glowing Stroke */}
+                      <svg
+                        className="absolute inset-0 w-full h-full overflow-visible pointer-events-none transition-transform duration-300 group-hover:drop-shadow-md"
+                        viewBox="0 0 100 116"
+                      >
+                        <polygon
+                          points="50,3 97,29 97,87 50,113 3,87 3,29"
+                          stroke={strokeColor}
+                          strokeWidth={isSelected ? '4' : '2'}
+                          strokeLinejoin="round"
+                          className="transition-colors duration-300 fill-white/95 dark:fill-slate-800/95"
+                          style={{
+                            fill: isSelected ? undefined : undefined,
+                            filter: isSelected ? `drop-shadow(0 0 8px ${glowColor})` : undefined,
+                          }}
+                        />
+                      </svg>
+
+                      {/* Clipped Inner Background for Tinted Fill */}
+                      <div
+                        className="absolute inset-1 transition-colors duration-300 pointer-events-none"
+                        style={{
+                          clipPath: 'polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%)',
+                          backgroundColor: isSelected ? glowColor : 'transparent',
+                        }}
+                      />
+
                       {/* Ripple Burst on Click */}
                       {isSelected && isJustToggled && (
                         <div
-                          className="absolute inset-0 rounded-full pointer-events-none border-2 animate-ripple"
-                          style={{ borderColor: glowColor }}
+                          className="absolute inset-0 pointer-events-none animate-ripple"
+                          style={{
+                            clipPath: 'polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%)',
+                            backgroundColor: glowColor,
+                          }}
                         />
                       )}
 
                       {/* Emoji in Center */}
                       <span
-                        className={`text-xl sm:text-2xl md:text-3xl leading-none transition-transform duration-200 group-hover:scale-115 ${
+                        className={`relative z-10 text-xl sm:text-2xl md:text-3xl leading-none transition-transform duration-200 group-hover:scale-115 ${
                           isSelected ? 'animate-spring-pop scale-110' : ''
                         }`}
                       >
                         {emotion.emoji}
                       </span>
 
-                      {/* Mini Score Badge */}
+                      {/* Mini Score Badge at Top-Right Vertex */}
                       <span
-                        className={`absolute -top-1.5 -right-1 text-[9px] sm:text-[10px] font-black px-1.5 py-0.2 rounded-full shadow-xs border border-white/60 dark:border-black/40 transition-transform ${scoreColor} ${
+                        className={`absolute -top-1.5 -right-1 z-20 text-[9px] sm:text-[10px] font-black px-1.5 py-0.2 rounded-full shadow-xs border border-white/60 dark:border-black/40 transition-transform ${scoreColor} ${
                           isSelected ? 'scale-110 shadow-md ring-1 ring-white/50' : ''
                         }`}
                       >
                         {emotion.score > 0 ? `+${emotion.score}` : emotion.score}
                       </span>
 
-                      {/* Checkmark when selected */}
+                      {/* Checkmark when selected at Bottom-Right Vertex */}
                       {isSelected && (
-                        <span className="absolute -bottom-1 -right-1 w-4.5 h-4.5 sm:w-5 sm:h-5 rounded-full bg-blue-600 text-white flex items-center justify-center shadow-md animate-spring-pop border-2 border-white dark:border-slate-900">
+                        <span className="absolute -bottom-1 -right-1 z-20 w-4.5 h-4.5 sm:w-5 sm:h-5 rounded-full bg-blue-600 text-white flex items-center justify-center shadow-md animate-spring-pop border-2 border-white dark:border-slate-900">
                           <Check size={11} strokeWidth={3.5} />
                         </span>
                       )}
                     </button>
 
-                    {/* Directly Visible Text Label Underneath Circle */}
+                    {/* Directly Visible Text Label Underneath Hexagon */}
                     <span
                       onClick={() => toggleEmotion(emotion)}
-                      className={`mt-1 text-[9px] sm:text-[10px] md:text-[11px] font-bold text-center leading-tight max-w-[70px] sm:max-w-[85px] md:max-w-[95px] line-clamp-2 cursor-pointer transition-all px-1.5 py-0.5 rounded-md shadow-xs backdrop-blur-md ${
+                      className={`mt-1 text-[9px] sm:text-[10px] md:text-[11px] font-bold text-center leading-tight max-w-[72px] sm:max-w-[85px] md:max-w-[95px] line-clamp-2 cursor-pointer transition-all px-1.5 py-0.5 rounded-md shadow-xs backdrop-blur-md ${
                         isSelected
                           ? 'text-blue-600 dark:text-blue-400 bg-blue-500/15 border border-blue-500/30 font-black scale-105 shadow-sm'
                           : 'text-slate-700 dark:text-slate-300 group-hover:text-slate-900 dark:group-hover:text-white bg-white/80 dark:bg-slate-900/80 border border-slate-200/70 dark:border-white/[0.08]'
@@ -698,190 +801,211 @@ export default function DailyEmotionalCheckinCard() {
             </div>
           ) : (
             /* ============================================================ */
-            /* 2. CIRCULAR GRID VIEW (ตารางไอคอนวงกลม) */
+            /* 2. INTERLOCKING HONEYCOMB HIVE GRID (ตารางรังผึ้งประสานแถว) */
             /* ============================================================ */
-            <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-7 gap-y-5 gap-x-3 justify-items-center py-2 animate-fade-in">
-              {filteredEmotions.map((emotion) => {
-                const isSelected = selectedIds.includes(emotion.id);
-                const isJustToggled = lastToggledId === emotion.id;
+            <div className="py-4 px-1 max-w-4xl mx-auto flex flex-col items-center select-none animate-fade-in">
+              {honeycombRows.map((row, rowIndex) => (
+                <div
+                  key={`honeycomb-row-${rowIndex}`}
+                  className="flex justify-center items-center gap-2 sm:gap-3.5 -mt-3 sm:-mt-4 md:-mt-5 first:mt-0 transition-all duration-300"
+                >
+                  {row.map((emotion) => {
+                    const isSelected = selectedIds.includes(emotion.id);
+                    const isJustToggled = lastToggledId === emotion.id;
 
-                let circleBg = 'bg-white/80 dark:bg-slate-800/80 border-slate-200/90 dark:border-white/[0.09] hover:border-slate-400 dark:hover:border-white/30';
-                let scoreColor = 'bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-300';
-                let activeRing = '';
-                let glowColor = 'rgba(100, 116, 139, 0.4)';
+                    let strokeColor = 'rgba(148, 163, 184, 0.45)';
+                    let scoreColor = 'bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-300';
+                    let glowColor = 'rgba(100, 116, 139, 0.4)';
 
-                if (emotion.category === 'positive') {
-                  scoreColor = 'bg-emerald-500 text-white';
-                  glowColor = 'rgba(16, 185, 129, 0.45)';
-                  if (isSelected) {
-                    circleBg = 'bg-gradient-to-tr from-emerald-50 to-teal-50 dark:from-emerald-950/80 dark:to-teal-950/80 border-emerald-500 dark:border-emerald-400';
-                    activeRing = 'ring-4 ring-emerald-500/40 shadow-lg shadow-emerald-500/30 scale-105';
-                  }
-                } else if (emotion.category === 'negative') {
-                  scoreColor = 'bg-rose-500 text-white';
-                  glowColor = 'rgba(244, 63, 94, 0.45)';
-                  if (isSelected) {
-                    circleBg = 'bg-gradient-to-tr from-rose-50 to-red-50 dark:from-rose-950/80 dark:to-red-950/80 border-rose-500 dark:border-rose-400';
-                    activeRing = 'ring-4 ring-rose-500/40 shadow-lg shadow-rose-500/30 scale-105';
-                  }
-                } else if (emotion.category === 'neutral') {
-                  scoreColor = 'bg-slate-500 text-white';
-                  glowColor = 'rgba(100, 116, 139, 0.45)';
-                  if (isSelected) {
-                    circleBg = 'bg-slate-100 dark:bg-slate-800 border-slate-400 dark:border-slate-300';
-                    activeRing = 'ring-4 ring-slate-400/40 shadow-md shadow-slate-500/20 scale-105';
-                  }
-                }
+                    if (emotion.category === 'positive') {
+                      scoreColor = 'bg-emerald-500 text-white';
+                      glowColor = 'rgba(16, 185, 129, 0.45)';
+                      if (isSelected) {
+                        strokeColor = '#10b981';
+                      }
+                    } else if (emotion.category === 'negative') {
+                      scoreColor = 'bg-rose-500 text-white';
+                      glowColor = 'rgba(244, 63, 94, 0.45)';
+                      if (isSelected) {
+                        strokeColor = '#f43f5e';
+                      }
+                    } else if (emotion.category === 'neutral') {
+                      scoreColor = 'bg-slate-500 text-white';
+                      glowColor = 'rgba(100, 116, 139, 0.45)';
+                      if (isSelected) {
+                        strokeColor = '#94a3b8';
+                      }
+                    }
 
-                return (
-                  <div
-                    key={emotion.id}
-                    className="relative flex flex-col items-center group select-none"
-                    onMouseEnter={() => setActiveTooltip(emotion.id)}
-                    onMouseLeave={() => setActiveTooltip(null)}
-                  >
-                    {/* Floating RPG Score Popup on Click */}
-                    {floatingScore?.id === emotion.id && (
+                    return (
                       <div
-                        key={floatingScore.key}
-                        className={`absolute z-30 -top-4 left-1/2 -translate-x-1/2 pointer-events-none text-xs font-black px-2.5 py-0.5 rounded-full shadow-lg border animate-pop-float ${
-                          floatingScore.score > 0
-                            ? 'bg-emerald-500 text-white border-emerald-300 shadow-emerald-500/40'
-                            : floatingScore.score < 0
-                            ? 'bg-rose-500 text-white border-rose-300 shadow-rose-500/40'
-                            : 'bg-slate-700 text-white border-slate-500 shadow-slate-700/40'
-                        }`}
+                        key={emotion.id}
+                        className="relative flex flex-col items-center group"
+                        onMouseEnter={() => setActiveTooltip(emotion.id)}
+                        onMouseLeave={() => setActiveTooltip(null)}
                       >
-                        {floatingScore.score > 0 ? `+${floatingScore.score}` : floatingScore.score}
+                        {/* Floating RPG Score Popup on Click */}
+                        {floatingScore?.id === emotion.id && (
+                          <div
+                            key={floatingScore.key}
+                            className={`absolute z-40 -top-5 left-1/2 -translate-x-1/2 pointer-events-none text-xs font-black px-2.5 py-0.5 rounded-full shadow-lg border animate-pop-float whitespace-nowrap ${
+                              floatingScore.score > 0
+                                ? 'bg-emerald-500 text-white border-emerald-300 shadow-emerald-500/40'
+                                : floatingScore.score < 0
+                                ? 'bg-rose-500 text-white border-rose-300 shadow-rose-500/40'
+                                : 'bg-slate-700 text-white border-slate-500 shadow-slate-700/40'
+                            }`}
+                          >
+                            {floatingScore.score > 0 ? `+${floatingScore.score}` : floatingScore.score}
+                          </div>
+                        )}
+
+                        {/* 6-Sided Honeycomb Cell */}
+                        <button
+                          type="button"
+                          onClick={() => toggleEmotion(emotion)}
+                          className={`relative w-20 h-24 sm:w-24 sm:h-28 md:w-28 md:h-32 flex flex-col items-center justify-center p-2 transition-all duration-300 cursor-pointer hover:scale-115 hover:z-30 active:scale-95 group ${
+                            isSelected ? 'scale-105 z-20' : ''
+                          }`}
+                        >
+                          {/* SVG Hexagon Outline with Drop Shadow */}
+                          <svg
+                            className="absolute inset-0 w-full h-full overflow-visible pointer-events-none transition-transform duration-300"
+                            viewBox="0 0 100 116"
+                          >
+                            <polygon
+                              points="50,3 97,29 97,87 50,113 3,87 3,29"
+                              stroke={strokeColor}
+                              strokeWidth={isSelected ? '3.5' : '1.8'}
+                              strokeLinejoin="round"
+                              className="transition-colors duration-300 fill-white/90 dark:fill-slate-800/90"
+                              style={{
+                                filter: isSelected ? `drop-shadow(0 0 7px ${glowColor})` : undefined,
+                              }}
+                            />
+                          </svg>
+
+                          {/* Clipped Inner Tint */}
+                          <div
+                            className="absolute inset-1 transition-colors duration-300 pointer-events-none"
+                            style={{
+                              clipPath: 'polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%)',
+                              backgroundColor: isSelected ? glowColor : 'transparent',
+                            }}
+                          />
+
+                          {/* Ripple Burst on Click */}
+                          {isSelected && isJustToggled && (
+                            <div
+                              className="absolute inset-0 pointer-events-none animate-ripple"
+                              style={{
+                                clipPath: 'polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%)',
+                                backgroundColor: glowColor,
+                              }}
+                            />
+                          )}
+
+                          {/* Score Pill at Top Vertex */}
+                          <span
+                            className={`absolute top-1 sm:top-1.5 z-20 text-[8px] sm:text-[9px] font-black px-1.5 py-0.2 rounded-full shadow-xs border border-white/60 dark:border-black/40 ${scoreColor} ${
+                              isSelected ? 'scale-110 shadow-md ring-1 ring-white/50' : ''
+                            }`}
+                          >
+                            {emotion.score > 0 ? `+${emotion.score}` : emotion.score}
+                          </span>
+
+                          {/* Center Emoji */}
+                          <span
+                            className={`relative z-10 text-xl sm:text-2xl md:text-3xl mt-1.5 leading-none transition-transform duration-200 group-hover:scale-120 ${
+                              isSelected ? 'animate-spring-pop scale-110' : ''
+                            }`}
+                          >
+                            {emotion.emoji}
+                          </span>
+
+                          {/* Label Text Inside Lower Hexagon Section */}
+                          <span
+                            className={`relative z-10 mt-1 text-[9px] sm:text-[10px] md:text-[11px] font-bold text-center leading-tight line-clamp-2 px-1 max-w-[65px] sm:max-w-[78px] md:max-w-[90px] transition-colors ${
+                              isSelected
+                                ? 'text-blue-600 dark:text-blue-300 font-black'
+                                : 'text-slate-700 dark:text-slate-300 group-hover:text-slate-900 dark:group-hover:text-white'
+                            }`}
+                          >
+                            {language === 'th' ? emotion.labelTh : emotion.labelEn}
+                          </span>
+
+                          {/* Checkmark Badge on Selected */}
+                          {isSelected && (
+                            <span className="absolute bottom-1 sm:bottom-1.5 z-20 w-4 h-4 sm:w-4.5 sm:h-4.5 rounded-full bg-blue-600 text-white flex items-center justify-center shadow-md animate-spring-pop border border-white dark:border-slate-900">
+                              <Check size={10} strokeWidth={3.5} />
+                            </span>
+                          )}
+                        </button>
+
+                        {/* Hover Tooltip */}
+                        {activeTooltip === emotion.id && emotion.descriptionTh && (
+                          <div className="absolute z-50 bottom-full left-1/2 -translate-x-1/2 mb-2 w-48 sm:w-56 p-2 rounded-xl bg-slate-900/95 dark:bg-black/95 text-white text-[10px] sm:text-[11px] shadow-2xl backdrop-blur-md border border-white/10 pointer-events-none animate-fade-in text-center">
+                            <div className="font-semibold text-slate-200 leading-snug">
+                              {language === 'th' ? emotion.descriptionTh : emotion.descriptionEn || emotion.descriptionTh}
+                            </div>
+                            <div className="absolute top-full left-1/2 -translate-x-1/2 -mt-1 border-4 border-transparent border-t-slate-900 dark:border-t-black" />
+                          </div>
+                        )}
                       </div>
-                    )}
-
-                    {/* Circular Button */}
-                    <button
-                      type="button"
-                      onClick={() => toggleEmotion(emotion)}
-                      className={`relative w-16 h-16 sm:w-20 sm:h-20 rounded-full border-2 flex items-center justify-center transition-all duration-300 cursor-pointer hover:scale-110 hover:-translate-y-1 active:scale-95 shadow-sm group ${circleBg} ${activeRing}`}
-                    >
-                      {/* Ripple Burst on Click */}
-                      {isSelected && isJustToggled && (
-                        <div
-                          className="absolute inset-0 rounded-full pointer-events-none border-2 animate-ripple"
-                          style={{ borderColor: glowColor }}
-                        />
-                      )}
-
-                      {/* Spring Bouncing Emoji in Center */}
-                      <span
-                        className={`text-2xl sm:text-3xl leading-none transition-transform duration-200 group-hover:scale-125 ${
-                          isSelected ? 'animate-spring-pop scale-110' : ''
-                        }`}
-                      >
-                        {emotion.emoji}
-                      </span>
-
-                      {/* Score Tag */}
-                      <span
-                        className={`absolute -top-1 -right-1 text-[9px] font-black px-1.5 py-0.5 rounded-full shadow-xs border border-white/60 dark:border-black/40 transition-transform ${scoreColor} ${
-                          isSelected ? 'scale-110 shadow-md ring-1 ring-white/50' : ''
-                        }`}
-                      >
-                        {emotion.score > 0 ? `+${emotion.score}` : emotion.score}
-                      </span>
-
-                      {/* Checkmark Badge */}
-                      {isSelected && (
-                        <span className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-blue-600 text-white flex items-center justify-center shadow-md animate-spring-pop border-2 border-white dark:border-slate-900">
-                          <Check size={11} strokeWidth={3.5} />
-                        </span>
-                      )}
-                    </button>
-
-                    {/* Label Underneath Circle */}
-                    <span
-                      onClick={() => toggleEmotion(emotion)}
-                      className={`mt-2 text-[11px] font-bold text-center leading-tight max-w-[80px] line-clamp-2 cursor-pointer transition-colors ${
-                        isSelected
-                          ? 'text-blue-600 dark:text-blue-400 font-extrabold'
-                          : 'text-slate-700 dark:text-slate-300 group-hover:text-slate-900 dark:group-hover:text-white'
-                      }`}
-                    >
-                      {language === 'th' ? emotion.labelTh : emotion.labelEn}
-                    </span>
-
-                    {/* Micro-Tooltip */}
-                    {activeTooltip === emotion.id && emotion.descriptionTh && (
-                      <div className="absolute z-40 bottom-full left-1/2 -translate-x-1/2 mb-3 w-52 p-2.5 rounded-xl bg-slate-900/95 dark:bg-black/95 text-white text-[11px] shadow-2xl backdrop-blur-md border border-white/[0.1] pointer-events-none animate-fade-in text-center">
-                        <div className="font-semibold text-slate-200 leading-snug">
-                          {language === 'th' ? emotion.descriptionTh : emotion.descriptionEn || emotion.descriptionTh}
-                        </div>
-                        <div className="absolute top-full left-1/2 -translate-x-1/2 -mt-1 border-4 border-transparent border-t-slate-900 dark:border-t-black" />
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
+                    );
+                  })}
+                </div>
+              ))}
             </div>
           )}
 
           {/* Assessment & Advice Summary Container */}
           <div className="p-5 rounded-3xl bg-white/95 dark:bg-slate-900/95 border border-slate-200/80 dark:border-white/[0.08] shadow-md space-y-4 transition-all">
             <div className={`flex flex-col ${viewMode === 'grid' ? 'md:flex-row' : ''} items-center gap-6`}>
-              {/* Prominent Circular Gauge (Shown in Grid Mode for clear overview) */}
+              {/* 6-Sided Hexagon Gauge (Shown in Honeycomb Hive Mode for complete context) */}
               {viewMode === 'grid' && (
                 <div className="relative flex flex-col items-center justify-center shrink-0">
-                  <div className="relative w-36 h-36 flex items-center justify-center">
-                    {/* Outer Breathing Aura Glow */}
+                  <div className="relative w-36 h-42 flex items-center justify-center">
+                    {/* Breathing Aura */}
                     <div
-                      className="absolute inset-0 rounded-full blur-2xl transition-all duration-700 animate-glow-pulse pointer-events-none"
-                      style={{ backgroundColor: statusConfig.meterColor, opacity: 0.28 }}
+                      className="absolute inset-0 blur-2xl transition-all duration-700 animate-glow-pulse pointer-events-none"
+                      style={{
+                        backgroundColor: statusConfig.meterColor,
+                        opacity: 0.28,
+                        clipPath: 'polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%)',
+                      }}
                     />
 
-                    {/* Outer decorative dashed orbit ring with continuous smooth spin */}
-                    <div className="absolute inset-1 rounded-full border border-dashed border-slate-300/40 dark:border-white/10 animate-gauge-spin pointer-events-none" />
-
-                    {/* Expanding pulse wave on score update */}
+                    {/* Expanding ripple polygon on score update */}
                     {scoreBump && (
                       <div
-                        className="absolute inset-0 rounded-full border-2 animate-ring-pulse pointer-events-none"
-                        style={{ borderColor: statusConfig.meterColor }}
+                        className="absolute inset-0 border-2 animate-ring-pulse pointer-events-none"
+                        style={{
+                          borderColor: statusConfig.meterColor,
+                          clipPath: 'polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%)',
+                        }}
                       />
                     )}
 
-                    {/* SVG Circular Progress Meter */}
-                    <svg className="w-36 h-36 -rotate-90 transform" viewBox="0 0 144 144">
-                      <defs>
-                        <linearGradient id="scoreRadialGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                          <stop offset="0%" stopColor={statusConfig.meterColor} stopOpacity="0.8" />
-                          <stop offset="100%" stopColor={statusConfig.meterColor} stopOpacity="1" />
-                        </linearGradient>
-                        <filter id="gaugeShadow" x="-20%" y="-20%" width="140%" height="140%">
-                          <feDropShadow dx="0" dy="0" stdDeviation="4" floodColor={statusConfig.meterColor} floodOpacity="0.5" />
-                        </filter>
-                      </defs>
-
-                      {/* Background Track Circle */}
-                      <circle
-                        cx="72"
-                        cy="72"
-                        r="54"
+                    {/* SVG Hexagon Meter */}
+                    <svg className="w-36 h-42 overflow-visible" viewBox="0 0 100 116">
+                      <polygon
+                        points="50,3 97,29 97,87 50,113 3,87 3,29"
                         className="stroke-slate-100 dark:stroke-slate-800"
-                        strokeWidth="11"
+                        strokeWidth="8"
+                        strokeLinejoin="round"
                         fill="transparent"
                       />
-
-                      {/* Active Animated Progress Arc */}
-                      <circle
-                        cx="72"
-                        cy="72"
-                        r="54"
-                        stroke="url(#scoreRadialGradient)"
-                        strokeWidth="11"
-                        strokeDasharray={2 * Math.PI * 54}
-                        strokeDashoffset={2 * Math.PI * 54 - (currentScore.totalScore / 100) * (2 * Math.PI * 54)}
+                      <polygon
+                        points="50,3 97,29 97,87 50,113 3,87 3,29"
+                        stroke={statusConfig.meterColor}
+                        strokeWidth="8"
+                        strokeLinejoin="round"
                         strokeLinecap="round"
+                        strokeDasharray={331}
+                        strokeDashoffset={331 - (currentScore.totalScore / 100) * 331}
                         fill="transparent"
-                        filter="url(#gaugeShadow)"
-                        className="transition-all duration-1000 ease-out"
+                        className="transition-all duration-700 ease-out"
                       />
                     </svg>
 
@@ -903,8 +1027,9 @@ export default function DailyEmotionalCheckinCard() {
                     </div>
                   </div>
 
-                  <span className="mt-2 text-[11px] font-extrabold text-slate-600 dark:text-slate-300 uppercase tracking-wider">
-                    {language === 'th' ? 'เกจความพร้อมทรงกลม' : 'Readiness Gauge'}
+                  <span className="mt-2 text-[11px] font-extrabold text-slate-600 dark:text-slate-300 uppercase tracking-wider flex items-center gap-1">
+                    <Hexagon size={12} className="text-blue-500" />
+                    <span>{language === 'th' ? 'เกจรังผึ้งความพร้อม' : 'Honeycomb Gauge'}</span>
                   </span>
                 </div>
               )}
