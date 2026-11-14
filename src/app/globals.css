@@ -90,6 +90,33 @@ body {
   .animate-shimmer {
     animation: shimmer-slide 2.5s infinite linear;
   }
+
+  .animate-gauge-spin {
+    animation: gauge-rotate 18s linear infinite;
+  }
+
+  .animate-glow-pulse {
+    animation: glow-breathe 2.4s ease-in-out infinite;
+  }
+
+  .animate-ring-pulse {
+    animation: ring-expand 2s cubic-bezier(0.24, 0, 0.38, 1) infinite;
+  }
+}
+
+@keyframes gauge-rotate {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+@keyframes glow-breathe {
+  0%, 100% { opacity: 0.35; transform: scale(1); }
+  50% { opacity: 0.75; transform: scale(1.08); }
+}
+
+@keyframes ring-expand {
+  0% { transform: scale(0.95); opacity: 0.8; }
+  100% { transform: scale(1.35); opacity: 0; }
 }
 
 @keyframes spring-pop {

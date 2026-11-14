@@ -209,32 +209,37 @@ export default function DailyEmotionalCheckinCard() {
         {/* Live Score Display & Toggle Action */}
         <div className="flex items-center gap-3">
           {/* Mini Gauge / Score Widget */}
-          <div className="flex items-center gap-3 px-3 py-1.5 rounded-xl bg-white/90 dark:bg-black/50 border border-slate-200/80 dark:border-white/[0.08] shadow-xs transition-transform hover:scale-[1.02]">
-            {/* Circular Gauge */}
-            <div className="relative w-9 h-9 flex items-center justify-center shrink-0">
-              <svg className="w-9 h-9 -rotate-90 transform">
+          <div className="flex items-center gap-3 px-3.5 py-1.5 rounded-2xl bg-white/90 dark:bg-black/50 border border-slate-200/80 dark:border-white/[0.08] shadow-xs transition-transform hover:scale-105">
+            {/* Circular Gauge with Breathing Glow & Spin */}
+            <div className="relative w-11 h-11 flex items-center justify-center shrink-0">
+              {/* Ambient Glow */}
+              <div
+                className="absolute inset-0 rounded-full blur-md opacity-35 animate-glow-pulse pointer-events-none"
+                style={{ backgroundColor: statusConfig.meterColor }}
+              />
+              <svg className="w-11 h-11 -rotate-90 transform" viewBox="0 0 44 44">
                 <circle
-                  cx="18"
-                  cy="18"
-                  r={radius * 0.42}
+                  cx="22"
+                  cy="22"
+                  r="17"
                   className="stroke-slate-200 dark:stroke-slate-700"
                   strokeWidth="3.5"
                   fill="transparent"
                 />
                 <circle
-                  cx="18"
-                  cy="18"
-                  r={radius * 0.42}
+                  cx="22"
+                  cy="22"
+                  r="17"
                   stroke={statusConfig.meterColor}
                   strokeWidth="3.5"
-                  strokeDasharray={circumference * 0.42}
-                  strokeDashoffset={strokeDashoffset * 0.42}
+                  strokeDasharray={2 * Math.PI * 17}
+                  strokeDashoffset={2 * Math.PI * 17 - (currentScore.totalScore / 100) * (2 * Math.PI * 17)}
                   strokeLinecap="round"
                   fill="transparent"
                   className="transition-all duration-700 ease-out"
                 />
               </svg>
-              <span className={`absolute text-[11px] font-black transition-transform ${scoreBump ? 'animate-score-bump' : ''} ${statusConfig.text}`}>
+              <span className={`absolute text-xs font-black transition-transform ${scoreBump ? 'animate-score-bump scale-110' : ''} ${statusConfig.text}`}>
                 {currentScore.totalScore}
               </span>
             </div>
@@ -447,40 +452,128 @@ export default function DailyEmotionalCheckinCard() {
             })}
           </div>
 
-          {/* Assessment & Advice Summary Container */}
-          <div className="p-4 rounded-2xl bg-white/95 dark:bg-slate-900/95 border border-slate-200/80 dark:border-white/[0.08] shadow-sm space-y-3.5 transition-all">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-              <div className="flex items-center gap-2.5">
-                {statusConfig.icon}
-                <span className="text-xs font-bold text-slate-900 dark:text-white">
-                  {language === 'th' ? statusConfig.titleTh : statusConfig.titleEn}
+          {/* Assessment & Advice Summary Container with Interactive Circular Gauge */}
+          <div className="p-5 rounded-3xl bg-white/95 dark:bg-slate-900/95 border border-slate-200/80 dark:border-white/[0.08] shadow-md space-y-4 transition-all">
+            <div className="flex flex-col md:flex-row items-center gap-6">
+              {/* Prominent Circular Gauge Meter with Orbital Rotation & Breathing Glow */}
+              <div className="relative flex flex-col items-center justify-center shrink-0">
+                <div className="relative w-36 h-36 flex items-center justify-center">
+                  {/* Outer Breathing Aura Glow */}
+                  <div
+                    className="absolute inset-0 rounded-full blur-2xl transition-all duration-700 animate-glow-pulse pointer-events-none"
+                    style={{ backgroundColor: statusConfig.meterColor, opacity: 0.28 }}
+                  />
+
+                  {/* Outer decorative dashed orbit ring with continuous smooth spin */}
+                  <div className="absolute inset-1 rounded-full border border-dashed border-slate-300/40 dark:border-white/10 animate-gauge-spin pointer-events-none" />
+
+                  {/* Expanding pulse wave on score update */}
+                  {scoreBump && (
+                    <div
+                      className="absolute inset-0 rounded-full border-2 animate-ring-pulse pointer-events-none"
+                      style={{ borderColor: statusConfig.meterColor }}
+                    />
+                  )}
+
+                  {/* SVG Circular Progress Meter */}
+                  <svg className="w-36 h-36 -rotate-90 transform" viewBox="0 0 144 144">
+                    <defs>
+                      <linearGradient id="scoreRadialGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                        <stop offset="0%" stopColor={statusConfig.meterColor} stopOpacity="0.8" />
+                        <stop offset="100%" stopColor={statusConfig.meterColor} stopOpacity="1" />
+                      </linearGradient>
+                      <filter id="gaugeShadow" x="-20%" y="-20%" width="140%" height="140%">
+                        <feDropShadow dx="0" dy="0" stdDeviation="4" floodColor={statusConfig.meterColor} floodOpacity="0.5" />
+                      </filter>
+                    </defs>
+
+                    {/* Background Track Circle */}
+                    <circle
+                      cx="72"
+                      cy="72"
+                      r="54"
+                      className="stroke-slate-100 dark:stroke-slate-800"
+                      strokeWidth="11"
+                      fill="transparent"
+                    />
+
+                    {/* Active Animated Progress Arc */}
+                    <circle
+                      cx="72"
+                      cy="72"
+                      r="54"
+                      stroke="url(#scoreRadialGradient)"
+                      strokeWidth="11"
+                      strokeDasharray={2 * Math.PI * 54}
+                      strokeDashoffset={2 * Math.PI * 54 - (currentScore.totalScore / 100) * (2 * Math.PI * 54)}
+                      strokeLinecap="round"
+                      fill="transparent"
+                      filter="url(#gaugeShadow)"
+                      className="transition-all duration-1000 ease-out"
+                    />
+                  </svg>
+
+                  {/* Center Score Metrics Display */}
+                  <div className="absolute inset-0 flex flex-col items-center justify-center text-center select-none pointer-events-none">
+                    <span className={`text-4xl font-black tracking-tight transition-transform duration-300 ${scoreBump ? 'animate-score-bump scale-110' : ''} ${statusConfig.text}`}>
+                      {currentScore.totalScore}
+                    </span>
+                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500 -mt-0.5">
+                      / 100 PTS
+                    </span>
+                    <span className={`text-[10px] font-black px-2 py-0.5 mt-1 rounded-full shadow-xs ${
+                      currentScore.netScore >= 0
+                        ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30'
+                        : 'bg-rose-500/15 text-rose-600 dark:text-rose-400 border border-rose-500/30'
+                    }`}>
+                      {currentScore.netScore >= 0 ? `+${currentScore.netScore} Net` : `${currentScore.netScore} Net`}
+                    </span>
+                  </div>
+                </div>
+
+                <span className="mt-2 text-[11px] font-extrabold text-slate-600 dark:text-slate-300 uppercase tracking-wider">
+                  {language === 'th' ? 'เกจความพร้อมทรงกลม' : 'Readiness Gauge'}
                 </span>
               </div>
-              <div className="text-xs font-semibold text-slate-500 dark:text-slate-400">
-                คะแนนความพร้อม:{' '}
-                <strong className={`font-black text-sm transition-transform ${scoreBump ? 'animate-score-bump' : ''} ${statusConfig.text}`}>
-                  {currentScore.totalScore} / 100
-                </strong>
-              </div>
-            </div>
 
-            {/* Dynamic Smooth Gradient Progress Bar with Animated Shimmer Sheen */}
-            <div className="relative w-full h-3 rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden shadow-inner">
-              <div
-                className={`h-full transition-all duration-700 ease-out rounded-full bg-gradient-to-r relative overflow-hidden ${statusConfig.barColor}`}
-                style={{ width: `${currentScore.totalScore}%` }}
-              >
-                {/* Flowing Shimmer Sheen */}
-                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/40 to-transparent animate-shimmer" />
-              </div>
-            </div>
+              {/* Status details & Smart Advice */}
+              <div className="flex-1 space-y-3 w-full">
+                <div className="flex items-center justify-between gap-2 flex-wrap">
+                  <div className="flex items-center gap-2">
+                    {statusConfig.icon}
+                    <span className="text-sm font-bold text-slate-900 dark:text-white">
+                      {language === 'th' ? statusConfig.titleTh : statusConfig.titleEn}
+                    </span>
+                  </div>
+                  <span className={`text-xs font-black px-3 py-1 rounded-full shadow-xs ${
+                    currentScore.status === 'OPTIMAL'
+                      ? 'bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-500/30'
+                      : currentScore.status === 'WARNING'
+                      ? 'bg-rose-100 dark:bg-rose-500/20 text-rose-700 dark:text-rose-300 border border-rose-300 dark:border-rose-500/30 animate-pulse'
+                      : 'bg-amber-100 dark:bg-amber-500/20 text-amber-700 dark:text-amber-300 border border-amber-300 dark:border-amber-500/30'
+                  }`}>
+                    {currentScore.status === 'OPTIMAL' ? '⚡ Zone พร้อมเทรด 100%' : currentScore.status === 'WARNING' ? '⚠️ ระวังอารมณ์เสี่ยงสูง' : '⚪ สภาวะจิตใจปกติ'}
+                  </span>
+                </div>
 
-            {/* Contextual Smart Trading Advice */}
-            <div className="p-3 rounded-xl bg-slate-50 dark:bg-white/[0.02] border border-slate-200/60 dark:border-white/[0.04] flex items-start gap-2.5">
-              <Compass size={16} className="text-blue-500 shrink-0 mt-0.5 animate-pulse" />
-              <p className="text-xs text-slate-700 dark:text-slate-300 leading-relaxed font-medium">
-                {language === 'th' ? currentScore.adviceTh : currentScore.adviceEn}
-              </p>
+                {/* Linear sub-progress with shimmer sheen */}
+                <div className="relative w-full h-2.5 rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden shadow-inner">
+                  <div
+                    className={`h-full transition-all duration-700 ease-out rounded-full bg-gradient-to-r relative overflow-hidden ${statusConfig.barColor}`}
+                    style={{ width: `${currentScore.totalScore}%` }}
+                  >
+                    <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/40 to-transparent animate-shimmer" />
+                  </div>
+                </div>
+
+                {/* Contextual Smart Trading Advice */}
+                <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-white/[0.02] border border-slate-200/60 dark:border-white/[0.04] flex items-start gap-2.5 shadow-xs">
+                  <Compass size={17} className="text-blue-500 shrink-0 mt-0.5 animate-pulse" />
+                  <p className="text-xs text-slate-700 dark:text-slate-300 leading-relaxed font-medium">
+                    {language === 'th' ? currentScore.adviceTh : currentScore.adviceEn}
+                  </p>
+                </div>
+              </div>
             </div>
 
             {/* Daily Affirmation Note Input */}
