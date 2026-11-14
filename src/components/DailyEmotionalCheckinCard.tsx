@@ -37,6 +37,18 @@ function getHoneycombRows<T>(items: T[], baseRowSize = 5): T[][] {
   return rows;
 }
 
+// Helper to split emotion label into a concise main title and subtle subtitle
+function formatEmotionLabel(label: string) {
+  if (label.includes(' / ')) {
+    const [main, ...rest] = label.split(' / ');
+    return {
+      main: main.trim(),
+      sub: rest.join(' / ').trim(),
+    };
+  }
+  return { main: label.trim(), sub: '' };
+}
+
 export default function DailyEmotionalCheckinCard() {
   const { language } = useLanguage();
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -50,7 +62,7 @@ export default function DailyEmotionalCheckinCard() {
 
   // Motion & Honeycomb Layout States
   const [viewMode, setViewMode] = useState<'wheel' | 'grid'>('wheel');
-  const [wheelRadius, setWheelRadius] = useState<number>(260);
+  const [wheelRadius, setWheelRadius] = useState<number>(280);
   const [floatingScore, setFloatingScore] = useState<{ id: string; score: number; key: number } | null>(null);
   const [scoreBump, setScoreBump] = useState<boolean>(false);
   const [lastToggledId, setLastToggledId] = useState<string | null>(null);
@@ -59,13 +71,13 @@ export default function DailyEmotionalCheckinCard() {
     const handleResize = () => {
       const w = window.innerWidth;
       if (w < 440) {
-        setWheelRadius(145);
+        setWheelRadius(155);
       } else if (w < 640) {
-        setWheelRadius(190);
+        setWheelRadius(205);
       } else if (w < 1024) {
-        setWheelRadius(235);
+        setWheelRadius(250);
       } else {
-        setWheelRadius(265);
+        setWheelRadius(280);
       }
     };
     handleResize();
@@ -204,13 +216,13 @@ export default function DailyEmotionalCheckinCard() {
     },
   }[currentScore.status];
 
-  // Helper for radial hexagon track coordinates around (380, 360)
+  // Helper for radial hexagon track coordinates around center (390, 380)
   const outerHexTrack = useMemo(() => {
     const pts: string[] = [];
     for (let k = 0; k < 6; k++) {
       const angle = (k * 60 - 90) * (Math.PI / 180);
-      const x = Math.round((380 + wheelRadius * Math.cos(angle)) * 10) / 10;
-      const y = Math.round((360 + wheelRadius * Math.sin(angle)) * 10) / 10;
+      const x = Math.round((390 + wheelRadius * Math.cos(angle)) * 10) / 10;
+      const y = Math.round((380 + wheelRadius * Math.sin(angle)) * 10) / 10;
       pts.push(`${x},${y}`);
     }
     return pts.join(' ');
@@ -220,8 +232,8 @@ export default function DailyEmotionalCheckinCard() {
     const pts: string[] = [];
     for (let k = 0; k < 6; k++) {
       const angle = (k * 60 - 90) * (Math.PI / 180);
-      const x = Math.round((380 + wheelRadius * 0.65 * Math.cos(angle)) * 10) / 10;
-      const y = Math.round((360 + wheelRadius * 0.65 * Math.sin(angle)) * 10) / 10;
+      const x = Math.round((390 + wheelRadius * 0.65 * Math.cos(angle)) * 10) / 10;
+      const y = Math.round((380 + wheelRadius * 0.65 * Math.sin(angle)) * 10) / 10;
       pts.push(`${x},${y}`);
     }
     return pts.join(' ');
@@ -439,9 +451,9 @@ export default function DailyEmotionalCheckinCard() {
             /* ============================================================ */
             /* 1. ORBITAL 6-SIDED HONEYCOMB (รังผึ้ง 6 เหลี่ยมรอบศูนย์กลาง) */
             /* ============================================================ */
-            <div className="relative w-full max-w-[760px] h-[540px] sm:h-[660px] md:h-[730px] mx-auto flex items-center justify-center my-3 select-none overflow-visible">
+            <div className="relative w-full max-w-[820px] h-[560px] sm:h-[680px] md:h-[760px] mx-auto flex items-center justify-center my-3 select-none overflow-visible">
               {/* Concentric Hexagonal Guide Tracks & Connecting Laser Rays */}
-              <svg className="absolute inset-0 w-full h-full pointer-events-none" viewBox="0 0 760 720">
+              <svg className="absolute inset-0 w-full h-full pointer-events-none" viewBox="0 0 780 760">
                 <defs>
                   <radialGradient id="hexWheelCenterAura" cx="50%" cy="50%" r="50%">
                     <stop offset="0%" stopColor={statusConfig.meterColor} stopOpacity="0.22" />
@@ -451,7 +463,7 @@ export default function DailyEmotionalCheckinCard() {
                 </defs>
 
                 {/* Ambient Radial Wheel Center Backdrop Glow */}
-                <circle cx="380" cy="360" r={wheelRadius + 60} fill="url(#hexWheelCenterAura)" />
+                <circle cx="390" cy="380" r={wheelRadius + 60} fill="url(#hexWheelCenterAura)" />
 
                 {/* Outer & Inner 6-Sided Hexagonal Guide Tracks */}
                 <polygon
@@ -478,8 +490,8 @@ export default function DailyEmotionalCheckinCard() {
 
                   const total = filteredEmotions.length;
                   const angle = (idx / total) * 2 * Math.PI - Math.PI / 2;
-                  const targetX = 380 + Math.cos(angle) * wheelRadius;
-                  const targetY = 360 + Math.sin(angle) * wheelRadius;
+                  const targetX = 390 + Math.cos(angle) * wheelRadius;
+                  const targetY = 380 + Math.sin(angle) * wheelRadius;
 
                   let rayColor = '#64748b';
                   if (emotion.category === 'positive') rayColor = '#10b981';
@@ -489,19 +501,19 @@ export default function DailyEmotionalCheckinCard() {
                     <g key={`ray-${emotion.id}`}>
                       {/* Soft Glow Underline */}
                       <line
-                        x1="380"
-                        y1="360"
+                        x1="390"
+                        y1="380"
                         x2={targetX}
                         y2={targetY}
                         stroke={rayColor}
-                        strokeWidth="4.5"
+                        strokeWidth="4"
                         strokeOpacity="0.3"
                         strokeLinecap="round"
                       />
                       {/* Animated Dashed Beam */}
                       <line
-                        x1="380"
-                        y1="360"
+                        x1="390"
+                        y1="380"
                         x2={targetX}
                         y2={targetY}
                         stroke={rayColor}
@@ -510,7 +522,7 @@ export default function DailyEmotionalCheckinCard() {
                         strokeLinecap="round"
                       />
                       {/* Pulsing Target Dot */}
-                      <circle cx={targetX} cy={targetY} r="4.5" fill={rayColor} className="animate-ping" />
+                      <circle cx={targetX} cy={targetY} r="4" fill={rayColor} className="animate-ping" />
                     </g>
                   );
                 })}
@@ -518,7 +530,7 @@ export default function DailyEmotionalCheckinCard() {
 
               {/* Center Core Hub: 6-Sided Hexagon Honeycomb Hub & Gauge */}
               <div
-                className="absolute z-20 left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-52 h-60 sm:w-60 sm:h-68 md:w-68 md:h-78 flex flex-col items-center justify-center select-none"
+                className="absolute z-20 left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-48 h-56 sm:w-56 sm:h-64 md:w-64 md:h-74 flex flex-col items-center justify-center select-none"
               >
                 {/* Outer Breathing Aura Glow */}
                 <div
@@ -602,14 +614,14 @@ export default function DailyEmotionalCheckinCard() {
                       {currentScore.status === 'OPTIMAL' ? 'Optimal Edge' : currentScore.status === 'WARNING' ? 'High Risk' : 'Normal'}
                     </span>
                   </div>
-                  <span className={`text-4xl sm:text-5xl md:text-6xl font-black tracking-tight transition-transform duration-300 ${scoreBump ? 'animate-score-bump scale-110' : ''} ${statusConfig.text}`}>
+                  <span className={`text-3xl sm:text-4xl md:text-5xl font-black tracking-tight transition-transform duration-300 ${scoreBump ? 'animate-score-bump scale-110' : ''} ${statusConfig.text}`}>
                     {currentScore.totalScore}
                   </span>
-                  <span className="text-[10px] sm:text-[11px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500 -mt-1">
+                  <span className="text-[9px] sm:text-[10px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500 -mt-0.5">
                     / 100 PTS
                   </span>
-                  <div className="flex items-center gap-2 mt-2">
-                    <span className={`text-[11px] sm:text-xs font-black px-2.5 py-0.5 rounded-full shadow-xs ${
+                  <div className="flex items-center gap-1.5 mt-1.5">
+                    <span className={`text-[10px] sm:text-xs font-black px-2 py-0.5 rounded-full shadow-xs ${
                       currentScore.netScore >= 0
                         ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30'
                         : 'bg-rose-500/15 text-rose-600 dark:text-rose-400 border border-rose-500/30'
@@ -635,8 +647,6 @@ export default function DailyEmotionalCheckinCard() {
                 const y = Math.sin(angle) * wheelRadius;
 
                 let strokeColor = 'rgba(148, 163, 184, 0.5)';
-                let fillColor = 'rgba(255, 255, 255, 0.95)';
-                let darkFillColor = 'rgba(30, 41, 59, 0.95)';
                 let scoreColor = 'bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-300';
                 let glowColor = 'rgba(100, 116, 139, 0.4)';
 
@@ -645,35 +655,30 @@ export default function DailyEmotionalCheckinCard() {
                   glowColor = 'rgba(16, 185, 129, 0.5)';
                   if (isSelected) {
                     strokeColor = '#10b981';
-                    fillColor = 'rgba(16, 185, 129, 0.15)';
-                    darkFillColor = 'rgba(6, 78, 59, 0.7)';
                   }
                 } else if (emotion.category === 'negative') {
                   scoreColor = 'bg-rose-500 text-white';
                   glowColor = 'rgba(244, 63, 94, 0.5)';
                   if (isSelected) {
                     strokeColor = '#f43f5e';
-                    fillColor = 'rgba(244, 63, 94, 0.15)';
-                    darkFillColor = 'rgba(136, 19, 55, 0.7)';
                   }
                 } else if (emotion.category === 'neutral') {
                   scoreColor = 'bg-slate-500 text-white';
                   glowColor = 'rgba(100, 116, 139, 0.5)';
                   if (isSelected) {
                     strokeColor = '#94a3b8';
-                    fillColor = 'rgba(148, 163, 184, 0.2)';
-                    darkFillColor = 'rgba(51, 65, 85, 0.7)';
                   }
                 }
 
                 // Sizing of honeycomb nodes
-                const nodeWidthClass = total <= 10 ? 'w-16 sm:w-18 md:w-20' : 'w-13 sm:w-15 md:w-17';
-                const nodeHeightClass = total <= 10 ? 'h-18 sm:h-21 md:h-23' : 'h-15 sm:h-17 md:h-19';
+                const nodeWidthClass = total <= 10 ? 'w-15 sm:w-17 md:w-19' : 'w-12 sm:w-14 md:w-15';
+                const nodeHeightClass = total <= 10 ? 'h-17 sm:h-20 md:h-22' : 'h-14 sm:h-16 md:h-18';
+                const labelInfo = formatEmotionLabel(language === 'th' ? emotion.labelTh : emotion.labelEn);
 
                 return (
                   <div
                     key={emotion.id}
-                    className="absolute z-25 -translate-x-1/2 -translate-y-1/2 flex flex-col items-center group select-none transition-all duration-500 ease-out"
+                    className="absolute z-25 -translate-x-1/2 -translate-y-1/2 flex flex-col items-center select-none transition-all duration-500 ease-out"
                     style={{
                       left: `calc(50% + ${x}px)`,
                       top: `calc(50% + ${y}px)`,
@@ -701,8 +706,8 @@ export default function DailyEmotionalCheckinCard() {
                     <button
                       type="button"
                       onClick={() => toggleEmotion(emotion)}
-                      className={`relative ${nodeWidthClass} ${nodeHeightClass} flex items-center justify-center transition-all duration-300 cursor-pointer hover:scale-125 hover:z-30 active:scale-95 group ${
-                        isSelected ? 'scale-115' : ''
+                      className={`relative ${nodeWidthClass} ${nodeHeightClass} flex items-center justify-center transition-all duration-300 cursor-pointer hover:scale-120 hover:z-30 active:scale-95 group ${
+                        isSelected ? 'scale-110' : ''
                       }`}
                       title={language === 'th' ? emotion.labelTh : emotion.labelEn}
                     >
@@ -718,7 +723,6 @@ export default function DailyEmotionalCheckinCard() {
                           strokeLinejoin="round"
                           className="transition-colors duration-300 fill-white/95 dark:fill-slate-800/95"
                           style={{
-                            fill: isSelected ? undefined : undefined,
                             filter: isSelected ? `drop-shadow(0 0 8px ${glowColor})` : undefined,
                           }}
                         />
@@ -744,44 +748,53 @@ export default function DailyEmotionalCheckinCard() {
                         />
                       )}
 
-                      {/* Emoji in Center */}
-                      <span
-                        className={`relative z-10 text-xl sm:text-2xl md:text-3xl leading-none transition-transform duration-200 group-hover:scale-115 ${
-                          isSelected ? 'animate-spring-pop scale-110' : ''
-                        }`}
-                      >
-                        {emotion.emoji}
-                      </span>
+                      {/* Top-Left: Checkmark when selected (Cleanly separated from bottom text) */}
+                      {isSelected && (
+                        <span className="absolute -top-1 -left-1 z-20 w-4 h-4 sm:w-4.5 sm:h-4.5 rounded-full bg-blue-600 text-white flex items-center justify-center shadow-md animate-spring-pop border border-white dark:border-slate-900">
+                          <Check size={10} strokeWidth={3.5} />
+                        </span>
+                      )}
 
-                      {/* Mini Score Badge at Top-Right Vertex */}
+                      {/* Top-Right: Mini Score Badge at Vertex */}
                       <span
-                        className={`absolute -top-1.5 -right-1 z-20 text-[9px] sm:text-[10px] font-black px-1.5 py-0.2 rounded-full shadow-xs border border-white/60 dark:border-black/40 transition-transform ${scoreColor} ${
+                        className={`absolute -top-1 -right-1 z-20 text-[8.5px] sm:text-[9.5px] font-black px-1.5 py-0.2 rounded-full shadow-xs border border-white/60 dark:border-black/40 transition-transform ${scoreColor} ${
                           isSelected ? 'scale-110 shadow-md ring-1 ring-white/50' : ''
                         }`}
                       >
                         {emotion.score > 0 ? `+${emotion.score}` : emotion.score}
                       </span>
 
-                      {/* Checkmark when selected at Bottom-Right Vertex */}
-                      {isSelected && (
-                        <span className="absolute -bottom-1 -right-1 z-20 w-4.5 h-4.5 sm:w-5 sm:h-5 rounded-full bg-blue-600 text-white flex items-center justify-center shadow-md animate-spring-pop border-2 border-white dark:border-slate-900">
-                          <Check size={11} strokeWidth={3.5} />
-                        </span>
-                      )}
+                      {/* Emoji in Center */}
+                      <span
+                        className={`relative z-10 text-xl sm:text-2xl md:text-2.5xl leading-none transition-transform duration-200 group-hover:scale-115 ${
+                          isSelected ? 'animate-spring-pop scale-110' : ''
+                        }`}
+                      >
+                        {emotion.emoji}
+                      </span>
                     </button>
 
-                    {/* Directly Visible Text Label Underneath Hexagon */}
-                    <span
+                    {/* Directly Visible Balanced Text Pill Underneath Hexagon */}
+                    <div
                       onClick={() => toggleEmotion(emotion)}
-                      className={`mt-1 text-[9px] sm:text-[10px] md:text-[11px] font-bold text-center leading-tight max-w-[72px] sm:max-w-[85px] md:max-w-[95px] line-clamp-2 cursor-pointer transition-all px-1.5 py-0.5 rounded-md shadow-xs backdrop-blur-md ${
+                      className={`mt-1.5 flex flex-col items-center justify-center cursor-pointer transition-all px-2 py-0.5 rounded-lg shadow-xs backdrop-blur-md max-w-[76px] sm:max-w-[84px] md:max-w-[92px] ${
                         isSelected
-                          ? 'text-blue-600 dark:text-blue-400 bg-blue-500/15 border border-blue-500/30 font-black scale-105 shadow-sm'
-                          : 'text-slate-700 dark:text-slate-300 group-hover:text-slate-900 dark:group-hover:text-white bg-white/80 dark:bg-slate-900/80 border border-slate-200/70 dark:border-white/[0.08]'
+                          ? 'text-blue-600 dark:text-blue-300 bg-blue-500/15 border border-blue-500/35 font-black scale-105 shadow-sm'
+                          : 'text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white bg-white/90 dark:bg-slate-900/90 border border-slate-200/80 dark:border-white/[0.08]'
                       }`}
                       title={language === 'th' ? emotion.labelTh : emotion.labelEn}
                     >
-                      {language === 'th' ? emotion.labelTh : emotion.labelEn}
-                    </span>
+                      {/* Line 1: Primary Keyword */}
+                      <span className="text-[9px] sm:text-[10px] md:text-[10.5px] font-black text-center leading-tight truncate w-full">
+                        {labelInfo.main}
+                      </span>
+                      {/* Line 2: Subtle Subtitle (Clean & Never Wrapped Awkwardly) */}
+                      {labelInfo.sub && (
+                        <span className="text-[8px] sm:text-[8.5px] font-medium text-slate-400 dark:text-slate-400 text-center leading-tight truncate w-full mt-0.5">
+                          {labelInfo.sub}
+                        </span>
+                      )}
+                    </div>
 
                     {/* Deep Psychology Tooltip on Hover */}
                     {activeTooltip === emotion.id && emotion.descriptionTh && (
@@ -807,7 +820,7 @@ export default function DailyEmotionalCheckinCard() {
               {honeycombRows.map((row, rowIndex) => (
                 <div
                   key={`honeycomb-row-${rowIndex}`}
-                  className="flex justify-center items-center gap-2 sm:gap-3.5 -mt-3 sm:-mt-4 md:-mt-5 first:mt-0 transition-all duration-300"
+                  className="flex justify-center items-center gap-2 sm:gap-3 md:gap-4 -mt-2 sm:-mt-2.5 md:-mt-3 first:mt-0 transition-all duration-300"
                 >
                   {row.map((emotion) => {
                     const isSelected = selectedIds.includes(emotion.id);
@@ -837,6 +850,8 @@ export default function DailyEmotionalCheckinCard() {
                       }
                     }
 
+                    const labelInfo = formatEmotionLabel(language === 'th' ? emotion.labelTh : emotion.labelEn);
+
                     return (
                       <div
                         key={emotion.id}
@@ -864,7 +879,7 @@ export default function DailyEmotionalCheckinCard() {
                         <button
                           type="button"
                           onClick={() => toggleEmotion(emotion)}
-                          className={`relative w-20 h-24 sm:w-24 sm:h-28 md:w-28 md:h-32 flex flex-col items-center justify-center p-2 transition-all duration-300 cursor-pointer hover:scale-115 hover:z-30 active:scale-95 group ${
+                          className={`relative w-22 h-26 sm:w-26 sm:h-30 md:w-28 md:h-33 flex flex-col items-center justify-between py-2.5 px-1.5 transition-all duration-300 cursor-pointer hover:scale-110 hover:z-30 active:scale-95 group ${
                             isSelected ? 'scale-105 z-20' : ''
                           }`}
                         >
@@ -905,41 +920,53 @@ export default function DailyEmotionalCheckinCard() {
                             />
                           )}
 
-                          {/* Score Pill at Top Vertex */}
-                          <span
-                            className={`absolute top-1 sm:top-1.5 z-20 text-[8px] sm:text-[9px] font-black px-1.5 py-0.2 rounded-full shadow-xs border border-white/60 dark:border-black/40 ${scoreColor} ${
-                              isSelected ? 'scale-110 shadow-md ring-1 ring-white/50' : ''
-                            }`}
-                          >
-                            {emotion.score > 0 ? `+${emotion.score}` : emotion.score}
-                          </span>
+                          {/* Top Area: Checkmark (Top-Left) & Score Pill (Top-Right) */}
+                          <div className="relative z-20 w-full flex items-center justify-between px-1.5 pt-0.5">
+                            {isSelected ? (
+                              <span className="w-4 h-4 sm:w-4.5 sm:h-4.5 rounded-full bg-blue-600 text-white flex items-center justify-center shadow-md animate-spring-pop border border-white dark:border-slate-900">
+                                <Check size={10} strokeWidth={3.5} />
+                              </span>
+                            ) : (
+                              <span className="w-4 h-4" />
+                            )}
 
-                          {/* Center Emoji */}
+                            <span
+                              className={`text-[8px] sm:text-[9px] font-black px-1.5 py-0.2 rounded-full shadow-xs border border-white/60 dark:border-black/40 ${scoreColor} ${
+                                isSelected ? 'scale-110 shadow-md ring-1 ring-white/50' : ''
+                              }`}
+                            >
+                              {emotion.score > 0 ? `+${emotion.score}` : emotion.score}
+                            </span>
+                          </div>
+
+                          {/* Center Area: Emoji */}
                           <span
-                            className={`relative z-10 text-xl sm:text-2xl md:text-3xl mt-1.5 leading-none transition-transform duration-200 group-hover:scale-120 ${
+                            className={`relative z-10 text-2xl sm:text-2.5xl md:text-3xl leading-none transition-transform duration-200 group-hover:scale-120 my-auto ${
                               isSelected ? 'animate-spring-pop scale-110' : ''
                             }`}
                           >
                             {emotion.emoji}
                           </span>
 
-                          {/* Label Text Inside Lower Hexagon Section */}
-                          <span
-                            className={`relative z-10 mt-1 text-[9px] sm:text-[10px] md:text-[11px] font-bold text-center leading-tight line-clamp-2 px-1 max-w-[65px] sm:max-w-[78px] md:max-w-[90px] transition-colors ${
-                              isSelected
-                                ? 'text-blue-600 dark:text-blue-300 font-black'
-                                : 'text-slate-700 dark:text-slate-300 group-hover:text-slate-900 dark:group-hover:text-white'
-                            }`}
-                          >
-                            {language === 'th' ? emotion.labelTh : emotion.labelEn}
-                          </span>
-
-                          {/* Checkmark Badge on Selected */}
-                          {isSelected && (
-                            <span className="absolute bottom-1 sm:bottom-1.5 z-20 w-4 h-4 sm:w-4.5 sm:h-4.5 rounded-full bg-blue-600 text-white flex items-center justify-center shadow-md animate-spring-pop border border-white dark:border-slate-900">
-                              <Check size={10} strokeWidth={3.5} />
+                          {/* Lower Area: Balanced 2-Line Text inside Hexagon */}
+                          <div className="relative z-10 w-full flex flex-col items-center justify-center pb-1 px-1">
+                            {/* Main Title */}
+                            <span
+                              className={`text-[9.5px] sm:text-[10.5px] md:text-[11px] font-black text-center leading-tight truncate w-full transition-colors ${
+                                isSelected
+                                  ? 'text-blue-600 dark:text-blue-300 font-extrabold'
+                                  : 'text-slate-800 dark:text-slate-200 group-hover:text-slate-900 dark:group-hover:text-white'
+                              }`}
+                            >
+                              {labelInfo.main}
                             </span>
-                          )}
+                            {/* Subtitle */}
+                            {labelInfo.sub && (
+                              <span className="text-[8px] sm:text-[8.5px] font-medium text-slate-400 dark:text-slate-400 text-center leading-tight truncate w-full mt-0.5">
+                                {labelInfo.sub}
+                              </span>
+                            )}
+                          </div>
                         </button>
 
                         {/* Hover Tooltip */}
