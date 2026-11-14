@@ -213,31 +213,45 @@ export default function DailyEmotionalCheckinCard() {
     },
   }[currentScore.status];
 
-  // Helper renderer for a single flat-topped hexagon emotion cell
+  // Helper renderer for a single flat-topped hexagon emotion cell with true 6-sided SVG border
   const renderHexCell = (emotion: EmotionTag, customRole?: string) => {
     const isSelected = selectedIds.includes(emotion.id);
     const isJustToggled = lastToggledId === emotion.id;
     const labelInfo = formatEmotionLabel(language === 'th' ? emotion.labelTh : emotion.labelEn);
 
-    // Color definitions matching the uploaded reference image:
+    // Color definitions matching the reference image:
     // Positive (THINK) -> Coral Orange / Emerald Gradient (#f1875d / #10b981)
     // Negative (FEEL)  -> Coral Red / Rose Gradient (#e97872 / #f43f5e)
     // Neutral (USE)    -> Sky Blue Gradient (#5695f4 / #3b82f6)
-    let selectedBg = 'bg-gradient-to-br from-emerald-500 via-teal-500 to-emerald-600 text-white shadow-lg shadow-emerald-500/30 border-emerald-300';
-    let unselectedBg = 'bg-white/90 dark:bg-slate-800/90 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700/80 hover:border-emerald-400/80';
+    let selectedBg = 'bg-gradient-to-br from-emerald-500 via-teal-500 to-emerald-600 text-white shadow-lg shadow-emerald-500/30';
+    let unselectedBg = 'bg-white/90 dark:bg-slate-800/90 text-slate-700 dark:text-slate-200';
     let glowColor = 'rgba(16, 185, 129, 0.45)';
     let scoreBadgeBg = 'bg-emerald-500 text-white';
 
+    // True 6-sided SVG stroke styling for all 6 edges
+    let strokeClass = 'stroke-slate-200/90 dark:stroke-slate-700/90 group-hover:stroke-emerald-400 group-hover:drop-shadow-[0_0_6px_rgba(16,185,129,0.5)]';
+    if (isSelected) {
+      strokeClass = 'stroke-emerald-200 drop-shadow-[0_0_8px_rgba(16,185,129,0.7)]';
+    }
+
     if (emotion.category === 'negative') {
-      selectedBg = 'bg-gradient-to-br from-rose-500 via-red-500 to-rose-600 text-white shadow-lg shadow-rose-500/35 border-rose-300';
-      unselectedBg = 'bg-white/90 dark:bg-slate-800/90 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700/80 hover:border-rose-400/80';
+      selectedBg = 'bg-gradient-to-br from-rose-500 via-red-500 to-rose-600 text-white shadow-lg shadow-rose-500/35';
+      unselectedBg = 'bg-white/90 dark:bg-slate-800/90 text-slate-700 dark:text-slate-200';
       glowColor = 'rgba(244, 63, 94, 0.45)';
       scoreBadgeBg = 'bg-rose-500 text-white';
+      strokeClass = 'stroke-slate-200/90 dark:stroke-slate-700/90 group-hover:stroke-rose-400 group-hover:drop-shadow-[0_0_6px_rgba(244,63,94,0.5)]';
+      if (isSelected) {
+        strokeClass = 'stroke-rose-200 drop-shadow-[0_0_8px_rgba(244,63,94,0.7)]';
+      }
     } else if (emotion.category === 'neutral') {
-      selectedBg = 'bg-gradient-to-br from-blue-500 via-sky-500 to-indigo-600 text-white shadow-lg shadow-blue-500/30 border-blue-300';
-      unselectedBg = 'bg-white/90 dark:bg-slate-800/90 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700/80 hover:border-blue-400/80';
+      selectedBg = 'bg-gradient-to-br from-blue-500 via-sky-500 to-indigo-600 text-white shadow-lg shadow-blue-500/30';
+      unselectedBg = 'bg-white/90 dark:bg-slate-800/90 text-slate-700 dark:text-slate-200';
       glowColor = 'rgba(59, 130, 246, 0.45)';
       scoreBadgeBg = 'bg-blue-500 text-white';
+      strokeClass = 'stroke-slate-200/90 dark:stroke-slate-700/90 group-hover:stroke-blue-400 group-hover:drop-shadow-[0_0_6px_rgba(59,130,246,0.5)]';
+      if (isSelected) {
+        strokeClass = 'stroke-blue-200 drop-shadow-[0_0_8px_rgba(59,130,246,0.7)]';
+      }
     }
 
     return (
@@ -263,17 +277,31 @@ export default function DailyEmotionalCheckinCard() {
           </div>
         )}
 
-        {/* Flat-Topped Hexagon Button (Clip-Path & SVG Rounded Polygon) */}
+        {/* Flat-Topped Hexagon Button with 6-Sided SVG Border Frame */}
         <button
           type="button"
           onClick={() => toggleEmotion(emotion)}
-          className={`relative w-[104px] h-[92px] sm:w-[114px] sm:h-[100px] flex flex-col items-center justify-center p-2 transition-all duration-300 cursor-pointer hover:scale-105 hover:z-30 active:scale-95 border ${
+          className={`relative w-[104px] h-[92px] sm:w-[114px] sm:h-[100px] flex flex-col items-center justify-center p-2 transition-all duration-300 cursor-pointer hover:scale-105 hover:z-30 active:scale-95 ${
             isSelected ? `${selectedBg} scale-105 z-20` : unselectedBg
           }`}
           style={{
             clipPath: 'polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%)',
           }}
         >
+          {/* True 6-Sided SVG Border Overlay with Rounded Vertices (Visible on all 6 sides!) */}
+          <svg
+            className="absolute inset-0 w-full h-full pointer-events-none overflow-visible"
+            viewBox="0 0 100 88"
+          >
+            <polygon
+              points="25,2 75,2 98,44 75,86 25,86 2,44"
+              strokeLinejoin="round"
+              strokeWidth="3.5"
+              fill="transparent"
+              className={`transition-all duration-200 ${strokeClass}`}
+            />
+          </svg>
+
           {/* Ripple Burst on Click */}
           {isSelected && isJustToggled && (
             <div
@@ -586,15 +614,28 @@ export default function DailyEmotionalCheckinCard() {
                 </span>
               </div>
 
-              {/* 1. CENTER HEXAGON: Valuable / Hive Core Readiness Hub */}
+              {/* 1. CENTER HEXAGON: Valuable / Hive Core Readiness Hub with 6-Sided SVG Border */}
               <div
-                className="absolute z-20 left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[114px] h-[100px] sm:w-[124px] sm:h-[110px] flex flex-col items-center justify-center p-2 transition-transform duration-300 shadow-xl border cursor-pointer hover:scale-105 active:scale-95"
+                className="group absolute z-20 left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[114px] h-[100px] sm:w-[124px] sm:h-[110px] flex flex-col items-center justify-center p-2 transition-transform duration-300 shadow-xl cursor-pointer hover:scale-105 active:scale-95"
                 style={{
                   clipPath: 'polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%)',
                   background: 'linear-gradient(135deg, #f1875d 0%, #e86e3f 100%)',
-                  borderColor: '#f9a37f',
                 }}
               >
+                {/* True 6-Sided SVG Border for Center Hub */}
+                <svg
+                  className="absolute inset-0 w-full h-full pointer-events-none overflow-visible"
+                  viewBox="0 0 100 88"
+                >
+                  <polygon
+                    points="25,2 75,2 98,44 75,86 25,86 2,44"
+                    strokeLinejoin="round"
+                    strokeWidth="3.5"
+                    fill="transparent"
+                    className="stroke-[#f9a37f] group-hover:stroke-amber-200 group-hover:drop-shadow-[0_0_8px_rgba(241,135,93,0.7)] transition-all duration-200"
+                  />
+                </svg>
+
                 {/* Score Bump Pulse */}
                 {scoreBump && (
                   <div
@@ -698,15 +739,29 @@ export default function DailyEmotionalCheckinCard() {
           {/* Assessment & Advice Summary Container */}
           <div className="p-5 rounded-3xl bg-white/95 dark:bg-slate-900/95 border border-slate-200/80 dark:border-white/[0.08] shadow-md space-y-4 transition-all">
             <div className="flex flex-col md:flex-row items-center gap-6">
-              {/* Mini Hexagon Gauge Summary */}
+              {/* Mini Hexagon Gauge Summary with 6-sided SVG Border */}
               <div className="relative flex flex-col items-center justify-center shrink-0">
                 <div
-                  className="relative w-28 h-24 sm:w-32 sm:h-28 flex flex-col items-center justify-center p-2 text-white shadow-lg transition-transform hover:scale-105"
+                  className="group relative w-28 h-24 sm:w-32 sm:h-28 flex flex-col items-center justify-center p-2 text-white shadow-lg transition-transform hover:scale-105"
                   style={{
                     clipPath: 'polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%)',
                     background: `linear-gradient(135deg, ${statusConfig.meterColor} 0%, #0f172a 120%)`,
                   }}
                 >
+                  <svg
+                    className="absolute inset-0 w-full h-full pointer-events-none overflow-visible"
+                    viewBox="0 0 100 88"
+                  >
+                    <polygon
+                      points="25,2 75,2 98,44 75,86 25,86 2,44"
+                      strokeLinejoin="round"
+                      strokeWidth="3.5"
+                      fill="transparent"
+                      stroke={statusConfig.meterColor}
+                      className="opacity-80 group-hover:opacity-100 transition-opacity"
+                    />
+                  </svg>
+
                   <span className="text-[8.5px] font-black uppercase tracking-wider text-white/90">
                     READINESS
                   </span>
