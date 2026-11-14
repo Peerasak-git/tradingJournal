@@ -336,40 +336,44 @@ export default function DailyEmotionalCheckinCard() {
             )}
           </div>
 
-          {/* Emotion Interactive Tag Cloud with Rich Micro-Interactions */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2.5">
+          {/* Emotion Interactive Circular Grid */}
+          <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-7 gap-y-5 gap-x-3 justify-items-center py-2">
             {filteredEmotions.map((emotion) => {
               const isSelected = selectedIds.includes(emotion.id);
               const isJustToggled = lastToggledId === emotion.id;
 
-              let scoreBadge = 'bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-300';
-              let borderClass = 'border-slate-200/80 dark:border-white/[0.07]';
-              let bgClass = 'bg-white/70 dark:bg-slate-800/40 hover:bg-white dark:hover:bg-slate-800/90 hover:border-slate-300 dark:hover:border-white/[0.15]';
+              let circleBg = 'bg-white/80 dark:bg-slate-800/80 border-slate-200/90 dark:border-white/[0.09] hover:border-slate-400 dark:hover:border-white/30';
+              let scoreColor = 'bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-300';
+              let activeRing = '';
+              let glowColor = 'rgba(100, 116, 139, 0.4)';
 
               if (emotion.category === 'positive') {
-                scoreBadge = 'bg-emerald-100 text-emerald-800 dark:bg-emerald-500/25 dark:text-emerald-300';
+                scoreColor = 'bg-emerald-500 text-white';
+                glowColor = 'rgba(16, 185, 129, 0.45)';
                 if (isSelected) {
-                  borderClass = 'border-emerald-500 dark:border-emerald-400 ring-2 ring-emerald-500/40 shadow-md shadow-emerald-500/15';
-                  bgClass = 'bg-emerald-50/95 dark:bg-emerald-950/60';
+                  circleBg = 'bg-gradient-to-tr from-emerald-50 to-teal-50 dark:from-emerald-950/80 dark:to-teal-950/80 border-emerald-500 dark:border-emerald-400';
+                  activeRing = 'ring-4 ring-emerald-500/40 shadow-lg shadow-emerald-500/30 scale-105';
                 }
               } else if (emotion.category === 'negative') {
-                scoreBadge = 'bg-rose-100 text-rose-800 dark:bg-rose-500/25 dark:text-rose-300';
+                scoreColor = 'bg-rose-500 text-white';
+                glowColor = 'rgba(244, 63, 94, 0.45)';
                 if (isSelected) {
-                  borderClass = 'border-rose-500 dark:border-rose-400 ring-2 ring-rose-500/40 shadow-md shadow-rose-500/15';
-                  bgClass = 'bg-rose-50/95 dark:bg-rose-950/60';
+                  circleBg = 'bg-gradient-to-tr from-rose-50 to-red-50 dark:from-rose-950/80 dark:to-red-950/80 border-rose-500 dark:border-rose-400';
+                  activeRing = 'ring-4 ring-rose-500/40 shadow-lg shadow-rose-500/30 scale-105';
                 }
               } else if (emotion.category === 'neutral') {
-                scoreBadge = 'bg-slate-200 text-slate-800 dark:bg-slate-700 dark:text-slate-300';
+                scoreColor = 'bg-slate-500 text-white';
+                glowColor = 'rgba(100, 116, 139, 0.45)';
                 if (isSelected) {
-                  borderClass = 'border-slate-400 dark:border-slate-300 ring-2 ring-slate-400/40 shadow-md shadow-slate-500/10';
-                  bgClass = 'bg-slate-100 dark:bg-slate-800/90';
+                  circleBg = 'bg-slate-100 dark:bg-slate-800 border-slate-400 dark:border-slate-300';
+                  activeRing = 'ring-4 ring-slate-400/40 shadow-md shadow-slate-500/20 scale-105';
                 }
               }
 
               return (
                 <div
                   key={emotion.id}
-                  className="relative"
+                  className="relative flex flex-col items-center group select-none"
                   onMouseEnter={() => setActiveTooltip(emotion.id)}
                   onMouseLeave={() => setActiveTooltip(null)}
                 >
@@ -377,7 +381,7 @@ export default function DailyEmotionalCheckinCard() {
                   {floatingScore?.id === emotion.id && (
                     <div
                       key={floatingScore.key}
-                      className={`absolute z-30 -top-3 left-1/2 pointer-events-none text-xs font-black px-2.5 py-0.5 rounded-full shadow-lg border animate-pop-float ${
+                      className={`absolute z-30 -top-4 left-1/2 -translate-x-1/2 pointer-events-none text-xs font-black px-2.5 py-0.5 rounded-full shadow-lg border animate-pop-float ${
                         floatingScore.score > 0
                           ? 'bg-emerald-500 text-white border-emerald-300 shadow-emerald-500/40'
                           : floatingScore.score < 0
@@ -389,59 +393,62 @@ export default function DailyEmotionalCheckinCard() {
                     </div>
                   )}
 
-                  {/* Main Interactive Button with Ripple & Bounce */}
+                  {/* Circular Button with Multi-Ring & Spring Animation */}
                   <button
                     type="button"
                     onClick={() => toggleEmotion(emotion)}
-                    className={`relative overflow-hidden w-full group text-left p-2.5 rounded-xl border transition-all duration-200 cursor-pointer active:scale-95 flex flex-col justify-between gap-1.5 hover:-translate-y-1 hover:shadow-lg ${borderClass} ${bgClass}`}
+                    className={`relative w-16 h-16 sm:w-20 sm:h-20 rounded-full border-2 flex items-center justify-center transition-all duration-300 cursor-pointer hover:scale-110 hover:-translate-y-1 active:scale-95 shadow-sm group ${circleBg} ${activeRing}`}
                   >
                     {/* Ripple Burst on Click */}
                     {isSelected && isJustToggled && (
                       <div
-                        className={`absolute inset-0 rounded-xl pointer-events-none border-2 animate-ripple ${
-                          emotion.category === 'positive'
-                            ? 'border-emerald-400'
-                            : emotion.category === 'negative'
-                            ? 'border-rose-400'
-                            : 'border-slate-400'
-                        }`}
+                        className="absolute inset-0 rounded-full pointer-events-none border-2 animate-ripple"
+                        style={{ borderColor: glowColor }}
                       />
                     )}
 
-                    <div className="flex items-center justify-between w-full">
-                      {/* Spring Bouncing Emoji */}
-                      <span
-                        className={`text-xl leading-none transition-transform duration-200 group-hover:scale-125 ${
-                          isSelected ? 'animate-spring-pop' : ''
-                        }`}
-                      >
-                        {emotion.emoji}
-                      </span>
-                      <span
-                        className={`text-[10px] font-black px-1.5 py-0.5 rounded-md transition-all duration-200 ${scoreBadge} ${
-                          isSelected ? 'scale-105 shadow-xs' : ''
-                        }`}
-                      >
-                        {emotion.score > 0 ? `+${emotion.score}` : emotion.score}
-                      </span>
-                    </div>
+                    {/* Spring Bouncing Emoji in Center */}
+                    <span
+                      className={`text-2xl sm:text-3xl leading-none transition-transform duration-200 group-hover:scale-125 ${
+                        isSelected ? 'animate-spring-pop scale-110' : ''
+                      }`}
+                    >
+                      {emotion.emoji}
+                    </span>
 
-                    <div className="flex items-center justify-between w-full">
-                      <span className="text-xs font-bold text-slate-800 dark:text-slate-200 truncate">
-                        {language === 'th' ? emotion.labelTh : emotion.labelEn}
+                    {/* Score Tag in Mini Circular / Pill Badge */}
+                    <span
+                      className={`absolute -top-1 -right-1 text-[9px] font-black px-1.5 py-0.5 rounded-full shadow-xs border border-white/60 dark:border-black/40 transition-transform ${scoreColor} ${
+                        isSelected ? 'scale-110 shadow-md ring-1 ring-white/50' : ''
+                      }`}
+                    >
+                      {emotion.score > 0 ? `+${emotion.score}` : emotion.score}
+                    </span>
+
+                    {/* Circular Checkmark Badge when Selected */}
+                    {isSelected && (
+                      <span className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-blue-600 text-white flex items-center justify-center shadow-md animate-spring-pop border-2 border-white dark:border-slate-900">
+                        <Check size={11} strokeWidth={3.5} />
                       </span>
-                      {isSelected && (
-                        <span className="w-4 h-4 rounded-full bg-blue-600 text-white flex items-center justify-center shrink-0 animate-spring-pop shadow-xs">
-                          <Check size={10} strokeWidth={3} />
-                        </span>
-                      )}
-                    </div>
+                    )}
                   </button>
+
+                  {/* Label Underneath Circle */}
+                  <span
+                    onClick={() => toggleEmotion(emotion)}
+                    className={`mt-2 text-[11px] font-bold text-center leading-tight max-w-[80px] line-clamp-2 cursor-pointer transition-colors ${
+                      isSelected
+                        ? 'text-blue-600 dark:text-blue-400 font-extrabold'
+                        : 'text-slate-700 dark:text-slate-300 group-hover:text-slate-900 dark:group-hover:text-white'
+                    }`}
+                  >
+                    {language === 'th' ? emotion.labelTh : emotion.labelEn}
+                  </span>
 
                   {/* Micro-Tooltip for Deep Psychology Context */}
                   {activeTooltip === emotion.id && emotion.descriptionTh && (
-                    <div className="absolute z-20 bottom-full left-1/2 -translate-x-1/2 mb-2 w-48 p-2 rounded-xl bg-slate-900/95 dark:bg-black/95 text-white text-[11px] shadow-xl backdrop-blur-md border border-white/[0.1] pointer-events-none animate-fade-in text-center">
-                      <div className="font-semibold text-slate-200">
+                    <div className="absolute z-40 bottom-full left-1/2 -translate-x-1/2 mb-3 w-52 p-2.5 rounded-xl bg-slate-900/95 dark:bg-black/95 text-white text-[11px] shadow-2xl backdrop-blur-md border border-white/[0.1] pointer-events-none animate-fade-in text-center">
+                      <div className="font-semibold text-slate-200 leading-snug">
                         {language === 'th' ? emotion.descriptionTh : emotion.descriptionEn || emotion.descriptionTh}
                       </div>
                       <div className="absolute top-full left-1/2 -translate-x-1/2 -mt-1 border-4 border-transparent border-t-slate-900 dark:border-t-black" />
