@@ -35,6 +35,11 @@ export default function DailyEmotionalCheckinCard() {
   const [savedNotice, setSavedNotice] = useState<boolean>(false);
   const [activeTooltip, setActiveTooltip] = useState<string | null>(null);
 
+  // Motion States
+  const [floatingScore, setFloatingScore] = useState<{ id: string; score: number; key: number } | null>(null);
+  const [scoreBump, setScoreBump] = useState<boolean>(false);
+  const [lastToggledId, setLastToggledId] = useState<string | null>(null);
+
   useEffect(() => {
     getTodayCheckin().then((checkin) => {
       if (checkin) {
@@ -63,14 +68,22 @@ export default function DailyEmotionalCheckinCard() {
     return calculateEmotionalScore(selectedIds);
   }, [selectedIds]);
 
-  const toggleEmotion = (id: string) => {
+  const toggleEmotion = (emotion: EmotionTag) => {
+    setLastToggledId(emotion.id);
+
     setSelectedIds((prev) => {
-      if (prev.includes(id)) {
-        return prev.filter((item) => item !== id);
+      const isSelecting = !prev.includes(emotion.id);
+      if (isSelecting) {
+        setFloatingScore({ id: emotion.id, score: emotion.score, key: Date.now() });
       } else {
-        return [...prev, id];
+        setFloatingScore(null);
       }
+      return isSelecting ? [...prev, emotion.id] : prev.filter((item) => item !== emotion.id);
     });
+
+    // Score punch animation bump
+    setScoreBump(true);
+    setTimeout(() => setScoreBump(false), 320);
   };
 
   const handleSave = async () => {
@@ -93,6 +106,7 @@ export default function DailyEmotionalCheckinCard() {
   const handleReset = () => {
     setSelectedIds([]);
     setNote('');
+    setFloatingScore(null);
   };
 
   // Filtered emotions by category
@@ -105,14 +119,14 @@ export default function DailyEmotionalCheckinCard() {
   const statusConfig = {
     OPTIMAL: {
       border: 'border-emerald-500/40 dark:border-emerald-500/30',
-      glow: 'shadow-lg shadow-emerald-500/10 dark:shadow-emerald-950/30',
-      bg: 'bg-gradient-to-br from-emerald-500/[0.04] via-teal-500/[0.02] to-transparent',
+      glow: 'shadow-lg shadow-emerald-500/15 dark:shadow-emerald-950/40',
+      bg: 'bg-gradient-to-br from-emerald-500/[0.05] via-teal-500/[0.02] to-transparent',
       badgeBg: 'bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border-emerald-300 dark:border-emerald-500/40',
       text: 'text-emerald-600 dark:text-emerald-400',
       icon: <Sparkles size={16} className="text-emerald-500 animate-spin-slow" />,
       titleTh: '🟢 สภาวะพร้อมเทรด 100% (Optimal Zone)',
       titleEn: '🟢 Optimal Trading Mindset',
-      barColor: 'from-emerald-500 to-teal-400',
+      barColor: 'from-emerald-500 via-teal-400 to-emerald-400',
       meterColor: '#10b981',
     },
     NORMAL: {
@@ -124,19 +138,19 @@ export default function DailyEmotionalCheckinCard() {
       icon: <Info size={16} className="text-amber-500" />,
       titleTh: '🟡 สภาวะปกติ / เฝ้าระวังความเสี่ยง (Normal Zone)',
       titleEn: '🟡 Normal / Guarded Mindset',
-      barColor: 'from-amber-500 to-yellow-400',
+      barColor: 'from-amber-500 via-yellow-400 to-orange-400',
       meterColor: '#f59e0b',
     },
     WARNING: {
       border: 'border-rose-500/40 dark:border-rose-500/30',
-      glow: 'shadow-lg shadow-rose-500/15 dark:shadow-rose-950/40',
-      bg: 'bg-gradient-to-br from-rose-500/[0.06] via-red-500/[0.03] to-transparent',
+      glow: 'shadow-lg shadow-rose-500/20 dark:shadow-rose-950/40',
+      bg: 'bg-gradient-to-br from-rose-500/[0.07] via-red-500/[0.03] to-transparent',
       badgeBg: 'bg-rose-100 dark:bg-rose-500/20 text-rose-700 dark:text-rose-300 border-rose-300 dark:border-rose-500/40',
       text: 'text-rose-600 dark:text-rose-400',
       icon: <ShieldAlert size={16} className="text-rose-500 animate-bounce" />,
       titleTh: '🔴 เสี่ยงสูง / อารมณ์ไม่พร้อมเทรด (Risk Warning)',
       titleEn: '🔴 High Emotional Risk Warning',
-      barColor: 'from-rose-600 to-red-400',
+      barColor: 'from-rose-600 via-red-500 to-rose-400',
       meterColor: '#f43f5e',
     },
   }[currentScore.status];
@@ -155,7 +169,7 @@ export default function DailyEmotionalCheckinCard() {
       {/* Top Banner Bar */}
       <div className="px-5 py-4 flex flex-wrap items-center justify-between gap-4">
         <div className="flex items-center gap-3">
-          <div className="relative w-11 h-11 rounded-2xl bg-gradient-to-tr from-indigo-600 to-purple-500 text-white flex items-center justify-center shrink-0 shadow-md shadow-indigo-500/25 transition-transform hover:scale-105">
+          <div className="relative w-11 h-11 rounded-2xl bg-gradient-to-tr from-indigo-600 to-purple-500 text-white flex items-center justify-center shrink-0 shadow-md shadow-indigo-500/25 transition-transform hover:scale-105 active:scale-95">
             <HeartHandshake size={22} className="animate-pulse" />
             {currentScore.status === 'OPTIMAL' && (
               <span className="absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full bg-emerald-400 border-2 border-white dark:border-slate-900 animate-ping" />
@@ -175,6 +189,12 @@ export default function DailyEmotionalCheckinCard() {
                 <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-blue-100 dark:bg-blue-500/20 text-blue-700 dark:text-blue-400 border border-blue-300 dark:border-blue-500/30 animate-pulse">
                   <Flame size={11} />
                   {language === 'th' ? 'รอประเมินวันนี้' : 'Pending Today'}
+                </span>
+              )}
+              {currentScore.status === 'OPTIMAL' && selectedIds.length > 0 && (
+                <span className="inline-flex items-center gap-1 text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-gradient-to-r from-emerald-500 to-teal-500 text-white shadow-xs animate-spring-pop">
+                  <Sparkles size={10} />
+                  <span>{language === 'th' ? 'สมาธิดีเยี่ยม!' : 'High Edge!'}</span>
                 </span>
               )}
             </div>
@@ -214,7 +234,7 @@ export default function DailyEmotionalCheckinCard() {
                   className="transition-all duration-700 ease-out"
                 />
               </svg>
-              <span className={`absolute text-[11px] font-black ${statusConfig.text}`}>
+              <span className={`absolute text-[11px] font-black transition-transform ${scoreBump ? 'animate-score-bump' : ''} ${statusConfig.text}`}>
                 {currentScore.totalScore}
               </span>
             </div>
@@ -223,7 +243,7 @@ export default function DailyEmotionalCheckinCard() {
               <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
                 Net Score
               </div>
-              <div className={`text-sm font-black transition-colors ${statusConfig.text}`}>
+              <div className={`text-sm font-black transition-transform ${scoreBump ? 'animate-score-bump' : ''} ${statusConfig.text}`}>
                 {currentScore.netScore >= 0 ? `+${currentScore.netScore}` : currentScore.netScore}
               </div>
             </div>
@@ -253,9 +273,9 @@ export default function DailyEmotionalCheckinCard() {
               <button
                 type="button"
                 onClick={() => setCategoryFilter('all')}
-                className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
+                className={`px-3 py-1.5 rounded-lg transition-all duration-200 cursor-pointer ${
                   categoryFilter === 'all'
-                    ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-xs font-bold'
+                    ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-xs font-bold scale-[1.02]'
                     : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'
                 }`}
               >
@@ -264,9 +284,9 @@ export default function DailyEmotionalCheckinCard() {
               <button
                 type="button"
                 onClick={() => setCategoryFilter('positive')}
-                className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer flex items-center gap-1 ${
+                className={`px-3 py-1.5 rounded-lg transition-all duration-200 cursor-pointer flex items-center gap-1 ${
                   categoryFilter === 'positive'
-                    ? 'bg-emerald-500 text-white shadow-xs font-bold'
+                    ? 'bg-emerald-500 text-white shadow-xs font-bold scale-[1.02]'
                     : 'text-emerald-600 dark:text-emerald-400 hover:text-emerald-700'
                 }`}
               >
@@ -276,9 +296,9 @@ export default function DailyEmotionalCheckinCard() {
               <button
                 type="button"
                 onClick={() => setCategoryFilter('neutral')}
-                className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer flex items-center gap-1 ${
+                className={`px-3 py-1.5 rounded-lg transition-all duration-200 cursor-pointer flex items-center gap-1 ${
                   categoryFilter === 'neutral'
-                    ? 'bg-slate-600 text-white shadow-xs font-bold'
+                    ? 'bg-slate-600 text-white shadow-xs font-bold scale-[1.02]'
                     : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
                 }`}
               >
@@ -288,9 +308,9 @@ export default function DailyEmotionalCheckinCard() {
               <button
                 type="button"
                 onClick={() => setCategoryFilter('negative')}
-                className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer flex items-center gap-1 ${
+                className={`px-3 py-1.5 rounded-lg transition-all duration-200 cursor-pointer flex items-center gap-1 ${
                   categoryFilter === 'negative'
-                    ? 'bg-rose-500 text-white shadow-xs font-bold'
+                    ? 'bg-rose-500 text-white shadow-xs font-bold scale-[1.02]'
                     : 'text-rose-600 dark:text-rose-400 hover:text-rose-700'
                 }`}
               >
@@ -303,18 +323,20 @@ export default function DailyEmotionalCheckinCard() {
               <button
                 type="button"
                 onClick={handleReset}
-                className="text-[11px] font-bold text-slate-500 hover:text-rose-500 dark:hover:text-rose-400 flex items-center gap-1.5 px-2.5 py-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                className="text-[11px] font-bold text-slate-500 hover:text-rose-500 dark:hover:text-rose-400 flex items-center gap-1.5 px-2.5 py-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer active:scale-95"
               >
-                <RotateCcw size={11} />
+                <RotateCcw size={11} className="transition-transform group-hover:-rotate-90" />
                 <span>{language === 'th' ? `ล้างค่าที่เลือก (${selectedIds.length})` : `Clear (${selectedIds.length})`}</span>
               </button>
             )}
           </div>
 
-          {/* Emotion Interactive Tag Cloud with Hover Tooltips & Motion */}
+          {/* Emotion Interactive Tag Cloud with Rich Micro-Interactions */}
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2.5">
             {filteredEmotions.map((emotion) => {
               const isSelected = selectedIds.includes(emotion.id);
+              const isJustToggled = lastToggledId === emotion.id;
+
               let scoreBadge = 'bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-300';
               let borderClass = 'border-slate-200/80 dark:border-white/[0.07]';
               let bgClass = 'bg-white/70 dark:bg-slate-800/40 hover:bg-white dark:hover:bg-slate-800/90 hover:border-slate-300 dark:hover:border-white/[0.15]';
@@ -322,20 +344,20 @@ export default function DailyEmotionalCheckinCard() {
               if (emotion.category === 'positive') {
                 scoreBadge = 'bg-emerald-100 text-emerald-800 dark:bg-emerald-500/25 dark:text-emerald-300';
                 if (isSelected) {
-                  borderClass = 'border-emerald-500 dark:border-emerald-400 ring-2 ring-emerald-500/30';
-                  bgClass = 'bg-emerald-50/90 dark:bg-emerald-950/60 shadow-sm shadow-emerald-500/10';
+                  borderClass = 'border-emerald-500 dark:border-emerald-400 ring-2 ring-emerald-500/40 shadow-md shadow-emerald-500/15';
+                  bgClass = 'bg-emerald-50/95 dark:bg-emerald-950/60';
                 }
               } else if (emotion.category === 'negative') {
                 scoreBadge = 'bg-rose-100 text-rose-800 dark:bg-rose-500/25 dark:text-rose-300';
                 if (isSelected) {
-                  borderClass = 'border-rose-500 dark:border-rose-400 ring-2 ring-rose-500/30';
-                  bgClass = 'bg-rose-50/90 dark:bg-rose-950/60 shadow-sm shadow-rose-500/10';
+                  borderClass = 'border-rose-500 dark:border-rose-400 ring-2 ring-rose-500/40 shadow-md shadow-rose-500/15';
+                  bgClass = 'bg-rose-50/95 dark:bg-rose-950/60';
                 }
               } else if (emotion.category === 'neutral') {
                 scoreBadge = 'bg-slate-200 text-slate-800 dark:bg-slate-700 dark:text-slate-300';
                 if (isSelected) {
-                  borderClass = 'border-slate-400 dark:border-slate-300 ring-2 ring-slate-400/30';
-                  bgClass = 'bg-slate-100 dark:bg-slate-800/80';
+                  borderClass = 'border-slate-400 dark:border-slate-300 ring-2 ring-slate-400/40 shadow-md shadow-slate-500/10';
+                  bgClass = 'bg-slate-100 dark:bg-slate-800/90';
                 }
               }
 
@@ -346,17 +368,54 @@ export default function DailyEmotionalCheckinCard() {
                   onMouseEnter={() => setActiveTooltip(emotion.id)}
                   onMouseLeave={() => setActiveTooltip(null)}
                 >
+                  {/* Floating RPG Score Popup on Click */}
+                  {floatingScore?.id === emotion.id && (
+                    <div
+                      key={floatingScore.key}
+                      className={`absolute z-30 -top-3 left-1/2 pointer-events-none text-xs font-black px-2.5 py-0.5 rounded-full shadow-lg border animate-pop-float ${
+                        floatingScore.score > 0
+                          ? 'bg-emerald-500 text-white border-emerald-300 shadow-emerald-500/40'
+                          : floatingScore.score < 0
+                          ? 'bg-rose-500 text-white border-rose-300 shadow-rose-500/40'
+                          : 'bg-slate-700 text-white border-slate-500 shadow-slate-700/40'
+                      }`}
+                    >
+                      {floatingScore.score > 0 ? `+${floatingScore.score}` : floatingScore.score}
+                    </div>
+                  )}
+
+                  {/* Main Interactive Button with Ripple & Bounce */}
                   <button
                     type="button"
-                    onClick={() => toggleEmotion(emotion.id)}
-                    className={`w-full group text-left p-2.5 rounded-xl border transition-all duration-200 cursor-pointer active:scale-95 flex flex-col justify-between gap-1.5 hover:-translate-y-0.5 hover:shadow-md ${borderClass} ${bgClass}`}
+                    onClick={() => toggleEmotion(emotion)}
+                    className={`relative overflow-hidden w-full group text-left p-2.5 rounded-xl border transition-all duration-200 cursor-pointer active:scale-95 flex flex-col justify-between gap-1.5 hover:-translate-y-1 hover:shadow-lg ${borderClass} ${bgClass}`}
                   >
+                    {/* Ripple Burst on Click */}
+                    {isSelected && isJustToggled && (
+                      <div
+                        className={`absolute inset-0 rounded-xl pointer-events-none border-2 animate-ripple ${
+                          emotion.category === 'positive'
+                            ? 'border-emerald-400'
+                            : emotion.category === 'negative'
+                            ? 'border-rose-400'
+                            : 'border-slate-400'
+                        }`}
+                      />
+                    )}
+
                     <div className="flex items-center justify-between w-full">
-                      <span className="text-xl leading-none transition-transform group-hover:scale-110">
+                      {/* Spring Bouncing Emoji */}
+                      <span
+                        className={`text-xl leading-none transition-transform duration-200 group-hover:scale-125 ${
+                          isSelected ? 'animate-spring-pop' : ''
+                        }`}
+                      >
                         {emotion.emoji}
                       </span>
                       <span
-                        className={`text-[10px] font-black px-1.5 py-0.5 rounded-md transition-colors ${scoreBadge}`}
+                        className={`text-[10px] font-black px-1.5 py-0.5 rounded-md transition-all duration-200 ${scoreBadge} ${
+                          isSelected ? 'scale-105 shadow-xs' : ''
+                        }`}
                       >
                         {emotion.score > 0 ? `+${emotion.score}` : emotion.score}
                       </span>
@@ -367,7 +426,7 @@ export default function DailyEmotionalCheckinCard() {
                         {language === 'th' ? emotion.labelTh : emotion.labelEn}
                       </span>
                       {isSelected && (
-                        <span className="w-4 h-4 rounded-full bg-blue-600 text-white flex items-center justify-center shrink-0 animate-scale-in">
+                        <span className="w-4 h-4 rounded-full bg-blue-600 text-white flex items-center justify-center shrink-0 animate-spring-pop shadow-xs">
                           <Check size={10} strokeWidth={3} />
                         </span>
                       )}
@@ -399,23 +458,26 @@ export default function DailyEmotionalCheckinCard() {
               </div>
               <div className="text-xs font-semibold text-slate-500 dark:text-slate-400">
                 คะแนนความพร้อม:{' '}
-                <strong className={`font-black text-sm ${statusConfig.text}`}>
+                <strong className={`font-black text-sm transition-transform ${scoreBump ? 'animate-score-bump' : ''} ${statusConfig.text}`}>
                   {currentScore.totalScore} / 100
                 </strong>
               </div>
             </div>
 
-            {/* Dynamic Smooth Gradient Progress Bar */}
-            <div className="relative w-full h-2.5 rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden shadow-inner">
+            {/* Dynamic Smooth Gradient Progress Bar with Animated Shimmer Sheen */}
+            <div className="relative w-full h-3 rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden shadow-inner">
               <div
-                className={`h-full transition-all duration-700 ease-out rounded-full bg-gradient-to-r ${statusConfig.barColor}`}
+                className={`h-full transition-all duration-700 ease-out rounded-full bg-gradient-to-r relative overflow-hidden ${statusConfig.barColor}`}
                 style={{ width: `${currentScore.totalScore}%` }}
-              />
+              >
+                {/* Flowing Shimmer Sheen */}
+                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/40 to-transparent animate-shimmer" />
+              </div>
             </div>
 
             {/* Contextual Smart Trading Advice */}
             <div className="p-3 rounded-xl bg-slate-50 dark:bg-white/[0.02] border border-slate-200/60 dark:border-white/[0.04] flex items-start gap-2.5">
-              <Compass size={16} className="text-blue-500 shrink-0 mt-0.5" />
+              <Compass size={16} className="text-blue-500 shrink-0 mt-0.5 animate-pulse" />
               <p className="text-xs text-slate-700 dark:text-slate-300 leading-relaxed font-medium">
                 {language === 'th' ? currentScore.adviceTh : currentScore.adviceEn}
               </p>
@@ -439,7 +501,7 @@ export default function DailyEmotionalCheckinCard() {
             {/* Save & Confirmation Action Bar */}
             <div className="flex items-center justify-between pt-1 flex-wrap gap-2">
               <div className="text-[11px] text-slate-400 flex items-center gap-1.5">
-                <Zap size={12} className="text-amber-500" />
+                <Zap size={12} className="text-amber-500 animate-bounce" />
                 <span>
                   {language === 'th'
                     ? 'เลือกอารมณ์แล้วกดบันทึกเพื่อนำไปวิเคราะห์ร่วมกับไม้เทรด'
@@ -449,8 +511,8 @@ export default function DailyEmotionalCheckinCard() {
 
               <div className="flex items-center gap-2">
                 {savedNotice && (
-                  <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-1 animate-fade-in">
-                    <CheckCircle2 size={14} className="animate-bounce" />
+                  <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-1 animate-spring-pop">
+                    <CheckCircle2 size={14} className="text-emerald-500" />
                     {language === 'th' ? 'บันทึกสำเร็จเรียบร้อย!' : 'Saved successfully!'}
                   </span>
                 )}
@@ -458,7 +520,7 @@ export default function DailyEmotionalCheckinCard() {
                   type="button"
                   onClick={handleSave}
                   disabled={isSaving}
-                  className="px-4 py-2 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white text-xs font-bold transition-all shadow-md shadow-blue-500/25 active:scale-95 cursor-pointer flex items-center gap-1.5"
+                  className="px-4 py-2 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white text-xs font-bold transition-all shadow-md shadow-blue-500/25 active:scale-95 cursor-pointer flex items-center gap-1.5 hover:shadow-indigo-500/30"
                 >
                   <CheckCircle2 size={14} />
                   <span>

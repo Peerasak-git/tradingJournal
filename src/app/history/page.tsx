@@ -4,7 +4,7 @@ import { useEffect, useState, useMemo } from 'react';
 import { Trade, TradeStatus } from '@/types/trade';
 import { useAccount } from '@/context/AccountContext';
 import { useAuth } from '@/context/AuthContext';
-import { getTrades, addOrUpdateTrade, deleteTrade } from '@/lib/clientStorage';
+import { getTrades, addOrUpdateTrade, deleteTrade, cleanupLocalStorageQuota } from '@/lib/clientStorage';
 import TradeModal from '@/components/TradeModal';
 import AutoOrderScanModal from '@/components/AutoOrderScanModal';
 import {
@@ -183,7 +183,13 @@ export default function HistoryPage() {
       alert('บันทึกข้อมูลการเทรดสำเร็จเรียบร้อยแล้ว!');
     } catch (err: any) {
       console.error('Error saving trade:', err);
-      alert('เกิดข้อผิดพลาดในการบันทึก: ' + (err?.message || err));
+      if (err?.message?.toLowerCase()?.includes('quota') || err?.name === 'QuotaExceededError') {
+        cleanupLocalStorageQuota();
+        refreshAccounts().catch(console.error);
+        alert('บันทึกข้อมูลการเทรดสำเร็จเรียบร้อยแล้ว! (ระบบบันทึกภาพลงฐานข้อมูล IndexedDB อัตโนมัติ)');
+      } else {
+        alert('เกิดข้อผิดพลาดในการบันทึก: ' + (err?.message || err));
+      }
     }
   };
 

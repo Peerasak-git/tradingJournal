@@ -32,7 +32,7 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
-    localStorage.setItem('journal-color-scheme', colorScheme);
+    try { localStorage.setItem('journal-color-scheme', colorScheme); } catch {}
     const root = document.documentElement;
     
     // Reset to defaults first
@@ -100,11 +100,11 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
   }, [colorScheme, customWinColor, customLossColor]);
 
   useEffect(() => {
-    localStorage.setItem('journal-win-color', customWinColor);
+    try { localStorage.setItem('journal-win-color', customWinColor); } catch {}
   }, [customWinColor]);
 
   useEffect(() => {
-    localStorage.setItem('journal-loss-color', customLossColor);
+    try { localStorage.setItem('journal-loss-color', customLossColor); } catch {}
   }, [customLossColor]);
 
   return (

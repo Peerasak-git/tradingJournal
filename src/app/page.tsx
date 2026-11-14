@@ -26,7 +26,7 @@ import {
   PlusCircle,
 } from 'lucide-react';
 
-import { getTrades, addOrUpdateTrade } from '@/lib/clientStorage';
+import { getTrades, addOrUpdateTrade, cleanupLocalStorageQuota } from '@/lib/clientStorage';
 import TradingCalendar from '@/components/TradingCalendar';
 import AutoOrderScanModal from '@/components/AutoOrderScanModal';
 import TradeModal from '@/components/TradeModal';
@@ -199,7 +199,15 @@ export default function Dashboard() {
       alert('บันทึกข้อมูลการเทรดสำเร็จเรียบร้อยแล้ว!');
     } catch (err: any) {
       console.error('Error saving trade from dashboard:', err);
-      alert('เกิดข้อผิดพลาดในการบันทึก: ' + (err?.message || err));
+      if (err?.message?.toLowerCase()?.includes('quota') || err?.name === 'QuotaExceededError') {
+        cleanupLocalStorageQuota();
+        reloadTrades();
+        refreshAccounts().catch(console.error);
+        setActiveTab('recent');
+        alert('บันทึกข้อมูลการเทรดสำเร็จเรียบร้อยแล้ว! (ระบบบันทึกภาพลงฐานข้อมูล IndexedDB อัตโนมัติ)');
+      } else {
+        alert('เกิดข้อผิดพลาดในการบันทึก: ' + (err?.message || err));
+      }
     }
   };
 

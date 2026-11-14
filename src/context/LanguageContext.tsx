@@ -23,7 +23,7 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
 
   const setLanguage = (lang: Language) => {
     setLanguageState(lang);
-    localStorage.setItem('language', lang);
+    try { localStorage.setItem('language', lang); } catch {}
   };
 
   const t = (key: TranslationKey): string => {

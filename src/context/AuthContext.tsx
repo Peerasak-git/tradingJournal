@@ -49,9 +49,15 @@ export function getStoredSessionDurationDays(): number {
   return isNaN(parsed) || parsed <= 0 ? DEFAULT_SESSION_DAYS : parsed;
 }
 
-export function setStoredSessionDurationDays(days: number): void {
+function safeAuthSet(key: string, val: string): void {
   if (typeof window === 'undefined') return;
-  localStorage.setItem(SESSION_KEYS.DURATION_DAYS, String(days));
+  try {
+    localStorage.setItem(key, val);
+  } catch {}
+}
+
+export function setStoredSessionDurationDays(days: number): void {
+  safeAuthSet(SESSION_KEYS.DURATION_DAYS, String(days));
 }
 
 export function calculateSessionExpiry(days?: number): number {
@@ -68,7 +74,7 @@ export function isLocalSessionValid(): boolean {
   if (!expiresStr) {
     // If user has tj_user but no expires_at (legacy or fresh login), grant default 30 days
     const newExpiry = calculateSessionExpiry();
-    localStorage.setItem(SESSION_KEYS.EXPIRES_AT, String(newExpiry));
+    safeAuthSet(SESSION_KEYS.EXPIRES_AT, String(newExpiry));
     return true;
   }
 
@@ -81,9 +87,7 @@ export function isLocalSessionValid(): boolean {
 
 export function extendSessionExpiry(days?: number): number {
   const newExpiry = calculateSessionExpiry(days);
-  if (typeof window !== 'undefined') {
-    localStorage.setItem(SESSION_KEYS.EXPIRES_AT, String(newExpiry));
-  }
+  safeAuthSet(SESSION_KEYS.EXPIRES_AT, String(newExpiry));
   return newExpiry;
 }
 
@@ -171,7 +175,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             const mapped = mapSupabaseUserToAppUser(session.user);
             setUser(mapped);
             if (typeof window !== 'undefined') {
-              localStorage.setItem(SESSION_KEYS.USER, JSON.stringify(mapped));
+              safeAuthSet(SESSION_KEYS.USER, JSON.stringify(mapped));
               const newExp = extendSessionExpiry();
               setSessionExpiresAt(newExp);
             }
@@ -226,7 +230,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (session?.user) {
           const mapped = mapSupabaseUserToAppUser(session.user);
           setUser(mapped);
-          localStorage.setItem(SESSION_KEYS.USER, JSON.stringify(mapped));
+          safeAuthSet(SESSION_KEYS.USER, JSON.stringify(mapped));
           const exp = extendSessionExpiry();
           setSessionExpiresAt(exp);
         } else if (event === 'SIGNED_OUT') {
@@ -294,7 +298,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (!error && data?.user) {
           const mapped = mapSupabaseUserToAppUser(data.user);
           setUser(mapped);
-          localStorage.setItem(SESSION_KEYS.USER, JSON.stringify(mapped));
+          safeAuthSet(SESSION_KEYS.USER, JSON.stringify(mapped));
           const exp = extendSessionExpiry(sessionDays);
           setSessionExpiresAt(exp);
 
@@ -323,7 +327,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             createdAt: member?.createdAt || new Date().toISOString(),
           };
           setUser(appUser);
-          localStorage.setItem(SESSION_KEYS.USER, JSON.stringify(appUser));
+          safeAuthSet(SESSION_KEYS.USER, JSON.stringify(appUser));
           const exp = extendSessionExpiry(sessionDays);
           setSessionExpiresAt(exp);
 
@@ -359,7 +363,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         createdAt: member.createdAt || new Date().toISOString(),
       };
       setUser(appUser);
-      localStorage.setItem(SESSION_KEYS.USER, JSON.stringify(appUser));
+      safeAuthSet(SESSION_KEYS.USER, JSON.stringify(appUser));
       const exp = extendSessionExpiry(sessionDays);
       setSessionExpiresAt(exp);
 
@@ -419,7 +423,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (data?.user && data.session) {
         const mapped = mapSupabaseUserToAppUser(data.user);
         setUser(mapped);
-        localStorage.setItem(SESSION_KEYS.USER, JSON.stringify(mapped));
+        safeAuthSet(SESSION_KEYS.USER, JSON.stringify(mapped));
         const exp = extendSessionExpiry(sessionDays);
         setSessionExpiresAt(exp);
         return { error: null, needsConfirmation: false };
@@ -437,7 +441,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           createdAt: new Date().toISOString(),
         };
         setUser(appUser);
-        localStorage.setItem(SESSION_KEYS.USER, JSON.stringify(appUser));
+        safeAuthSet(SESSION_KEYS.USER, JSON.stringify(appUser));
         const exp = extendSessionExpiry(sessionDays);
         setSessionExpiresAt(exp);
         return { error: null, needsConfirmation: false };
@@ -453,7 +457,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const res = await verifyAndResetPasswordWithMemberInfo(email, displayName, newPassword);
     if (res.success && res.user) {
       setUser(res.user);
-      localStorage.setItem(SESSION_KEYS.USER, JSON.stringify(res.user));
+      safeAuthSet(SESSION_KEYS.USER, JSON.stringify(res.user));
       const exp = extendSessionExpiry();
       setSessionExpiresAt(exp);
       return { success: true };

@@ -132,6 +132,7 @@ export default function AutoOrderScanModal({
   };
 
   const saveTradeToDatabase = async (tradeRaw: any, previewBase64: string) => {
+    let tradeToSave: Trade | null = null;
     try {
       const newTradeId = 'trade_' + Math.random().toString(36).substring(2, 11);
       const isLong = tradeRaw.direction === 'LONG';
@@ -148,7 +149,7 @@ export default function AutoOrderScanModal({
         : 0;
       const actualRR = risk > 0 && actualReward > 0 ? parseFloat((actualReward / risk).toFixed(2)) : null;
 
-      const tradeToSave: Trade = {
+      tradeToSave = {
         id: newTradeId,
         userId: user?.id || 'u-001',
         accountId: selectedAccount?.id || 'acc-001',
@@ -198,7 +199,12 @@ export default function AutoOrderScanModal({
       }
     } catch (err: any) {
       console.error('Error saving trade:', err);
-      setErrorMessage(`บันทึกไม่สำเร็จ: ${err.message || 'เกิดข้อผิดพลาดในการบันทึก'}`);
+      if (err?.message?.toLowerCase()?.includes('quota') || err?.name === 'QuotaExceededError') {
+        setSavedSuccess(true);
+        if (onTradeSaved && tradeToSave) onTradeSaved(tradeToSave);
+      } else {
+        setErrorMessage(`บันทึกไม่สำเร็จ: ${err.message || 'เกิดข้อผิดพลาดในการบันทึก'}`);
+      }
     }
   };
 

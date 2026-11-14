@@ -7,6 +7,7 @@ import { useAccount } from '@/context/AccountContext';
 import { getTrades, compressBase64Image } from '@/lib/clientStorage';
 import { runClientOcr } from '@/lib/clientOcr';
 import { getTodayCheckin } from '@/lib/emotionStorage';
+import { getImageFromIndexedDB } from '@/lib/imageStorage';
 import { PRESET_EMOTIONS, DailyEmotionalCheckin } from '@/types/emotion';
 import { useEffect, useState, useRef } from 'react';
 
@@ -205,6 +206,16 @@ export default function TradeModal({ isOpen, onClose, onSave, initialData }: Tra
         exitTradingViewUrl: initialData.notes?.exitTradingViewUrl || '',
         entryImage: initialData.notes?.entryImage || '',
       });
+
+      // If stored as IndexedDB reference, asynchronously load full image into state
+      const rawImg = initialData.notes?.entryImage;
+      if (rawImg && rawImg.startsWith('idb://')) {
+        getImageFromIndexedDB(rawImg).then(resolved => {
+          if (resolved) {
+            setFormData(prev => ({ ...prev, entryImage: resolved }));
+          }
+        }).catch(() => {});
+      }
     } else {
       setFormData({
         accountId: selectedAccount?.id || accounts[0]?.id || 'acc-001',
@@ -355,9 +366,11 @@ export default function TradeModal({ isOpen, onClose, onSave, initialData }: Tra
         } catch {}
       }
 
+      const { entryImage: _rootImg, ...cleanFormData } = formData;
+
       onSave({
         ...initialData,
-        ...formData,
+        ...cleanFormData,
         id: initialData ? initialData.id : Math.random().toString(36).substr(2, 9),
         accountId: targetAccountId,
         instrument: finalInstrument,

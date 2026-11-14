@@ -7,6 +7,7 @@ import { FinanceEntry } from '@/types/finance';
 import { Review } from '@/types/review';
 import { User } from '@/types/user';
 import { getSupabase } from './supabase';
+import { saveImageToIndexedDB } from './imageStorage';
 
 const KEYS = {
   TRADES: 'tj_trades',
@@ -25,17 +26,17 @@ function isClient(): boolean {
 export function cleanupLocalStorageQuota(): void {
   if (!isClient()) return;
   try {
-    const keysToCleanTrades: string[] = [];
-    const keysToRemove: string[] = [];
+    const keysToRemove: string[] = ['trading_journal_trades', 'trading_journal_accounts'];
+    const keysToInspect: string[] = [];
 
     for (let i = 0; i < localStorage.length; i++) {
       const k = localStorage.key(i);
       if (!k) continue;
 
-      if (k.includes('trades')) {
-        keysToCleanTrades.push(k);
-      } else if (k === 'trading_journal_trades' || k === 'trading_journal_accounts') {
+      if (k === 'trading_journal_trades' || k === 'trading_journal_accounts') {
         keysToRemove.push(k);
+      } else {
+        keysToInspect.push(k);
       }
     }
 
@@ -44,33 +45,81 @@ export function cleanupLocalStorageQuota(): void {
       try { localStorage.removeItem(k); } catch {}
     });
 
-    // Clean base64 images from all trade keys in localStorage
-    for (const k of keysToCleanTrades) {
+    // Thoroughly inspect and prune all large base64 data URLs from ALL keys in localStorage
+    for (const k of keysToInspect) {
       try {
         const raw = localStorage.getItem(k);
-        if (!raw || !raw.includes('data:image')) continue;
-        const trades = JSON.parse(raw);
-        if (Array.isArray(trades)) {
-          let modified = false;
-          const cleaned = trades.map((t: any) => {
-            if (t?.notes?.entryImage?.startsWith('data:image') || t?.notes?.exitImage?.startsWith('data:image')) {
+        if (!raw) continue;
+
+        // If raw string itself is a massive standalone base64
+        if (raw.startsWith('data:image')) {
+          localStorage.removeItem(k);
+          continue;
+        }
+
+        if (!raw.includes('data:image')) continue;
+
+        let parsed: any;
+        try {
+          parsed = JSON.parse(raw);
+        } catch {
+          continue;
+        }
+
+        let modified = false;
+
+        const sanitizeTradeLikeItem = (item: any): any => {
+          if (!item || typeof item !== 'object') return item;
+          const copy = { ...item };
+
+          // Strip any root-level entryImage / exitImage leaked from formData
+          if (typeof copy.entryImage === 'string' && copy.entryImage.startsWith('data:image')) {
+            modified = true;
+            delete copy.entryImage;
+          }
+          if (typeof copy.exitImage === 'string' && copy.exitImage.startsWith('data:image')) {
+            modified = true;
+            delete copy.exitImage;
+          }
+
+          // Strip notes.entryImage / notes.exitImage base64
+          if (copy.notes && typeof copy.notes === 'object') {
+            copy.notes = { ...copy.notes };
+            if (typeof copy.notes.entryImage === 'string' && copy.notes.entryImage.startsWith('data:image')) {
               modified = true;
-              return {
-                ...t,
-                notes: {
-                  ...t.notes,
-                  entryImage: t.notes.entryImage?.startsWith('http') ? t.notes.entryImage : null,
-                  exitImage: t.notes.exitImage?.startsWith('http') ? t.notes.exitImage : null,
-                }
-              };
+              copy.notes.entryImage = null;
             }
-            return t;
-          });
-          if (modified) {
-            try {
-              localStorage.setItem(k, JSON.stringify(cleaned));
-              console.info(`Pruned base64 images from ${k} to free localStorage`);
-            } catch {}
+            if (typeof copy.notes.exitImage === 'string' && copy.notes.exitImage.startsWith('data:image')) {
+              modified = true;
+              copy.notes.exitImage = null;
+            }
+          }
+
+          // Strip any other property that holds base64 dataUrl
+          for (const prop of Object.keys(copy)) {
+            if (typeof copy[prop] === 'string' && copy[prop].startsWith('data:image')) {
+              modified = true;
+              copy[prop] = null;
+            }
+          }
+
+          return copy;
+        };
+
+        if (Array.isArray(parsed)) {
+          parsed = parsed.map(sanitizeTradeLikeItem);
+        } else if (typeof parsed === 'object') {
+          parsed = sanitizeTradeLikeItem(parsed);
+        }
+
+        if (modified) {
+          try {
+            localStorage.setItem(k, JSON.stringify(parsed));
+            console.info(`Pruned base64 images from "${k}" to free localStorage`);
+          } catch {
+            if (k.includes('journal') || k.includes('finance') || k.includes('review') || k.includes('cache')) {
+              try { localStorage.removeItem(k); } catch {}
+            }
           }
         }
       } catch {}
@@ -154,8 +203,14 @@ export async function compressBase64Image(
   });
 }
 
+// In-memory fallback cache if browser quota is completely exhausted
+const memoryFallbackCache = new Map<string, string>();
+
 export function safeSetLocalStorage(key: string, value: string): void {
   if (!isClient()) return;
+  // Always update memory fallback first
+  memoryFallbackCache.set(key, value);
+
   try {
     localStorage.setItem(key, value);
     return;
@@ -167,27 +222,38 @@ export function safeSetLocalStorage(key: string, value: string): void {
       cleanupLocalStorageQuota();
     } catch {}
 
-    // 2. If value being saved has large base64 images, strip them
+    // 2. Deep strip ALL base64 images from the value being saved
     let safeValue = value;
     if (value.includes('data:image')) {
       try {
-        const parsed = JSON.parse(value);
-        if (Array.isArray(parsed)) {
-          const stripped = parsed.map((item: any) => {
-            if (item?.notes) {
-              return {
-                ...item,
-                notes: {
-                  ...item.notes,
-                  entryImage: item.notes.entryImage?.startsWith('http') ? item.notes.entryImage : null,
-                  exitImage: item.notes.exitImage?.startsWith('http') ? item.notes.exitImage : null,
-                }
-              };
+        let parsed = JSON.parse(value);
+        const stripBase64Deep = (item: any): any => {
+          if (!item || typeof item !== 'object') return item;
+          if (Array.isArray(item)) return item.map(stripBase64Deep);
+          const copy = { ...item };
+          if (typeof copy.entryImage === 'string' && copy.entryImage.startsWith('data:image')) {
+            delete copy.entryImage;
+          }
+          if (typeof copy.exitImage === 'string' && copy.exitImage.startsWith('data:image')) {
+            delete copy.exitImage;
+          }
+          if (copy.notes && typeof copy.notes === 'object') {
+            copy.notes = { ...copy.notes };
+            if (typeof copy.notes.entryImage === 'string' && copy.notes.entryImage.startsWith('data:image')) {
+              copy.notes.entryImage = null;
             }
-            return item;
-          });
-          safeValue = JSON.stringify(stripped);
-        }
+            if (typeof copy.notes.exitImage === 'string' && copy.notes.exitImage.startsWith('data:image')) {
+              copy.notes.exitImage = null;
+            }
+          }
+          for (const k of Object.keys(copy)) {
+            if (typeof copy[k] === 'string' && copy[k].startsWith('data:image')) {
+              copy[k] = null;
+            }
+          }
+          return copy;
+        };
+        safeValue = JSON.stringify(stripBase64Deep(parsed));
       } catch {}
     }
 
@@ -198,12 +264,12 @@ export function safeSetLocalStorage(key: string, value: string): void {
       return;
     } catch {}
 
-    // 4. Try clearing non-essential caches (journals, finances, reviews) and saving again
+    // 4. Try clearing non-essential caches (journals, finances, reviews, cache) and saving again
     try {
       const keysToPurge: string[] = [];
       for (let i = 0; i < localStorage.length; i++) {
         const k = localStorage.key(i);
-        if (k && k !== key && (k.includes('journal') || k.includes('finance') || k.includes('review'))) {
+        if (k && k !== key && (k.includes('journal') || k.includes('finance') || k.includes('review') || k.includes('cache'))) {
           keysToPurge.push(k);
         }
       }
@@ -216,8 +282,8 @@ export function safeSetLocalStorage(key: string, value: string): void {
     } catch {}
 
     // 5. Final fallback: NEVER throw QuotaExceededError.
-    // LocalStorage is an offline cache. Data is stored in Supabase and memory state.
-    console.warn(`safeSetLocalStorage: unable to save "${key}" to localStorage due to browser quota; continuing safely.`);
+    // LocalStorage is an offline cache. Data is stored in memoryFallbackCache and Supabase/IndexedDB.
+    console.warn(`safeSetLocalStorage: unable to save "${key}" to localStorage due to browser quota; saved to memory cache safely.`);
     return;
   }
 }
@@ -408,11 +474,34 @@ export async function addOrUpdateTrade(trade: Trade): Promise<Trade> {
     trade.userId = currentUserId;
   }
 
-  // Compress entryImage if large base64
-  if (trade.notes?.entryImage && trade.notes.entryImage.startsWith('data:image') && trade.notes.entryImage.length > 60000) {
+  // 1. Clean up any root-level entryImage/exitImage leaked from formData
+  if ((trade as any).entryImage) {
+    if (!trade.notes) trade.notes = {} as any;
+    if (!trade.notes.entryImage) trade.notes.entryImage = (trade as any).entryImage;
+    delete (trade as any).entryImage;
+  }
+  if ((trade as any).exitImage) {
+    if (!trade.notes) trade.notes = {} as any;
+    if (!trade.notes.exitImage) trade.notes.exitImage = (trade as any).exitImage;
+    delete (trade as any).exitImage;
+  }
+
+  // 2. Offload large base64 images directly to IndexedDB to eliminate localStorage quota issues
+  if (trade.notes?.entryImage && trade.notes.entryImage.startsWith('data:image')) {
     try {
-      trade.notes.entryImage = await compressBase64Image(trade.notes.entryImage, 800, 800, 0.6);
-    } catch {}
+      const idbRef = await saveImageToIndexedDB(`trade_${trade.id}_entry`, trade.notes.entryImage);
+      trade.notes.entryImage = idbRef;
+    } catch (idbErr) {
+      console.warn('IndexedDB image offload warning:', idbErr);
+    }
+  }
+  if (trade.notes?.exitImage && trade.notes.exitImage.startsWith('data:image')) {
+    try {
+      const idbRef = await saveImageToIndexedDB(`trade_${trade.id}_exit`, trade.notes.exitImage);
+      trade.notes.exitImage = idbRef;
+    } catch (idbErr) {
+      console.warn('IndexedDB exit image offload warning:', idbErr);
+    }
   }
 
   const trades = await getTrades();
@@ -436,7 +525,7 @@ export async function addOrUpdateTrade(trade: Trade): Promise<Trade> {
     if (accIndex !== -1 && trade.status !== 'OPEN' && trade.financials.netPnL != null) {
       const currentBal = Number(accounts[accIndex].balance) || 0;
       accounts[accIndex].balance = Number((currentBal + trade.financials.netPnL).toFixed(2));
-      saveAccounts(accounts);
+      try { saveAccounts(accounts); } catch {}
     }
   } else {
     // Update existing trade
@@ -452,17 +541,25 @@ export async function addOrUpdateTrade(trade: Trade): Promise<Trade> {
         bal = bal + trade.financials.netPnL;
       }
       accounts[accIndex].balance = Number(bal.toFixed(2));
-      saveAccounts(accounts);
+      try { saveAccounts(accounts); } catch {}
     }
   }
 
   // Save to local cache with automatic quota management
   if (isClient()) {
-    const key = getUserKey(KEYS.TRADES);
-    safeSetLocalStorage(key, JSON.stringify(trades));
-    // Trigger global update events so all components and pages re-render immediately
-    window.dispatchEvent(new Event('tradesUpdated'));
-    window.dispatchEvent(new Event('accountsUpdated'));
+    try {
+      const key = getUserKey(KEYS.TRADES);
+      safeSetLocalStorage(key, JSON.stringify(trades));
+    } catch (e) {
+      console.warn('safeSetLocalStorage error in addOrUpdateTrade:', e);
+    }
+    // Trigger global update events safely so all components and pages re-render immediately
+    try {
+      window.dispatchEvent(new Event('tradesUpdated'));
+      window.dispatchEvent(new Event('accountsUpdated'));
+    } catch (e) {
+      console.warn('dispatchEvent error in addOrUpdateTrade:', e);
+    }
   }
 
   // Sync to Supabase
