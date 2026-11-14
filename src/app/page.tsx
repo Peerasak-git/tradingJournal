@@ -24,9 +24,12 @@ import {
   Filter,
   RotateCcw,
   PlusCircle,
+  ShieldAlert,
+  HeartHandshake,
 } from 'lucide-react';
 
 import { getTrades, addOrUpdateTrade, cleanupLocalStorageQuota } from '@/lib/clientStorage';
+import { getTodayCheckin, calculateEmotionalScore } from '@/lib/emotionStorage';
 import TradingCalendar from '@/components/TradingCalendar';
 import AutoOrderScanModal from '@/components/AutoOrderScanModal';
 import TradeModal from '@/components/TradeModal';
@@ -179,6 +182,66 @@ export default function Dashboard() {
   // Auto Order Slip Scanner Modal & Trade Modal
   const [isScanModalOpen, setIsScanModalOpen] = useState(false);
   const [isTradeModalOpen, setIsTradeModalOpen] = useState(false);
+
+  // Emotional Readiness State synchronized with Daily Emotional Check-in
+  const [emotionalState, setEmotionalState] = useState<{
+    status: 'OPTIMAL' | 'NORMAL' | 'WARNING';
+    totalScore: number;
+    netScore: number;
+    selectedCount: number;
+  }>({
+    status: 'NORMAL',
+    totalScore: 50,
+    netScore: 0,
+    selectedCount: 0,
+  });
+  const [emotionBump, setEmotionBump] = useState<boolean>(false);
+
+  useEffect(() => {
+    getTodayCheckin().then((checkin) => {
+      if (checkin) {
+        setEmotionalState({
+          status: checkin.status,
+          totalScore: checkin.totalScore,
+          netScore: checkin.netScore,
+          selectedCount: checkin.selectedEmotionIds?.length || 0,
+        });
+      }
+    });
+
+    const handleLiveScore = (e: any) => {
+      if (e?.detail?.score) {
+        setEmotionalState({
+          status: e.detail.score.status,
+          totalScore: e.detail.score.totalScore,
+          netScore: e.detail.score.netScore,
+          selectedCount: e.detail.selectedIds?.length || 0,
+        });
+        setEmotionBump(true);
+        setTimeout(() => setEmotionBump(false), 350);
+      }
+    };
+
+    const handleSavedCheckin = (e: any) => {
+      if (e?.detail) {
+        setEmotionalState({
+          status: e.detail.status,
+          totalScore: e.detail.totalScore,
+          netScore: e.detail.netScore,
+          selectedCount: e.detail.selectedEmotionIds?.length || 0,
+        });
+        setEmotionBump(true);
+        setTimeout(() => setEmotionBump(false), 350);
+      }
+    };
+
+    window.addEventListener('dailyEmotionLiveScore', handleLiveScore);
+    window.addEventListener('dailyEmotionUpdated', handleSavedCheckin);
+    return () => {
+      window.removeEventListener('dailyEmotionLiveScore', handleLiveScore);
+      window.removeEventListener('dailyEmotionUpdated', handleSavedCheckin);
+    };
+  }, []);
 
   const { t, language } = useLanguage();
   const { selectedAccount, accounts, refreshAccounts } = useAccount();
@@ -561,15 +624,27 @@ export default function Dashboard() {
         <div className="flex flex-wrap items-center gap-2.5">
           <button
             onClick={() => setIsTradeModalOpen(true)}
-            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-md shadow-blue-500/25 transition active:scale-95 shrink-0 cursor-pointer"
+            className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-white text-xs font-bold shadow-md transition-all duration-300 hover:scale-105 active:scale-95 shrink-0 cursor-pointer ${
+              emotionalState.status === 'OPTIMAL'
+                ? 'bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-500 hover:from-emerald-700 hover:to-teal-700 shadow-emerald-500/30'
+                : emotionalState.status === 'WARNING'
+                ? 'bg-gradient-to-r from-rose-600 to-amber-600 hover:from-rose-700 hover:to-amber-700 shadow-rose-500/30'
+                : 'bg-blue-600 hover:bg-blue-700 shadow-blue-500/25'
+            }`}
           >
-            <PlusCircle size={14} />
+            {emotionalState.status === 'OPTIMAL' ? (
+              <Sparkles size={14} className="animate-spin-slow" />
+            ) : emotionalState.status === 'WARNING' ? (
+              <ShieldAlert size={14} className="animate-bounce" />
+            ) : (
+              <PlusCircle size={14} />
+            )}
             <span>{language === 'th' ? 'เพิ่มรายการเทรด' : 'Add Trade'}</span>
           </button>
 
           <button
             onClick={() => setIsScanModalOpen(true)}
-            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 hover:from-blue-700 hover:to-indigo-700 text-white text-xs font-bold shadow-md shadow-blue-500/25 transition active:scale-95 shrink-0 cursor-pointer"
+            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 hover:from-blue-700 hover:to-indigo-700 text-white text-xs font-bold shadow-md shadow-blue-500/25 transition-all duration-300 hover:scale-105 active:scale-95 shrink-0 cursor-pointer"
           >
             <Sparkles size={14} />
             <span>{t('autoScanSlip')}</span>
@@ -644,9 +719,9 @@ export default function Dashboard() {
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-xs sm:text-sm font-semibold transition-all ${
+              className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-xs sm:text-sm font-semibold transition-all duration-200 cursor-pointer hover:scale-[1.02] active:scale-95 ${
                 active
-                  ? 'bg-blue-600 text-white shadow-sm shadow-blue-500/25'
+                  ? 'bg-blue-600 text-white shadow-sm shadow-blue-500/25 scale-[1.01]'
                   : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-white/[0.04]'
               }`}
             >
@@ -668,13 +743,84 @@ export default function Dashboard() {
         })}
       </div>
 
-      {/* Metrics Panel — Always visible at top so user sees instant KPI impact when switching category filters */}
-      <div className="border border-slate-200 dark:border-white/[0.06] rounded-xl overflow-hidden mb-6">
+      {/* Synchronized Emotional Readiness Bar (Motion responds to Emotional Check-in) */}
+      <div
+        className={`mb-4 px-4 py-2.5 rounded-xl border backdrop-blur-md transition-all duration-500 flex flex-wrap items-center justify-between gap-3 ${
+          emotionalState.status === 'OPTIMAL'
+            ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-800 dark:text-emerald-300 shadow-sm shadow-emerald-500/10 animate-fade-in'
+            : emotionalState.status === 'WARNING'
+            ? 'bg-rose-500/10 border-rose-500/30 text-rose-800 dark:text-rose-300 shadow-sm shadow-rose-500/10 animate-glow-pulse'
+            : 'bg-blue-500/10 border-blue-500/20 text-blue-800 dark:text-blue-300'
+        }`}
+      >
+        <div className="flex items-center gap-2">
+          {emotionalState.status === 'OPTIMAL' ? (
+            <Sparkles size={16} className="text-emerald-500 animate-spin-slow shrink-0" />
+          ) : emotionalState.status === 'WARNING' ? (
+            <ShieldAlert size={16} className="text-rose-500 animate-bounce shrink-0" />
+          ) : (
+            <HeartHandshake size={16} className="text-blue-500 shrink-0" />
+          )}
+          <span className="text-xs font-bold leading-snug">
+            {emotionalState.status === 'OPTIMAL'
+              ? language === 'th'
+                ? '⚡ สภาวะจิตใจพร้อมเทรด 100% (Optimal Zone) — สมาธิดี มั่นใจในแผน พร้อมทำตาม Setup'
+                : '⚡ Mindset 100% Optimal — High clarity, edge and discipline aligned.'
+              : emotionalState.status === 'WARNING'
+              ? language === 'th'
+                ? '⚠️ สภาวะอารมณ์เสี่ยงสูง (High Risk Warning) — ระวังการ FOMO หรือกดแก้แค้น แนะนำลด Lot หรือนั่งทับมือ'
+                : '⚠️ Emotional Risk Warning — Guard against revenge trading and FOMO.'
+              : language === 'th'
+              ? '⚪ สภาวะอารมณ์ปกติ (Normal Zone) — เทรดตามระบบและรักษาวินัยการคุมความเสี่ยง'
+              : '⚪ Stable Emotional Zone — Follow your trading rules and position sizing.'}
+          </span>
+        </div>
+
+        {/* Live Score Pill with Score Bump Organic Pulse */}
+        <div className="flex items-center gap-2 shrink-0">
+          <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+            {language === 'th' ? 'ระดับความพร้อม:' : 'Readiness:'}
+          </span>
+          <span
+            className={`text-xs font-black px-2.5 py-0.5 rounded-full transition-all duration-300 shadow-xs ${
+              emotionBump ? 'animate-score-bump scale-110 ring-2 ring-white/50' : ''
+            } ${
+              emotionalState.status === 'OPTIMAL'
+                ? 'bg-emerald-500 text-white shadow-emerald-500/30'
+                : emotionalState.status === 'WARNING'
+                ? 'bg-rose-500 text-white shadow-rose-500/30 animate-pulse'
+                : 'bg-blue-600 text-white'
+            }`}
+          >
+            {emotionalState.totalScore} PTS ({emotionalState.netScore >= 0 ? `+${emotionalState.netScore}` : emotionalState.netScore})
+          </span>
+        </div>
+      </div>
+
+      {/* Metrics Panel — Synchronized with Emotional Motion & Tactile Hover Physics */}
+      <div
+        className={`border rounded-xl overflow-hidden mb-6 transition-all duration-500 ${
+          emotionalState.status === 'OPTIMAL'
+            ? 'border-emerald-500/40 shadow-lg shadow-emerald-500/10 dark:shadow-emerald-950/30'
+            : emotionalState.status === 'WARNING'
+            ? 'border-rose-500/40 shadow-lg shadow-rose-500/15 dark:shadow-rose-950/40'
+            : 'border-slate-200 dark:border-white/[0.06] shadow-xs'
+        }`}
+      >
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-px bg-slate-200 dark:bg-white/[0.04]">
           {metrics.map((m, i) => (
-            <div key={i} className="bg-white dark:bg-[#1a1a1a] p-4 sm:p-5">
-              <p className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-2">{m.label}</p>
-              <p className={`text-xl sm:text-2xl font-semibold tracking-tight mb-1 ${m.valueClass}`}>
+            <div
+              key={i}
+              className="bg-white dark:bg-[#1a1a1a] p-4 sm:p-5 transition-all duration-300 hover:-translate-y-1 hover:z-10 hover:shadow-md cursor-default group"
+            >
+              <p className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-2 group-hover:text-slate-900 dark:group-hover:text-white transition-colors">
+                {m.label}
+              </p>
+              <p
+                className={`text-xl sm:text-2xl font-semibold tracking-tight mb-1 transition-transform duration-300 ${
+                  emotionBump ? 'animate-score-bump scale-105' : ''
+                } ${m.valueClass}`}
+              >
                 {m.value}
               </p>
               <p className="text-[11px] text-slate-500 dark:text-slate-400">{m.sub}</p>
@@ -691,7 +837,7 @@ export default function Dashboard() {
           {/* Charts Row */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
             {/* Performance Chart */}
-            <div className="lg:col-span-2 bg-white dark:bg-[#1a1a1a] border border-slate-200 dark:border-white/[0.06] rounded-xl p-5">
+            <div className="lg:col-span-2 bg-white dark:bg-[#1a1a1a] border border-slate-200 dark:border-white/[0.06] rounded-xl p-5 transition-all duration-300 hover:shadow-lg hover:-translate-y-0.5">
               <div className="flex items-center justify-between mb-5">
                 <div>
                   <h3 className="text-sm font-semibold text-slate-900 dark:text-white">
@@ -820,7 +966,7 @@ export default function Dashboard() {
             </div>
 
             {/* Trade Distribution */}
-            <div className="bg-white dark:bg-[#1a1a1a] border border-slate-200 dark:border-white/[0.06] rounded-xl p-5 flex flex-col">
+            <div className="bg-white dark:bg-[#1a1a1a] border border-slate-200 dark:border-white/[0.06] rounded-xl p-5 flex flex-col transition-all duration-300 hover:shadow-lg hover:-translate-y-0.5">
               <div className="mb-5">
                 <h3 className="text-sm font-semibold text-slate-900 dark:text-white">
                   {language === 'th' ? 'สัดส่วนผลการเทรด' : 'Trade Distribution'}

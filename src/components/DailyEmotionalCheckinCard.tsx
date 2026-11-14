@@ -100,7 +100,17 @@ export default function DailyEmotionalCheckinCard() {
       } else {
         setFloatingScore(null);
       }
-      return isSelecting ? [...prev, emotion.id] : prev.filter((item) => item !== emotion.id);
+      const next = isSelecting ? [...prev, emotion.id] : prev.filter((item) => item !== emotion.id);
+      // Dispatch real-time emotional score to dashboard for synchronized motion & ambiance
+      if (typeof window !== 'undefined') {
+        const liveScore = calculateEmotionalScore(next);
+        window.dispatchEvent(
+          new CustomEvent('dailyEmotionLiveScore', {
+            detail: { score: liveScore, selectedIds: next },
+          })
+        );
+      }
+      return next;
     });
 
     // Score punch animation bump
@@ -129,6 +139,14 @@ export default function DailyEmotionalCheckinCard() {
     setSelectedIds([]);
     setNote('');
     setFloatingScore(null);
+    if (typeof window !== 'undefined') {
+      const zeroScore = calculateEmotionalScore([]);
+      window.dispatchEvent(
+        new CustomEvent('dailyEmotionLiveScore', {
+          detail: { score: zeroScore, selectedIds: [] },
+        })
+      );
+    }
   };
 
   // Filtered emotions by category
