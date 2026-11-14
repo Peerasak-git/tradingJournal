@@ -30,6 +30,7 @@ import { getTrades, addOrUpdateTrade } from '@/lib/clientStorage';
 import TradingCalendar from '@/components/TradingCalendar';
 import AutoOrderScanModal from '@/components/AutoOrderScanModal';
 import TradeModal from '@/components/TradeModal';
+import DailyEmotionalCheckinCard from '@/components/DailyEmotionalCheckinCard';
 
 type DashboardTab = 'overview' | 'calendar' | 'categories' | 'recent' | 'all';
 type CategoryDimension = 'instrument' | 'direction' | 'strategy' | 'session' | 'dayOfWeek';
@@ -623,6 +624,9 @@ export default function Dashboard() {
         </div>
       </div>
       </div>
+
+      {/* Daily Pre-Trade Emotional Check-in Card */}
+      <DailyEmotionalCheckinCard />
 
       {/* Main Navigation Tabs */}
       <div className="mb-6 bg-white dark:bg-[#1a1a1a] border border-slate-200 dark:border-white/[0.06] rounded-xl p-1.5 flex flex-wrap items-center gap-1.5 shadow-xs">

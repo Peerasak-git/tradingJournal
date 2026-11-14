@@ -6,6 +6,8 @@ import { useLanguage } from '@/context/LanguageContext';
 import { useAccount } from '@/context/AccountContext';
 import { getTrades, compressBase64Image } from '@/lib/clientStorage';
 import { runClientOcr } from '@/lib/clientOcr';
+import { getTodayCheckin } from '@/lib/emotionStorage';
+import { PRESET_EMOTIONS, DailyEmotionalCheckin } from '@/types/emotion';
 import { useEffect, useState, useRef } from 'react';
 
 function formatDateForDatetimeLocal(raw: any): string {
@@ -34,7 +36,7 @@ interface TradeModalProps {
 }
 
 export default function TradeModal({ isOpen, onClose, onSave, initialData }: TradeModalProps) {
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const { selectedAccount, accounts } = useAccount();
   const [strategies, setStrategies] = useState<string[]>(['โซนอุปสงค์/อุปทาน (S/D)', 'จุดตัดเส้นแนวโน้ม', 'SMC', 'EMA Cross', 'Price Action', 'โซนแนวรับ/แนวต้าน']);
   const [isStrategyOpen, setIsStrategyOpen] = useState(false);
@@ -70,6 +72,7 @@ export default function TradeModal({ isOpen, onClose, onSave, initialData }: Tra
   const [apiKeySuccess, setApiKeySuccess] = useState('');
   const [pendingImageFile, setPendingImageFile] = useState<File | null>(null);
   const [isZoomImageOpen, setIsZoomImageOpen] = useState(false);
+  const [todayEmotionCheckin, setTodayEmotionCheckin] = useState<DailyEmotionalCheckin | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [formData, setFormData] = useState({
@@ -137,6 +140,7 @@ export default function TradeModal({ isOpen, onClose, onSave, initialData }: Tra
 
   useEffect(() => {
     if (isOpen) {
+      getTodayCheckin().then(setTodayEmotionCheckin).catch(() => {});
       const savedChecklist = localStorage.getItem('tradeChecklist');
       if (savedChecklist) {
         try {
@@ -1397,9 +1401,46 @@ export default function TradeModal({ isOpen, onClose, onSave, initialData }: Tra
 
           {/* Psychology Section */}
           <div ref={psychRef} className="mt-8 pt-6 border-t border-slate-100 dark:border-white/[0.06]">
-            <div className={sectionHeaderClasses}>
-              <Brain size={12} strokeWidth={2} />
-              {t('psychology')}
+            <div className="flex items-center justify-between gap-2 mb-3 flex-wrap">
+              <div className={sectionHeaderClasses.replace('mb-5', 'mb-0')}>
+                <Brain size={12} strokeWidth={2} />
+                {t('psychology')}
+              </div>
+              {todayEmotionCheckin && (
+                <div className="flex items-center gap-2 text-xs">
+                  <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">
+                    {language === 'th' ? 'เช็คอินอารมณ์วันนี้:' : "Today's Score:"}
+                  </span>
+                  <span
+                    className={`font-black text-[11px] px-2 py-0.5 rounded-full border ${
+                      todayEmotionCheckin.status === 'OPTIMAL'
+                        ? 'bg-emerald-50 dark:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border-emerald-300 dark:border-emerald-500/30'
+                        : todayEmotionCheckin.status === 'WARNING'
+                        ? 'bg-rose-50 dark:bg-rose-500/20 text-rose-600 dark:text-rose-400 border-rose-300 dark:border-rose-500/30'
+                        : 'bg-amber-50 dark:bg-amber-500/20 text-amber-600 dark:text-amber-400 border-amber-300 dark:border-amber-500/30'
+                    }`}
+                  >
+                    Score: {todayEmotionCheckin.netScore >= 0 ? `+${todayEmotionCheckin.netScore}` : todayEmotionCheckin.netScore} ({todayEmotionCheckin.totalScore}/100)
+                  </span>
+                  {!formData.preTrade && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const emotionNames = todayEmotionCheckin.selectedEmotionIds
+                          .map((id) => PRESET_EMOTIONS.find((e) => e.id === id)?.labelTh)
+                          .filter(Boolean)
+                          .join(', ');
+                        if (emotionNames) {
+                          setFormData((prev) => ({ ...prev, preTrade: emotionNames }));
+                        }
+                      }}
+                      className="text-[11px] font-bold text-blue-600 dark:text-blue-400 hover:underline cursor-pointer"
+                    >
+                      {language === 'th' ? 'ดึงอารมณ์วันนี้มาใส่' : 'Import today'}
+                    </button>
+                  )}
+                </div>
+              )}
             </div>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               {renderPsychologySelect('before', t('beforeFeeling'), <Smile size={12} className="text-slate-400" />, formData.preTrade, 'preTrade')}
