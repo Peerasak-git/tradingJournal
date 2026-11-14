@@ -39,7 +39,7 @@ export default function DailyEmotionalCheckinCard() {
 
   // Motion & Layout States
   const [viewMode, setViewMode] = useState<'wheel' | 'grid'>('wheel');
-  const [wheelRadius, setWheelRadius] = useState<number>(185);
+  const [wheelRadius, setWheelRadius] = useState<number>(260);
   const [floatingScore, setFloatingScore] = useState<{ id: string; score: number; key: number } | null>(null);
   const [scoreBump, setScoreBump] = useState<boolean>(false);
   const [lastToggledId, setLastToggledId] = useState<string | null>(null);
@@ -47,14 +47,14 @@ export default function DailyEmotionalCheckinCard() {
   useEffect(() => {
     const handleResize = () => {
       const w = window.innerWidth;
-      if (w < 420) {
-        setWheelRadius(122);
-      } else if (w < 520) {
-        setWheelRadius(142);
-      } else if (w < 680) {
-        setWheelRadius(165);
+      if (w < 440) {
+        setWheelRadius(140);
+      } else if (w < 640) {
+        setWheelRadius(185);
+      } else if (w < 1024) {
+        setWheelRadius(235);
       } else {
-        setWheelRadius(195);
+        setWheelRadius(260);
       }
     };
     handleResize();
@@ -396,24 +396,24 @@ export default function DailyEmotionalCheckinCard() {
             /* ============================================================ */
             /* 1. ORBITAL RADIAL EMOTION WHEEL (วงกลมแบบมีอารมณ์อยู่รอบๆ) */
             /* ============================================================ */
-            <div className="relative w-full max-w-[580px] h-[450px] sm:h-[530px] mx-auto flex items-center justify-center my-2 select-none overflow-visible">
+            <div className="relative w-full max-w-[760px] h-[520px] sm:h-[640px] md:h-[720px] mx-auto flex items-center justify-center my-3 select-none overflow-visible">
               {/* Concentric Orbital Rings & Connecting Rays SVG */}
-              <svg className="absolute inset-0 w-full h-full pointer-events-none" viewBox="0 0 580 530">
+              <svg className="absolute inset-0 w-full h-full pointer-events-none" viewBox="0 0 760 720">
                 <defs>
                   <radialGradient id="wheelCenterAura" cx="50%" cy="50%" r="50%">
-                    <stop offset="0%" stopColor={statusConfig.meterColor} stopOpacity="0.18" />
-                    <stop offset="65%" stopColor={statusConfig.meterColor} stopOpacity="0.04" />
+                    <stop offset="0%" stopColor={statusConfig.meterColor} stopOpacity="0.2" />
+                    <stop offset="65%" stopColor={statusConfig.meterColor} stopOpacity="0.05" />
                     <stop offset="100%" stopColor="transparent" stopOpacity="0" />
                   </radialGradient>
                 </defs>
 
                 {/* Ambient Radial Wheel Center Backdrop Glow */}
-                <circle cx="290" cy="265" r={wheelRadius + 45} fill="url(#wheelCenterAura)" />
+                <circle cx="380" cy="360" r={wheelRadius + 55} fill="url(#wheelCenterAura)" />
 
                 {/* Outer & Inner Orbit Guide Track Rings */}
                 <circle
-                  cx="290"
-                  cy="265"
+                  cx="380"
+                  cy="360"
                   r={wheelRadius}
                   className="stroke-slate-300/40 dark:stroke-white/10"
                   strokeWidth="1.5"
@@ -421,8 +421,8 @@ export default function DailyEmotionalCheckinCard() {
                   fill="none"
                 />
                 <circle
-                  cx="290"
-                  cy="265"
+                  cx="380"
+                  cy="360"
                   r={wheelRadius * 0.65}
                   className="stroke-slate-200/50 dark:stroke-white/[0.05]"
                   strokeWidth="1"
@@ -437,8 +437,8 @@ export default function DailyEmotionalCheckinCard() {
 
                   const total = filteredEmotions.length;
                   const angle = (idx / total) * 2 * Math.PI - Math.PI / 2;
-                  const targetX = 290 + Math.cos(angle) * wheelRadius;
-                  const targetY = 265 + Math.sin(angle) * wheelRadius;
+                  const targetX = 380 + Math.cos(angle) * wheelRadius;
+                  const targetY = 360 + Math.sin(angle) * wheelRadius;
 
                   let rayColor = '#64748b';
                   if (emotion.category === 'positive') rayColor = '#10b981';
@@ -448,43 +448,43 @@ export default function DailyEmotionalCheckinCard() {
                     <g key={`ray-${emotion.id}`}>
                       {/* Soft Glow Underline */}
                       <line
-                        x1="290"
-                        y1="265"
+                        x1="380"
+                        y1="360"
                         x2={targetX}
                         y2={targetY}
                         stroke={rayColor}
-                        strokeWidth="4"
+                        strokeWidth="4.5"
                         strokeOpacity="0.3"
                         strokeLinecap="round"
                       />
                       {/* Animated Dashed Beam */}
                       <line
-                        x1="290"
-                        y1="265"
+                        x1="380"
+                        y1="360"
                         x2={targetX}
                         y2={targetY}
                         stroke={rayColor}
-                        strokeWidth="1.8"
-                        strokeDasharray="4 4"
+                        strokeWidth="2"
+                        strokeDasharray="5 5"
                         strokeLinecap="round"
                       />
                       {/* Pulsing Target Dot */}
-                      <circle cx={targetX} cy={targetY} r="4" fill={rayColor} className="animate-ping" />
+                      <circle cx={targetX} cy={targetY} r="4.5" fill={rayColor} className="animate-ping" />
                     </g>
                   );
                 })}
               </svg>
 
-              {/* Center Core Hub: Circular Readiness Gauge & Score */}
-              <div className="absolute z-20 left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-40 h-40 sm:w-48 sm:h-48 rounded-full flex flex-col items-center justify-center p-2 shadow-2xl backdrop-blur-xl bg-white/95 dark:bg-slate-900/95 border-2 border-slate-200/90 dark:border-white/15">
+              {/* Center Core Hub: Prominent Circular Readiness Gauge & Score */}
+              <div className="absolute z-20 left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-48 h-48 sm:w-56 sm:h-56 md:w-64 md:h-64 rounded-full flex flex-col items-center justify-center p-3 shadow-2xl backdrop-blur-xl bg-white/95 dark:bg-slate-900/95 border-2 border-slate-200/90 dark:border-white/15">
                 {/* Outer Breathing Aura Glow */}
                 <div
-                  className="absolute inset-0 rounded-full blur-xl transition-all duration-700 animate-glow-pulse pointer-events-none"
-                  style={{ backgroundColor: statusConfig.meterColor, opacity: 0.35 }}
+                  className="absolute inset-0 rounded-full blur-2xl transition-all duration-700 animate-glow-pulse pointer-events-none"
+                  style={{ backgroundColor: statusConfig.meterColor, opacity: 0.38 }}
                 />
 
                 {/* Orbit decorative dashed ring with spin */}
-                <div className="absolute inset-1.5 rounded-full border border-dashed border-slate-300/60 dark:border-white/20 animate-gauge-spin pointer-events-none" />
+                <div className="absolute inset-2 rounded-full border border-dashed border-slate-300/60 dark:border-white/20 animate-gauge-spin pointer-events-none" />
 
                 {/* Score Bump Ripple Ring */}
                 {scoreBump && (
@@ -495,32 +495,32 @@ export default function DailyEmotionalCheckinCard() {
                 )}
 
                 {/* SVG Circular Progress Meter in Center Hub */}
-                <svg className="absolute inset-0 w-full h-full -rotate-90 transform p-1.5" viewBox="0 0 160 160">
+                <svg className="absolute inset-0 w-full h-full -rotate-90 transform p-2" viewBox="0 0 200 200">
                   <defs>
                     <linearGradient id="hubGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                      <stop offset="0%" stopColor={statusConfig.meterColor} stopOpacity="0.8" />
+                      <stop offset="0%" stopColor={statusConfig.meterColor} stopOpacity="0.85" />
                       <stop offset="100%" stopColor={statusConfig.meterColor} stopOpacity="1" />
                     </linearGradient>
                     <filter id="hubShadow" x="-20%" y="-20%" width="140%" height="140%">
-                      <feDropShadow dx="0" dy="0" stdDeviation="4" floodColor={statusConfig.meterColor} floodOpacity="0.5" />
+                      <feDropShadow dx="0" dy="0" stdDeviation="5" floodColor={statusConfig.meterColor} floodOpacity="0.5" />
                     </filter>
                   </defs>
                   <circle
-                    cx="80"
-                    cy="80"
-                    r="64"
+                    cx="100"
+                    cy="100"
+                    r="82"
                     className="stroke-slate-100 dark:stroke-slate-800"
-                    strokeWidth="8"
+                    strokeWidth="10"
                     fill="transparent"
                   />
                   <circle
-                    cx="80"
-                    cy="80"
-                    r="64"
+                    cx="100"
+                    cy="100"
+                    r="82"
                     stroke="url(#hubGradient)"
-                    strokeWidth="8"
-                    strokeDasharray={2 * Math.PI * 64}
-                    strokeDashoffset={2 * Math.PI * 64 - (currentScore.totalScore / 100) * (2 * Math.PI * 64)}
+                    strokeWidth="10"
+                    strokeDasharray={2 * Math.PI * 82}
+                    strokeDashoffset={2 * Math.PI * 82 - (currentScore.totalScore / 100) * (2 * Math.PI * 82)}
                     strokeLinecap="round"
                     fill="transparent"
                     filter="url(#hubShadow)"
@@ -530,20 +530,20 @@ export default function DailyEmotionalCheckinCard() {
 
                 {/* Inside Center Metrics */}
                 <div className="relative z-10 flex flex-col items-center justify-center text-center select-none pointer-events-none">
-                  <div className="flex items-center gap-1 -mb-1">
+                  <div className="flex items-center gap-1.5 -mb-1">
                     {statusConfig.icon}
-                    <span className="text-[10px] sm:text-[11px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                      {currentScore.status === 'OPTIMAL' ? 'Optimal' : currentScore.status === 'WARNING' ? 'Warning' : 'Normal'}
+                    <span className="text-[11px] sm:text-xs font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                      {currentScore.status === 'OPTIMAL' ? 'Optimal Edge' : currentScore.status === 'WARNING' ? 'High Risk' : 'Normal'}
                     </span>
                   </div>
-                  <span className={`text-3xl sm:text-4xl font-black tracking-tight transition-transform duration-300 ${scoreBump ? 'animate-score-bump scale-110' : ''} ${statusConfig.text}`}>
+                  <span className={`text-4xl sm:text-5xl font-black tracking-tight transition-transform duration-300 ${scoreBump ? 'animate-score-bump scale-110' : ''} ${statusConfig.text}`}>
                     {currentScore.totalScore}
                   </span>
-                  <span className="text-[9px] sm:text-[10px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500 -mt-0.5">
+                  <span className="text-[10px] sm:text-[11px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500 -mt-1">
                     / 100 PTS
                   </span>
-                  <div className="flex items-center gap-1.5 mt-1">
-                    <span className={`text-[10px] font-black px-2 py-0.5 rounded-full shadow-xs ${
+                  <div className="flex items-center gap-2 mt-1.5">
+                    <span className={`text-[11px] sm:text-xs font-black px-2.5 py-0.5 rounded-full shadow-xs ${
                       currentScore.netScore >= 0
                         ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30'
                         : 'bg-rose-500/15 text-rose-600 dark:text-rose-400 border border-rose-500/30'
@@ -551,7 +551,7 @@ export default function DailyEmotionalCheckinCard() {
                       {currentScore.netScore >= 0 ? `+${currentScore.netScore} Net` : `${currentScore.netScore} Net`}
                     </span>
                     {selectedIds.length > 0 && (
-                      <span className="text-[9px] font-bold text-slate-400 dark:text-slate-500">
+                      <span className="text-[10px] sm:text-xs font-bold text-slate-400 dark:text-slate-500">
                         ({selectedIds.length})
                       </span>
                     )}
@@ -596,8 +596,8 @@ export default function DailyEmotionalCheckinCard() {
                   }
                 }
 
-                // Size adjustment: larger when filtered
-                const nodeSize = total <= 10 ? 'w-13 h-13 sm:w-15 sm:h-15' : 'w-10 h-10 sm:w-12 sm:h-12';
+                // Size adjustment: larger circle buttons
+                const nodeSize = total <= 10 ? 'w-14 h-14 sm:w-16 sm:h-16 md:w-18 md:h-18' : 'w-11 h-11 sm:w-13 sm:h-13 md:w-15 md:h-15';
 
                 return (
                   <div
@@ -614,7 +614,7 @@ export default function DailyEmotionalCheckinCard() {
                     {floatingScore?.id === emotion.id && (
                       <div
                         key={floatingScore.key}
-                        className={`absolute z-40 -top-5 left-1/2 -translate-x-1/2 pointer-events-none text-[11px] font-black px-2.5 py-0.5 rounded-full shadow-lg border animate-pop-float whitespace-nowrap ${
+                        className={`absolute z-40 -top-6 left-1/2 -translate-x-1/2 pointer-events-none text-xs font-black px-2.5 py-0.5 rounded-full shadow-lg border animate-pop-float whitespace-nowrap ${
                           floatingScore.score > 0
                             ? 'bg-emerald-500 text-white border-emerald-300 shadow-emerald-500/40'
                             : floatingScore.score < 0
@@ -643,7 +643,7 @@ export default function DailyEmotionalCheckinCard() {
 
                       {/* Emoji in Center */}
                       <span
-                        className={`text-lg sm:text-xl leading-none transition-transform duration-200 group-hover:scale-115 ${
+                        className={`text-xl sm:text-2xl md:text-3xl leading-none transition-transform duration-200 group-hover:scale-115 ${
                           isSelected ? 'animate-spring-pop scale-110' : ''
                         }`}
                       >
@@ -652,7 +652,7 @@ export default function DailyEmotionalCheckinCard() {
 
                       {/* Mini Score Badge */}
                       <span
-                        className={`absolute -top-1.5 -right-1 text-[8px] sm:text-[9px] font-black px-1.5 py-0.2 rounded-full shadow-xs border border-white/60 dark:border-black/40 transition-transform ${scoreColor} ${
+                        className={`absolute -top-1.5 -right-1 text-[9px] sm:text-[10px] font-black px-1.5 py-0.2 rounded-full shadow-xs border border-white/60 dark:border-black/40 transition-transform ${scoreColor} ${
                           isSelected ? 'scale-110 shadow-md ring-1 ring-white/50' : ''
                         }`}
                       >
@@ -661,19 +661,35 @@ export default function DailyEmotionalCheckinCard() {
 
                       {/* Checkmark when selected */}
                       {isSelected && (
-                        <span className="absolute -bottom-1 -right-1 w-4 h-4 sm:w-4.5 sm:h-4.5 rounded-full bg-blue-600 text-white flex items-center justify-center shadow-md animate-spring-pop border-2 border-white dark:border-slate-900">
-                          <Check size={9} strokeWidth={3.5} />
+                        <span className="absolute -bottom-1 -right-1 w-4.5 h-4.5 sm:w-5 sm:h-5 rounded-full bg-blue-600 text-white flex items-center justify-center shadow-md animate-spring-pop border-2 border-white dark:border-slate-900">
+                          <Check size={11} strokeWidth={3.5} />
                         </span>
                       )}
                     </button>
 
-                    {/* Tooltip on Hover */}
-                    {activeTooltip === emotion.id && (
-                      <div className="absolute z-40 top-full left-1/2 -translate-x-1/2 mt-1.5 px-2.5 py-1 rounded-xl bg-slate-900/95 dark:bg-black/95 text-white text-[10px] font-bold shadow-2xl backdrop-blur-md border border-white/10 pointer-events-none whitespace-nowrap animate-fade-in text-center">
-                        <div>{language === 'th' ? emotion.labelTh : emotion.labelEn}</div>
-                        <div className="text-[9px] font-normal text-slate-300">
-                          {emotion.score > 0 ? `+${emotion.score} pts` : `${emotion.score} pts`}
+                    {/* Directly Visible Text Label Underneath Circle */}
+                    <span
+                      onClick={() => toggleEmotion(emotion)}
+                      className={`mt-1 text-[9px] sm:text-[10px] md:text-[11px] font-bold text-center leading-tight max-w-[70px] sm:max-w-[85px] md:max-w-[95px] line-clamp-2 cursor-pointer transition-all px-1.5 py-0.5 rounded-md shadow-xs backdrop-blur-md ${
+                        isSelected
+                          ? 'text-blue-600 dark:text-blue-400 bg-blue-500/15 border border-blue-500/30 font-black scale-105 shadow-sm'
+                          : 'text-slate-700 dark:text-slate-300 group-hover:text-slate-900 dark:group-hover:text-white bg-white/80 dark:bg-slate-900/80 border border-slate-200/70 dark:border-white/[0.08]'
+                      }`}
+                      title={language === 'th' ? emotion.labelTh : emotion.labelEn}
+                    >
+                      {language === 'th' ? emotion.labelTh : emotion.labelEn}
+                    </span>
+
+                    {/* Deep Psychology Tooltip on Hover */}
+                    {activeTooltip === emotion.id && emotion.descriptionTh && (
+                      <div className="absolute z-40 bottom-full left-1/2 -translate-x-1/2 mb-2 w-48 sm:w-56 p-2 rounded-xl bg-slate-900/95 dark:bg-black/95 text-white text-[10px] sm:text-[11px] font-semibold shadow-2xl backdrop-blur-md border border-white/10 pointer-events-none whitespace-normal animate-fade-in text-center leading-snug">
+                        <div className="text-emerald-400 font-bold mb-0.5">
+                          {language === 'th' ? emotion.labelTh : emotion.labelEn} ({emotion.score > 0 ? `+${emotion.score}` : emotion.score} pts)
                         </div>
+                        <div className="text-slate-300 font-normal">
+                          {language === 'th' ? emotion.descriptionTh : emotion.descriptionEn || emotion.descriptionTh}
+                        </div>
+                        <div className="absolute top-full left-1/2 -translate-x-1/2 -mt-1 border-4 border-transparent border-t-slate-900 dark:border-t-black" />
                       </div>
                     )}
                   </div>
