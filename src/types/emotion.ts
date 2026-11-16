@@ -51,3 +51,81 @@ export interface DailyEmotionalCheckin {
   note?: string;
   updatedAt: string;
 }
+
+export interface CooldownSession {
+  isActive: boolean;
+  durationMinutes: number;
+  startedAt: string; // ISO string
+  endsAt: string; // ISO string
+  reason: string;
+  sourceEmotions?: string[]; // IDs of negative emotions that triggered the cooldown
+  note?: string;
+  completedAt?: string;
+}
+
+export interface CooldownPreset {
+  id: string;
+  minutes: number;
+  labelTh: string;
+  labelEn: string;
+  icon: string;
+  descTh: string;
+  descEn: string;
+}
+
+export const COOLDOWN_PRESETS: CooldownPreset[] = [
+  {
+    id: '15m',
+    minutes: 15,
+    labelTh: '15 นาที (จิบน้ำ / หายใจลึกๆ)',
+    labelEn: '15 Mins (Quick Reset)',
+    icon: '☕',
+    descTh: 'ดื่มน้ำ 1 แก้ว ปรับลมหายใจ ดึงสติกลับมา',
+    descEn: 'Drink water, deep breaths, regain focus',
+  },
+  {
+    id: '30m',
+    minutes: 30,
+    labelTh: '30 นาที (ลุกเดิน / พักสายตา)',
+    labelEn: '30 Mins (Power Walk)',
+    icon: '🚶',
+    descTh: 'ลุกออกจากโต๊ะเทรด ยืดเส้นยืดสาย พักสายตาจากชาร์ต',
+    descEn: 'Step away from screen, stretch, rest eyes',
+  },
+  {
+    id: '60m',
+    minutes: 60,
+    labelTh: '1 ชั่วโมง (ล้างสมอง / ออกกำลังกาย)',
+    labelEn: '1 Hour (Mind Refresh)',
+    icon: '🧠',
+    descTh: 'ปิดหน้าจอกราฟ ทำกิจกรรมอื่นให้สมองคลายความล้า',
+    descEn: 'Shut down charts, workout, clear mental clutter',
+  },
+  {
+    id: '120m',
+    minutes: 120,
+    labelTh: '2 ชั่วโมง (รอ Session ถัดไป)',
+    labelEn: '2 Hours (Session Pause)',
+    icon: '⏳',
+    descTh: 'พักข้ามรอบตลาด เช่น รอ London หรือ New York Session',
+    descEn: 'Wait for next market session (London/NY)',
+  },
+  {
+    id: '240m',
+    minutes: 240,
+    labelTh: '4 ชั่วโมง (พักครึ่งวัน)',
+    labelEn: '4 Hours (Half-Day Break)',
+    icon: '🛡️',
+    descTh: 'หยุดความเสี่ยงครึ่งวัน ป้องกันการ Overtrading ติดต่อกัน',
+    descEn: 'Half-day circuit breaker against tilt/overtrading',
+  },
+  {
+    id: 'eod',
+    minutes: 0, // dynamic calculated until 23:59:59
+    labelTh: 'พักทั้งวัน (พอแค่นี้สำหรับวันนี้)',
+    labelEn: 'Rest of Day (Market Close)',
+    icon: '🌙',
+    descTh: 'ยุติการเทรดของวัน รักษาทุนไว้สู้ใหม่วันพรุ่งนี้',
+    descEn: 'Done for the day. Protect capital for tomorrow',
+  },
+];

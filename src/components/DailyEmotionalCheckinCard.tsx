@@ -1,9 +1,17 @@
 'use client';
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { PRESET_EMOTIONS, DailyEmotionalCheckin, EmotionTag } from '@/types/emotion';
-import { calculateEmotionalScore, getTodayCheckin, saveDailyCheckin } from '@/lib/emotionStorage';
+import { PRESET_EMOTIONS, DailyEmotionalCheckin, EmotionTag, CooldownSession } from '@/types/emotion';
+import {
+  calculateEmotionalScore,
+  getTodayCheckin,
+  saveDailyCheckin,
+  getCooldownSession,
+  isCooldownActive,
+} from '@/lib/emotionStorage';
 import { useLanguage } from '@/context/LanguageContext';
+import TradingCooldownModal from './TradingCooldownModal';
+import TradingCooldownWidget from './TradingCooldownWidget';
 import {
   HeartHandshake,
   Sparkles,
@@ -19,6 +27,8 @@ import {
   Zap,
   Hexagon,
   LayoutGrid,
+  Timer,
+  Clock,
 } from 'lucide-react';
 
 type EmotionCategoryTab = 'all' | 'positive' | 'neutral' | 'negative';
@@ -62,6 +72,29 @@ export default function DailyEmotionalCheckinCard() {
   const [scoreBump, setScoreBump] = useState<boolean>(false);
   const [lastToggledId, setLastToggledId] = useState<string | null>(null);
 
+  // Trading Cooldown System State
+  const [isCooldownModalOpen, setIsCooldownModalOpen] = useState<boolean>(false);
+  const [cooldownSession, setCooldownSession] = useState<CooldownSession | null>(null);
+
+  useEffect(() => {
+    // Initial sync
+    setCooldownSession(getCooldownSession());
+
+    const syncCooldown = () => {
+      setCooldownSession(getCooldownSession());
+    };
+
+    window.addEventListener('tradingCooldownStarted', syncCooldown);
+    window.addEventListener('tradingCooldownUpdated', syncCooldown);
+    window.addEventListener('tradingCooldownEnded', syncCooldown);
+
+    return () => {
+      window.removeEventListener('tradingCooldownStarted', syncCooldown);
+      window.removeEventListener('tradingCooldownUpdated', syncCooldown);
+      window.removeEventListener('tradingCooldownEnded', syncCooldown);
+    };
+  }, []);
+
   useEffect(() => {
     getTodayCheckin().then((checkin) => {
       if (checkin) {
@@ -88,6 +121,13 @@ export default function DailyEmotionalCheckinCard() {
 
   const currentScore = useMemo(() => {
     return calculateEmotionalScore(selectedIds);
+  }, [selectedIds]);
+
+  const negativeSelected = useMemo(() => {
+    return selectedIds.filter((id) => {
+      const found = PRESET_EMOTIONS.find((e) => e.id === id);
+      return found?.category === 'negative';
+    });
   }, [selectedIds]);
 
   const toggleEmotion = (emotion: EmotionTag) => {
@@ -480,6 +520,25 @@ export default function DailyEmotionalCheckinCard() {
             </div>
           </div>
 
+          {/* Quick Cool-down Trigger Button */}
+          <button
+            type="button"
+            onClick={() => setIsCooldownModalOpen(true)}
+            className={`px-3 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-xs active:scale-95 ${
+              isCooldownActive(cooldownSession)
+                ? 'bg-blue-600 text-white shadow-blue-500/30 animate-pulse'
+                : 'bg-white/90 dark:bg-slate-800/90 text-slate-700 dark:text-slate-200 border border-slate-200/80 dark:border-white/[0.08] hover:border-blue-400 dark:hover:border-blue-500 hover:text-blue-600 dark:hover:text-blue-400'
+            }`}
+            title={language === 'th' ? 'ตั้งเวลานับถอยหลังพักรีเซ็ตอารมณ์' : 'Psychological Trading Cool-down'}
+          >
+            <Timer size={14} className={isCooldownActive(cooldownSession) ? 'animate-spin-slow text-white' : 'text-blue-500'} />
+            <span className="hidden sm:inline">
+              {isCooldownActive(cooldownSession)
+                ? language === 'th' ? 'กำลังพักใจ' : 'Cool-down Active'
+                : language === 'th' ? 'พักใจรีเซ็ตอารมณ์' : 'Cool-down'}
+            </span>
+          </button>
+
           <button
             type="button"
             onClick={() => setIsExpanded(!isExpanded)}
@@ -498,6 +557,51 @@ export default function DailyEmotionalCheckinCard() {
       {/* Expanded Interactive Area */}
       {isExpanded && (
         <div className="px-5 pb-5 pt-1 space-y-4 border-t border-slate-200/60 dark:border-white/[0.06] animate-fade-in">
+          {/* Active Cooldown Widget display when in cool-down mode */}
+          {isCooldownActive(cooldownSession) && (
+            <div className="pt-2">
+              <TradingCooldownWidget
+                variant="card"
+                onRequestOpenModal={() => setIsCooldownModalOpen(true)}
+                onCooldownEnded={() => {
+                  getTodayCheckin().then((c) => {
+                    if (c) {
+                      setTodayCheckin(c);
+                      setSelectedIds(c.selectedEmotionIds || []);
+                    }
+                  });
+                }}
+              />
+            </div>
+          )}
+
+          {/* Warning state alert suggesting cool-down if not currently active */}
+          {!isCooldownActive(cooldownSession) && (currentScore.status === 'WARNING' || negativeSelected.length > 0) && (
+            <div className="p-3.5 rounded-2xl bg-gradient-to-r from-rose-500/10 via-amber-500/10 to-transparent border border-rose-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
+              <div className="flex items-center gap-2.5">
+                <ShieldAlert size={18} className="text-rose-500 shrink-0 animate-bounce" />
+                <div className="text-xs">
+                  <span className="font-bold text-rose-600 dark:text-rose-400">
+                    {language === 'th' ? '⚠️ ตรวจพบสัญญาณอารมณ์เสี่ยงสูง:' : '⚠️ Emotional Risk Detected:'}
+                  </span>{' '}
+                  <span className="text-slate-700 dark:text-slate-300">
+                    {language === 'th'
+                      ? 'ระบบแนะนำให้เปิดตัวนับถอยหลังพักใจ (Cool-down) เพื่อตัดวงจรความอยากแก้แค้น / FOMO'
+                      : 'Take a timed break to prevent tilt and revenge trading.'}
+                  </span>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsCooldownModalOpen(true)}
+                className="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-rose-600 to-amber-600 hover:from-rose-700 hover:to-amber-700 text-white text-xs font-bold shadow-md shadow-rose-500/20 hover:scale-105 active:scale-95 transition-all cursor-pointer flex items-center gap-1.5 shrink-0"
+              >
+                <Timer size={13} />
+                <span>{language === 'th' ? 'ตั้งเวลานับถอยหลังพักเทรด' : 'Start Cool-down'}</span>
+              </button>
+            </div>
+          )}
+
           {/* Category Tabs & View Switcher */}
           <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
             {/* Category Filter Tabs */}
@@ -895,6 +999,16 @@ export default function DailyEmotionalCheckinCard() {
           </div>
         </div>
       )}
+
+      {/* Psychological Trading Cooldown Modal */}
+      <TradingCooldownModal
+        isOpen={isCooldownModalOpen}
+        onClose={() => setIsCooldownModalOpen(false)}
+        defaultEmotions={negativeSelected}
+        onStarted={() => {
+          setIsExpanded(true);
+        }}
+      />
     </div>
   );
 }

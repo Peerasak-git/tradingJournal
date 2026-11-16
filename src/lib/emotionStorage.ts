@@ -1,6 +1,6 @@
 'use client';
 
-import { DailyEmotionalCheckin, PRESET_EMOTIONS } from '@/types/emotion';
+import { DailyEmotionalCheckin, PRESET_EMOTIONS, CooldownSession } from '@/types/emotion';
 import { safeSetLocalStorage, getUserKey, getActiveUserId } from '@/lib/clientStorage';
 import { getSupabase } from '@/lib/supabase';
 
@@ -165,3 +165,201 @@ export async function saveDailyCheckin(
 
   return checkin;
 }
+
+// ---------------------------------------------------------------------------
+// Psychological Trading Cool-down / Reset Countdown System
+// ---------------------------------------------------------------------------
+
+const COOLDOWN_KEY = 'tj_trading_cooldown';
+
+export function getCooldownSession(): CooldownSession | null {
+  if (typeof window === 'undefined') return null;
+
+  try {
+    const key = getUserKey(COOLDOWN_KEY);
+    const raw = localStorage.getItem(key);
+    if (!raw) return null;
+
+    const session: CooldownSession = JSON.parse(raw);
+    if (!session || !session.endsAt) return null;
+
+    // Check if still within window
+    const now = Date.now();
+    const ends = new Date(session.endsAt).getTime();
+
+    if (now >= ends) {
+      // Cooldown has naturally expired
+      if (session.isActive) {
+        session.isActive = false;
+        session.completedAt = new Date().toISOString();
+        safeSetLocalStorage(key, JSON.stringify(session));
+      }
+    }
+
+    return session;
+  } catch (e) {
+    console.error('Failed to get cooldown session:', e);
+    return null;
+  }
+}
+
+export function isCooldownActive(session: CooldownSession | null): boolean {
+  if (!session || !session.isActive) return false;
+  const now = Date.now();
+  const ends = new Date(session.endsAt).getTime();
+  return now < ends;
+}
+
+export function startCooldownSession(
+  durationMinutes: number,
+  reason = 'พักรีเซ็ตอารมณ์',
+  sourceEmotions: string[] = [],
+  note = ''
+): CooldownSession {
+  const startedAt = new Date();
+  let endsAt: Date;
+
+  if (durationMinutes <= 0) {
+    // End of day (23:59:59 tonight)
+    endsAt = new Date(startedAt);
+    endsAt.setHours(23, 59, 59, 999);
+  } else {
+    endsAt = new Date(startedAt.getTime() + durationMinutes * 60 * 1000);
+  }
+
+  const effectiveMinutes = durationMinutes <= 0
+    ? Math.max(1, Math.round((endsAt.getTime() - startedAt.getTime()) / (60 * 1000)))
+    : durationMinutes;
+
+  const session: CooldownSession = {
+    isActive: true,
+    durationMinutes: effectiveMinutes,
+    startedAt: startedAt.toISOString(),
+    endsAt: endsAt.toISOString(),
+    reason,
+    sourceEmotions,
+    note,
+  };
+
+  if (typeof window !== 'undefined') {
+    const key = getUserKey(COOLDOWN_KEY);
+    safeSetLocalStorage(key, JSON.stringify(session));
+    window.dispatchEvent(new CustomEvent('tradingCooldownStarted', { detail: session }));
+    window.dispatchEvent(new CustomEvent('tradingCooldownUpdated', { detail: session }));
+  }
+
+  return session;
+}
+
+export function extendCooldownSession(extraMinutes: number): CooldownSession | null {
+  const current = getCooldownSession();
+  if (!current || !current.isActive) return null;
+
+  const currentEnds = new Date(current.endsAt).getTime();
+  const newEnds = new Date(Math.max(Date.now(), currentEnds) + extraMinutes * 60 * 1000);
+
+  current.endsAt = newEnds.toISOString();
+  current.durationMinutes += extraMinutes;
+
+  if (typeof window !== 'undefined') {
+    const key = getUserKey(COOLDOWN_KEY);
+    safeSetLocalStorage(key, JSON.stringify(current));
+    window.dispatchEvent(new CustomEvent('tradingCooldownUpdated', { detail: current }));
+  }
+
+  return current;
+}
+
+export function cancelCooldownSession(): void {
+  if (typeof window === 'undefined') return;
+
+  const key = getUserKey(COOLDOWN_KEY);
+  const current = getCooldownSession();
+  if (current) {
+    current.isActive = false;
+    current.completedAt = new Date().toISOString();
+    safeSetLocalStorage(key, JSON.stringify(current));
+  } else {
+    localStorage.removeItem(key);
+  }
+
+  window.dispatchEvent(new CustomEvent('tradingCooldownEnded', { detail: { cancelled: true } }));
+  window.dispatchEvent(new CustomEvent('tradingCooldownUpdated', { detail: null }));
+}
+
+/**
+ * Reset emotional state post cooldown:
+ * Clears destructive negative emotions (tilt, revenge, fomo, etc.) and replaces them
+ * with disciplined/calm/fresh state, with a celebratory log note.
+ */
+export async function completeCooldownSessionAndReset(
+  positiveEmotionsToSet: string[] = ['calm', 'fresh', 'disciplined'],
+  affirmationNote = 'รีเซ็ตจิตวิทยาหลัง Cool-down พักสมอง สำเร็จ'
+): Promise<{ checkin: DailyEmotionalCheckin; session: CooldownSession | null }> {
+  const current = getCooldownSession();
+  if (current) {
+    current.isActive = false;
+    current.completedAt = new Date().toISOString();
+    if (typeof window !== 'undefined') {
+      const key = getUserKey(COOLDOWN_KEY);
+      safeSetLocalStorage(key, JSON.stringify(current));
+    }
+  }
+
+  // Play gentle celebratory chime
+  playZenChime();
+
+  // Save new positive/disciplined checkin
+  const checkin = await saveDailyCheckin(
+    positiveEmotionsToSet,
+    affirmationNote
+  );
+
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('tradingCooldownEnded', { detail: { completed: true, reset: true } }));
+    window.dispatchEvent(new CustomEvent('tradingCooldownUpdated', { detail: null }));
+  }
+
+  return { checkin, session: current };
+}
+
+/**
+ * Calming harmonic chime sound synthesized using the Web Audio API.
+ * No external mp3/asset required; plays a tranquil 528Hz & 792Hz Solfeggio / singing bowl tone.
+ */
+export function playZenChime(): void {
+  if (typeof window === 'undefined') return;
+
+  try {
+    const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+    if (!AudioContextClass) return;
+
+    const ctx = new AudioContextClass();
+    const now = ctx.currentTime;
+
+    const frequencies = [528, 792, 1056]; // Miraculous tone harmonic triad
+    frequencies.forEach((freq, idx) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(freq, now);
+
+      // Gentle attack and long decaying chime ring
+      const delay = idx * 0.08;
+      gain.gain.setValueAtTime(0.0001, now + delay);
+      gain.gain.exponentialRampToValueAtTime(0.18 / (idx + 1), now + delay + 0.06);
+      gain.gain.exponentialRampToValueAtTime(0.00001, now + delay + 2.5);
+
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+
+      osc.start(now + delay);
+      osc.stop(now + delay + 2.6);
+    });
+  } catch (err) {
+    // Non-critical if browser audio policy blocks autoplay
+    console.debug('Audio chime skipped:', err);
+  }
+}
+

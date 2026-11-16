@@ -26,14 +26,17 @@ import {
   PlusCircle,
   ShieldAlert,
   HeartHandshake,
+  Timer,
 } from 'lucide-react';
 
 import { getTrades, addOrUpdateTrade, cleanupLocalStorageQuota } from '@/lib/clientStorage';
-import { getTodayCheckin, calculateEmotionalScore } from '@/lib/emotionStorage';
+import { getTodayCheckin, calculateEmotionalScore, getCooldownSession, isCooldownActive } from '@/lib/emotionStorage';
+import { CooldownSession } from '@/types/emotion';
 import TradingCalendar from '@/components/TradingCalendar';
 import AutoOrderScanModal from '@/components/AutoOrderScanModal';
 import TradeModal from '@/components/TradeModal';
 import DailyEmotionalCheckinCard from '@/components/DailyEmotionalCheckinCard';
+import TradingCooldownWidget from '@/components/TradingCooldownWidget';
 
 type DashboardTab = 'overview' | 'calendar' | 'categories' | 'recent' | 'all';
 type CategoryDimension = 'instrument' | 'direction' | 'strategy' | 'session' | 'dayOfWeek';
@@ -240,6 +243,24 @@ export default function Dashboard() {
     return () => {
       window.removeEventListener('dailyEmotionLiveScore', handleLiveScore);
       window.removeEventListener('dailyEmotionUpdated', handleSavedCheckin);
+    };
+  }, []);
+
+  // Psychological Trading Cooldown State
+  const [cooldownSession, setCooldownSession] = useState<CooldownSession | null>(null);
+
+  useEffect(() => {
+    const syncCooldown = () => {
+      setCooldownSession(getCooldownSession());
+    };
+    syncCooldown();
+    window.addEventListener('tradingCooldownStarted', syncCooldown);
+    window.addEventListener('tradingCooldownUpdated', syncCooldown);
+    window.addEventListener('tradingCooldownEnded', syncCooldown);
+    return () => {
+      window.removeEventListener('tradingCooldownStarted', syncCooldown);
+      window.removeEventListener('tradingCooldownUpdated', syncCooldown);
+      window.removeEventListener('tradingCooldownEnded', syncCooldown);
     };
   }, []);
 
@@ -623,23 +644,45 @@ export default function Dashboard() {
 
         <div className="flex flex-wrap items-center gap-2.5">
           <button
-            onClick={() => setIsTradeModalOpen(true)}
+            onClick={() => {
+              if (isCooldownActive(cooldownSession)) {
+                const proceed = window.confirm(
+                  language === 'th'
+                    ? '⚠️ คุณกำลังอยู่ในช่วงเวลาพักใจรีเซ็ตอารมณ์ (Cool-down)\nเพื่อป้องกันการเทรดด้วยอารมณ์ คุณแน่ใจหรือไม่ว่าต้องการเปิดบันทึกไม้เทรดในตอนนี้?'
+                    : '⚠️ You are currently in a Trading Cool-down session.\nAre you sure you want to trade/record now?'
+                );
+                if (!proceed) return;
+              }
+              setIsTradeModalOpen(true);
+            }}
             className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-white text-xs font-bold shadow-md transition-all duration-300 hover:scale-105 active:scale-95 shrink-0 cursor-pointer ${
-              emotionalState.status === 'OPTIMAL'
+              isCooldownActive(cooldownSession)
+                ? 'bg-gradient-to-r from-amber-600 via-orange-600 to-rose-600 hover:from-amber-700 hover:to-rose-700 shadow-amber-500/30 border border-amber-300/40 ring-2 ring-amber-500/30'
+                : emotionalState.status === 'OPTIMAL'
                 ? 'bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-500 hover:from-emerald-700 hover:to-teal-700 shadow-emerald-500/30'
                 : emotionalState.status === 'WARNING'
                 ? 'bg-gradient-to-r from-rose-600 to-amber-600 hover:from-rose-700 hover:to-amber-700 shadow-rose-500/30'
                 : 'bg-blue-600 hover:bg-blue-700 shadow-blue-500/25'
             }`}
           >
-            {emotionalState.status === 'OPTIMAL' ? (
+            {isCooldownActive(cooldownSession) ? (
+              <Timer size={14} className="animate-spin-slow text-amber-200" />
+            ) : emotionalState.status === 'OPTIMAL' ? (
               <Sparkles size={14} className="animate-spin-slow" />
             ) : emotionalState.status === 'WARNING' ? (
               <ShieldAlert size={14} className="animate-bounce" />
             ) : (
               <PlusCircle size={14} />
             )}
-            <span>{language === 'th' ? 'เพิ่มรายการเทรด' : 'Add Trade'}</span>
+            <span>
+              {isCooldownActive(cooldownSession)
+                ? language === 'th'
+                  ? 'ช่วงพักใจ (เพิ่มไม้เทรด)'
+                  : 'Cool-down Active'
+                : language === 'th'
+                ? 'เพิ่มรายการเทรด'
+                : 'Add Trade'}
+            </span>
           </button>
 
           <button
@@ -707,6 +750,13 @@ export default function Dashboard() {
         </div>
       </div>
       </div>
+
+      {/* Active Trading Cool-down Countdown Banner */}
+      {isCooldownActive(cooldownSession) && (
+        <div className="mb-4">
+          <TradingCooldownWidget variant="banner" />
+        </div>
+      )}
 
       {/* Daily Pre-Trade Emotional Check-in Card */}
       <DailyEmotionalCheckinCard />
