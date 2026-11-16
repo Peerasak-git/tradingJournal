@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { COOLDOWN_PRESETS, CooldownPreset, PRESET_EMOTIONS } from '@/types/emotion';
 import { startCooldownSession } from '@/lib/emotionStorage';
 import { useLanguage } from '@/context/LanguageContext';
@@ -42,11 +43,16 @@ export default function TradingCooldownModal({
 }: TradingCooldownModalProps) {
   const { language } = useLanguage();
 
+  const [mounted, setMounted] = useState<boolean>(false);
   const [selectedPresetId, setSelectedPresetId] = useState<string>('30m');
   const [customMinutes, setCustomMinutes] = useState<string>('45');
   const [isCustom, setIsCustom] = useState<boolean>(false);
   const [selectedReason, setSelectedReason] = useState<string>('');
   const [note, setNote] = useState<string>('');
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   useEffect(() => {
     if (isOpen) {
@@ -71,7 +77,7 @@ export default function TradingCooldownModal({
     }
   }, [isOpen, defaultEmotions, language]);
 
-  if (!isOpen) return null;
+  if (!isOpen || !mounted) return null;
 
   const handleStart = () => {
     let minutes = 30;
@@ -94,10 +100,10 @@ export default function TradingCooldownModal({
     onClose();
   };
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-md animate-fade-in">
+  return createPortal(
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-950/75 backdrop-blur-md animate-fade-in">
       <div
-        className="relative w-full max-w-lg overflow-hidden rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/10 shadow-2xl p-6 sm:p-7 space-y-6 text-slate-900 dark:text-white"
+        className="relative w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/10 shadow-2xl p-6 sm:p-7 space-y-6 text-slate-900 dark:text-white"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Glow ambient background */}
@@ -107,7 +113,7 @@ export default function TradingCooldownModal({
         {/* Header */}
         <div className="relative flex items-start justify-between gap-4 border-b border-slate-100 dark:border-white/[0.08] pb-4">
           <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-blue-500 via-indigo-600 to-purple-600 flex items-center justify-center text-white shadow-lg shadow-blue-500/30">
+            <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-blue-500 via-indigo-600 to-purple-600 flex items-center justify-center text-white shadow-lg shadow-blue-500/30 shrink-0">
               <Timer size={24} className="animate-pulse" />
             </div>
             <div>
@@ -118,7 +124,7 @@ export default function TradingCooldownModal({
               </h3>
               <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
                 {language === 'th'
-                  ? 'ตัดวงจรอารมณ์ ป้องกันการเสียทุน และรีเซ็ตจิตวิทยาให้พร้อมใหม่'
+                  ? 'ตัดวงจรอารมณ์ ป้องกันการเสียทรง และรีเซ็ตจิตวิทยาให้พร้อมใหม่'
                   : 'Break the tilt cycle, protect capital, and reset your mindset'}
               </p>
             </div>
@@ -126,7 +132,7 @@ export default function TradingCooldownModal({
 
           <button
             onClick={onClose}
-            className="p-2 rounded-xl text-slate-400 hover:text-slate-600 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-white/[0.06] transition cursor-pointer"
+            className="p-2 rounded-xl text-slate-400 hover:text-slate-600 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-white/[0.06] transition cursor-pointer shrink-0"
           >
             <X size={18} />
           </button>
@@ -263,6 +269,7 @@ export default function TradingCooldownModal({
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

@@ -576,7 +576,10 @@ export default function DailyEmotionalCheckinCard() {
           {/* Quick Cool-down Trigger Button */}
           <button
             type="button"
-            onClick={() => setIsCooldownModalOpen(true)}
+            onClick={() => {
+              setIsExpanded(true);
+              setIsCooldownModalOpen(true);
+            }}
             className={`px-3 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-xs active:scale-95 ${
               isCooldownActive(cooldownSession)
                 ? 'bg-blue-600 text-white shadow-blue-500/30 animate-pulse'
@@ -615,7 +618,10 @@ export default function DailyEmotionalCheckinCard() {
             <div className="pt-2">
               <TradingCooldownWidget
                 variant="card"
-                onRequestOpenModal={() => setIsCooldownModalOpen(true)}
+                onRequestOpenModal={() => {
+                  setIsExpanded(true);
+                  setIsCooldownModalOpen(true);
+                }}
                 onCooldownEnded={() => {
                   getTodayCheckin().then((c) => {
                     if (c) {
@@ -646,7 +652,10 @@ export default function DailyEmotionalCheckinCard() {
               </div>
               <button
                 type="button"
-                onClick={() => setIsCooldownModalOpen(true)}
+                onClick={() => {
+                  setIsExpanded(true);
+                  setIsCooldownModalOpen(true);
+                }}
                 className="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-rose-600 to-amber-600 hover:from-rose-700 hover:to-amber-700 text-white text-xs font-bold shadow-md shadow-rose-500/20 hover:scale-105 active:scale-95 transition-all cursor-pointer flex items-center gap-1.5 shrink-0"
               >
                 <Timer size={13} />
@@ -733,7 +742,10 @@ export default function DailyEmotionalCheckinCard() {
               logs={todayCheckin?.logs || []}
               onSelectLog={handleSelectLog}
               onDeleteLog={handleDeleteLog}
-              onOpenCooldown={() => setIsCooldownModalOpen(true)}
+              onOpenCooldown={() => {
+                setIsExpanded(true);
+                setIsCooldownModalOpen(true);
+              }}
             />
           ) : (
             <>
