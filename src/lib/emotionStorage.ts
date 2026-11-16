@@ -1,10 +1,91 @@
 'use client';
 
-import { DailyEmotionalCheckin, PRESET_EMOTIONS, CooldownSession } from '@/types/emotion';
+import {
+  DailyEmotionalCheckin,
+  PRESET_EMOTIONS,
+  CooldownSession,
+  EmotionLogEntry,
+  EmotionTimePeriod,
+} from '@/types/emotion';
 import { safeSetLocalStorage, getUserKey, getActiveUserId } from '@/lib/clientStorage';
 import { getSupabase } from '@/lib/supabase';
 
 const EMOTION_KEY = 'tj_daily_emotions';
+
+export const PERIOD_METADATA: Record<
+  EmotionTimePeriod,
+  {
+    labelTh: string;
+    labelEn: string;
+    icon: string;
+    timeRangeTh: string;
+    timeRangeEn: string;
+    session: 'ASIAN' | 'LONDON' | 'NEW_YORK';
+  }
+> = {
+  morning: {
+    labelTh: 'ช่วงเช้า',
+    labelEn: 'Morning',
+    icon: '🌅',
+    timeRangeTh: '05:00 - 11:59 (ตลาดเอเชีย)',
+    timeRangeEn: '05:00 - 11:59 (Asian Session)',
+    session: 'ASIAN',
+  },
+  afternoon: {
+    labelTh: 'ช่วงบ่าย',
+    labelEn: 'Afternoon',
+    icon: '☀️',
+    timeRangeTh: '12:00 - 17:59 (ตลาดลอนดอน)',
+    timeRangeEn: '12:00 - 17:59 (London Session)',
+    session: 'LONDON',
+  },
+  evening: {
+    labelTh: 'ช่วงเย็น-ค่ำ',
+    labelEn: 'Evening',
+    icon: '🌆',
+    timeRangeTh: '18:00 - 22:59 (ตลาดนิวยอร์ก)',
+    timeRangeEn: '18:00 - 22:59 (NY Session)',
+    session: 'NEW_YORK',
+  },
+  night: {
+    labelTh: 'ช่วงดึก',
+    labelEn: 'Late Night',
+    icon: '🌙',
+    timeRangeTh: '23:00 - 04:59 (ก่อนนอน/ปิดวัน)',
+    timeRangeEn: '23:00 - 04:59 (Late Night/Wrap)',
+    session: 'NEW_YORK',
+  },
+};
+
+export function getCurrentTimePeriod(date = new Date()): {
+  period: EmotionTimePeriod;
+  labelTh: string;
+  labelEn: string;
+  icon: string;
+  marketSession: 'ASIAN' | 'LONDON' | 'NEW_YORK';
+} {
+  const hour = date.getHours();
+  let period: EmotionTimePeriod = 'morning';
+
+  if (hour >= 5 && hour < 12) {
+    period = 'morning';
+  } else if (hour >= 12 && hour < 18) {
+    period = 'afternoon';
+  } else if (hour >= 18 && hour < 23) {
+    period = 'evening';
+  } else {
+    period = 'night';
+  }
+
+  const meta = PERIOD_METADATA[period];
+  return {
+    period,
+    labelTh: meta.labelTh,
+    labelEn: meta.labelEn,
+    icon: meta.icon,
+    marketSession: meta.session,
+  };
+}
 
 export function calculateEmotionalScore(selectedIds: string[]): {
   netScore: number;
@@ -114,14 +195,71 @@ export async function getTodayCheckin(): Promise<DailyEmotionalCheckin | null> {
 
 export async function saveDailyCheckin(
   selectedEmotionIds: string[],
-  note = ''
+  note = '',
+  customPeriod?: EmotionTimePeriod
 ): Promise<DailyEmotionalCheckin> {
   const today = getTodayDateString();
   const userId = getActiveUserId() || undefined;
   const { netScore, baseScore, totalScore, status, adviceTh } = calculateEmotionalScore(selectedEmotionIds);
 
+  const now = new Date();
+  const periodInfo = getCurrentTimePeriod(now);
+  const activePeriod = customPeriod || periodInfo.period;
+  const activeMeta = PERIOD_METADATA[activePeriod];
+  const timeString = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+  const logEntry: EmotionLogEntry = {
+    id: `log-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+    timestamp: now.toISOString(),
+    time: timeString,
+    period: activePeriod,
+    periodLabelTh: activeMeta.labelTh,
+    periodLabelEn: activeMeta.labelEn,
+    marketSession: activeMeta.session,
+    selectedEmotionIds,
+    netScore,
+    totalScore,
+    status,
+    advice: adviceTh,
+    note,
+  };
+
+  const checkins = await getDailyCheckins();
+  const existing = checkins.find((c) => c.date === today);
+
+  let existingLogs: EmotionLogEntry[] = [];
+  if (existing && Array.isArray(existing.logs) && existing.logs.length > 0) {
+    existingLogs = [...existing.logs];
+  } else if (existing && existing.selectedEmotionIds && existing.selectedEmotionIds.length > 0) {
+    // Convert existing legacy checkin into an initial morning log
+    const prevPeriod: EmotionTimePeriod = existing.currentPeriod || 'morning';
+    const prevMeta = PERIOD_METADATA[prevPeriod];
+    existingLogs = [
+      {
+        id: `log-legacy-${existing.date}`,
+        timestamp: existing.updatedAt || now.toISOString(),
+        time: existing.updatedAt
+          ? new Date(existing.updatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+          : '09:00',
+        period: prevPeriod,
+        periodLabelTh: prevMeta.labelTh,
+        periodLabelEn: prevMeta.labelEn,
+        marketSession: prevMeta.session,
+        selectedEmotionIds: existing.selectedEmotionIds,
+        netScore: existing.netScore,
+        totalScore: existing.totalScore,
+        status: existing.status,
+        advice: existing.advice,
+        note: existing.note,
+      },
+    ];
+  }
+
+  // Add the new checkin log entry
+  const updatedLogs = [...existingLogs, logEntry];
+
   const checkin: DailyEmotionalCheckin = {
-    id: `chk-${today}`,
+    id: existing?.id || `chk-${today}`,
     userId,
     date: today,
     selectedEmotionIds,
@@ -131,10 +269,11 @@ export async function saveDailyCheckin(
     status,
     advice: adviceTh,
     note,
-    updatedAt: new Date().toISOString(),
+    currentPeriod: activePeriod,
+    logs: updatedLogs,
+    updatedAt: now.toISOString(),
   };
 
-  const checkins = await getDailyCheckins();
   const filtered = checkins.filter((c) => c.date !== today);
   const updated = [checkin, ...filtered];
 
@@ -150,7 +289,7 @@ export async function saveDailyCheckin(
         user_id: userId,
         date: today,
         data: checkin,
-        updated_at: new Date().toISOString(),
+        updated_at: now.toISOString(),
       })
     )
       .then(({ error }) => {
@@ -161,9 +300,44 @@ export async function saveDailyCheckin(
 
   if (typeof window !== 'undefined') {
     window.dispatchEvent(new CustomEvent('dailyEmotionUpdated', { detail: checkin }));
+    window.dispatchEvent(new CustomEvent('dailyEmotionLogsUpdated', { detail: checkin.logs }));
   }
 
   return checkin;
+}
+
+export async function deleteEmotionLogEntry(logId: string): Promise<DailyEmotionalCheckin | null> {
+  const checkins = await getDailyCheckins();
+  const today = getTodayDateString();
+  const existing = checkins.find((c) => c.date === today);
+  if (!existing || !existing.logs) return null;
+
+  const filteredLogs = existing.logs.filter((l) => l.id !== logId);
+  const latestLog = filteredLogs[filteredLogs.length - 1];
+
+  const updatedCheckin: DailyEmotionalCheckin = {
+    ...existing,
+    logs: filteredLogs,
+    selectedEmotionIds: latestLog ? latestLog.selectedEmotionIds : [],
+    netScore: latestLog ? latestLog.netScore : 0,
+    totalScore: latestLog ? latestLog.totalScore : 50,
+    status: latestLog ? latestLog.status : 'NORMAL',
+    advice: latestLog ? latestLog.advice : 'สภาวะอารมณ์เป็นปกติ แนะนำให้เทรดตามแผน',
+    currentPeriod: latestLog ? latestLog.period : undefined,
+    note: latestLog ? latestLog.note : '',
+    updatedAt: new Date().toISOString(),
+  };
+
+  const updatedCheckins = [updatedCheckin, ...checkins.filter((c) => c.date !== today)];
+  const key = getUserKey(EMOTION_KEY);
+  safeSetLocalStorage(key, JSON.stringify(updatedCheckins));
+
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('dailyEmotionUpdated', { detail: updatedCheckin }));
+    window.dispatchEvent(new CustomEvent('dailyEmotionLogsUpdated', { detail: updatedCheckin.logs }));
+  }
+
+  return updatedCheckin;
 }
 
 // ---------------------------------------------------------------------------

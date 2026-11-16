@@ -38,6 +38,24 @@ export const PRESET_EMOTIONS: EmotionTag[] = [
   { id: 'gambling', labelTh: 'หวังพึ่งดวง / All-in', labelEn: 'Gambling / YOLO Mindset', emoji: '🎰', score: -10, category: 'negative', descriptionTh: 'เทรดเหมือนแทงพนัน ละทิ้งระบบเทรด' },
 ];
 
+export type EmotionTimePeriod = 'morning' | 'afternoon' | 'evening' | 'night';
+
+export interface EmotionLogEntry {
+  id: string;
+  timestamp: string; // ISO string
+  time: string; // e.g. "09:30"
+  period: EmotionTimePeriod;
+  periodLabelTh: string; // "ช่วงเช้า" | "ช่วงบ่าย" | "ช่วงเย็น" | "ช่วงดึก"
+  periodLabelEn: string; // "Morning" | "Afternoon" | "Evening" | "Late Night"
+  marketSession?: 'ASIAN' | 'LONDON' | 'NEW_YORK';
+  selectedEmotionIds: string[];
+  netScore: number;
+  totalScore: number;
+  status: 'OPTIMAL' | 'NORMAL' | 'WARNING';
+  advice: string;
+  note?: string;
+}
+
 export interface DailyEmotionalCheckin {
   id: string;
   userId?: string;
@@ -49,6 +67,8 @@ export interface DailyEmotionalCheckin {
   status: 'OPTIMAL' | 'NORMAL' | 'WARNING';
   advice: string;
   note?: string;
+  currentPeriod?: EmotionTimePeriod;
+  logs?: EmotionLogEntry[]; // History logs across different times of the day (Morning, Afternoon, Evening, Night)
   updatedAt: string;
 }
 

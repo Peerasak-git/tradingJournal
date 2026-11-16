@@ -1,17 +1,28 @@
 'use client';
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { PRESET_EMOTIONS, DailyEmotionalCheckin, EmotionTag, CooldownSession } from '@/types/emotion';
+import {
+  PRESET_EMOTIONS,
+  DailyEmotionalCheckin,
+  EmotionTag,
+  CooldownSession,
+  EmotionLogEntry,
+  EmotionTimePeriod,
+} from '@/types/emotion';
 import {
   calculateEmotionalScore,
   getTodayCheckin,
   saveDailyCheckin,
   getCooldownSession,
   isCooldownActive,
+  getCurrentTimePeriod,
+  PERIOD_METADATA,
+  deleteEmotionLogEntry,
 } from '@/lib/emotionStorage';
 import { useLanguage } from '@/context/LanguageContext';
 import TradingCooldownModal from './TradingCooldownModal';
 import TradingCooldownWidget from './TradingCooldownWidget';
+import DailyEmotionalTimeline from './DailyEmotionalTimeline';
 import {
   HeartHandshake,
   Sparkles,
@@ -29,6 +40,11 @@ import {
   LayoutGrid,
   Timer,
   Clock,
+  History,
+  Sunrise,
+  Sun,
+  Sunset,
+  Moon,
 } from 'lucide-react';
 
 type EmotionCategoryTab = 'all' | 'positive' | 'neutral' | 'negative';
@@ -76,6 +92,10 @@ export default function DailyEmotionalCheckinCard() {
   const [isCooldownModalOpen, setIsCooldownModalOpen] = useState<boolean>(false);
   const [cooldownSession, setCooldownSession] = useState<CooldownSession | null>(null);
 
+  // Time-of-Day Emotional Logging State (Morning, Afternoon, Evening, Night)
+  const [selectedPeriod, setSelectedPeriod] = useState<EmotionTimePeriod>(() => getCurrentTimePeriod().period);
+  const [activeSubTab, setActiveSubTab] = useState<'checkin' | 'timeline'>('checkin');
+
   useEffect(() => {
     // Initial sync
     setCooldownSession(getCooldownSession());
@@ -101,6 +121,9 @@ export default function DailyEmotionalCheckinCard() {
         setTodayCheckin(checkin);
         setSelectedIds(checkin.selectedEmotionIds || []);
         setNote(checkin.note || '');
+        if (checkin.currentPeriod) {
+          setSelectedPeriod(checkin.currentPeriod);
+        }
         setIsExpanded(false);
       } else {
         setIsExpanded(true);
@@ -112,6 +135,9 @@ export default function DailyEmotionalCheckinCard() {
         setTodayCheckin(e.detail);
         setSelectedIds(e.detail.selectedEmotionIds || []);
         setNote(e.detail.note || '');
+        if (e.detail.currentPeriod) {
+          setSelectedPeriod(e.detail.currentPeriod);
+        }
       }
     };
 
@@ -161,18 +187,37 @@ export default function DailyEmotionalCheckinCard() {
   const handleSave = async () => {
     setIsSaving(true);
     try {
-      const saved = await saveDailyCheckin(selectedIds, note);
+      const saved = await saveDailyCheckin(selectedIds, note, selectedPeriod);
       setTodayCheckin(saved);
       setSavedNotice(true);
       setTimeout(() => {
         setSavedNotice(false);
-        setIsExpanded(false);
-      }, 1400);
+      }, 1600);
     } catch (err) {
       console.error('Failed to save daily emotion checkin:', err);
     } finally {
       setIsSaving(false);
     }
+  };
+
+  const handleDeleteLog = async (logId: string) => {
+    try {
+      const updated = await deleteEmotionLogEntry(logId);
+      if (updated) {
+        setTodayCheckin(updated);
+        setSelectedIds(updated.selectedEmotionIds || []);
+        setNote(updated.note || '');
+      }
+    } catch (err) {
+      console.error('Failed to delete emotion log:', err);
+    }
+  };
+
+  const handleSelectLog = (log: EmotionLogEntry) => {
+    setSelectedIds(log.selectedEmotionIds || []);
+    setSelectedPeriod(log.period);
+    setNote(log.note || '');
+    setActiveSubTab('checkin');
   };
 
   const handleReset = () => {
@@ -452,10 +497,18 @@ export default function DailyEmotionalCheckinCard() {
                 {language === 'th' ? 'เช็คสภาวะอารมณ์ก่อนเทรดประจำวัน' : 'Daily Pre-Trade Emotional Check-in'}
               </h2>
               {todayCheckin ? (
-                <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-500/30">
-                  <CheckCircle2 size={11} />
-                  {language === 'th' ? 'เช็คอินแล้ว' : 'Checked In'}
-                </span>
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-500/30">
+                    <CheckCircle2 size={11} />
+                    {language === 'th' ? 'เช็คอินแล้ว' : 'Checked In'}
+                  </span>
+                  {todayCheckin.logs && todayCheckin.logs.length > 0 && (
+                    <span className="inline-flex items-center gap-1 text-[10px] font-black px-2 py-0.5 rounded-full bg-indigo-100 dark:bg-indigo-500/20 text-indigo-700 dark:text-indigo-300 border border-indigo-300 dark:border-indigo-500/30">
+                      <History size={10} />
+                      <span>{todayCheckin.logs.length} Log</span>
+                    </span>
+                  )}
+                </div>
               ) : (
                 <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-blue-100 dark:bg-blue-500/20 text-blue-700 dark:text-blue-400 border border-blue-300 dark:border-blue-500/30 animate-pulse">
                   <Flame size={11} />
@@ -602,7 +655,89 @@ export default function DailyEmotionalCheckinCard() {
             </div>
           )}
 
-          {/* Category Tabs & View Switcher */}
+          {/* Sub-Navigation: Check-in Matrix vs Daily Emotional Timeline */}
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200/70 dark:border-white/[0.08] pb-3 pt-1">
+            <div className="flex items-center gap-1.5 p-1 rounded-2xl bg-slate-100/90 dark:bg-slate-800/70 border border-slate-200/60 dark:border-white/[0.06]">
+              <button
+                type="button"
+                onClick={() => setActiveSubTab('checkin')}
+                className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                  activeSubTab === 'checkin'
+                    ? 'bg-blue-600 text-white shadow-sm shadow-blue-500/25 scale-[1.02]'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                }`}
+              >
+                <Hexagon size={13} />
+                <span>{language === 'th' ? 'เช็คอินอารมณ์ (ผังรังผึ้ง)' : 'Check-in Matrix'}</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setActiveSubTab('timeline')}
+                className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                  activeSubTab === 'timeline'
+                    ? 'bg-blue-600 text-white shadow-sm shadow-blue-500/25 scale-[1.02]'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                }`}
+              >
+                <History size={13} />
+                <span>{language === 'th' ? 'ประวัติตลอดวัน & Timeline' : 'Daily Timeline'}</span>
+                {todayCheckin?.logs && todayCheckin.logs.length > 0 && (
+                  <span className={`text-[10px] font-black px-1.5 py-0.2 rounded-full ${
+                    activeSubTab === 'timeline' ? 'bg-white/20 text-white' : 'bg-blue-500 text-white'
+                  }`}>
+                    {todayCheckin.logs.length}
+                  </span>
+                )}
+              </button>
+            </div>
+
+            {/* Time of Day / Period Selector (Morning, Afternoon, Evening, Night) */}
+            <div className="flex items-center gap-1.5 p-1 rounded-2xl bg-slate-100/90 dark:bg-slate-800/70 border border-slate-200/60 dark:border-white/[0.06] flex-wrap">
+              {(['morning', 'afternoon', 'evening', 'night'] as EmotionTimePeriod[]).map((p) => {
+                const meta = PERIOD_METADATA[p];
+                const isSelected = selectedPeriod === p;
+                const isCurrentRealTime = getCurrentTimePeriod().period === p;
+                return (
+                  <button
+                    key={p}
+                    type="button"
+                    onClick={() => {
+                      setSelectedPeriod(p);
+                      const logForPeriod = todayCheckin?.logs?.find((l) => l.period === p);
+                      if (logForPeriod) {
+                        setSelectedIds(logForPeriod.selectedEmotionIds || []);
+                        setNote(logForPeriod.note || '');
+                      }
+                    }}
+                    className={`flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer relative ${
+                      isSelected
+                        ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-xs font-black'
+                        : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                    }`}
+                    title={meta.timeRangeTh}
+                  >
+                    <span>{meta.icon}</span>
+                    <span>{language === 'th' ? meta.labelTh.split(' ')[0] : meta.labelEn}</span>
+                    {isCurrentRealTime && (
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse ml-0.5" />
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {activeSubTab === 'timeline' ? (
+            <DailyEmotionalTimeline
+              logs={todayCheckin?.logs || []}
+              onSelectLog={handleSelectLog}
+              onDeleteLog={handleDeleteLog}
+              onOpenCooldown={() => setIsCooldownModalOpen(true)}
+            />
+          ) : (
+            <>
+              {/* Category Tabs & View Switcher */}
           <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
             {/* Category Filter Tabs */}
             <div className="flex flex-wrap items-center gap-1.5 p-1 rounded-xl bg-slate-100/90 dark:bg-slate-800/60 border border-slate-200/60 dark:border-white/[0.06] text-xs font-semibold">
@@ -990,13 +1125,65 @@ export default function DailyEmotionalCheckinCard() {
                         ? 'กำลังบันทึก...'
                         : 'Saving...'
                       : language === 'th'
-                      ? 'บันทึกผลประเมินวันนี้'
-                      : 'Save Daily Assessment'}
+                      ? `บันทึก Log (${PERIOD_METADATA[selectedPeriod].labelTh})`
+                      : `Save ${PERIOD_METADATA[selectedPeriod].labelEn} Log`}
                   </span>
                 </button>
               </div>
             </div>
+
+            {/* Quick Session Logs Strip if today has logs */}
+            {todayCheckin?.logs && todayCheckin.logs.length > 0 && (
+              <div className="pt-3 border-t border-slate-100 dark:border-white/[0.04] space-y-2">
+                <div className="flex items-center justify-between text-[11px] font-bold text-slate-500">
+                  <span className="flex items-center gap-1.5">
+                    <History size={13} className="text-blue-500" />
+                    <span>{language === 'th' ? 'ประวัติที่บันทึกแล้ววันนี้:' : 'Recorded sessions today:'}</span>
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setActiveSubTab('timeline')}
+                    className="text-blue-600 dark:text-blue-400 hover:underline cursor-pointer font-bold flex items-center gap-1"
+                  >
+                    <span>{language === 'th' ? 'เปิดดู Timeline วิเคราะห์แบบเต็ม' : 'View Full Analytics Timeline'}</span>
+                    <span>→</span>
+                  </button>
+                </div>
+
+                <div className="flex items-center gap-2 overflow-x-auto pb-1">
+                  {todayCheckin.logs.map((log) => {
+                    const meta = PERIOD_METADATA[log.period];
+                    return (
+                      <button
+                        key={log.id}
+                        type="button"
+                        onClick={() => handleSelectLog(log)}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-50 dark:bg-white/[0.03] border border-slate-200/60 dark:border-white/[0.06] text-xs shrink-0 hover:border-blue-400 dark:hover:border-blue-500 hover:bg-white dark:hover:bg-slate-800 transition cursor-pointer"
+                        title={log.note || `${meta.labelTh} (${log.time})`}
+                      >
+                        <span>{meta.icon}</span>
+                        <span className="font-bold text-slate-800 dark:text-slate-200">{log.periodLabelTh}</span>
+                        <span className="text-[10px] text-slate-400 font-mono">({log.time})</span>
+                        <span
+                          className={`text-[10px] font-black px-1.5 py-0.2 rounded-full ${
+                            log.status === 'OPTIMAL'
+                              ? 'bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300'
+                              : log.status === 'WARNING'
+                              ? 'bg-rose-100 dark:bg-rose-500/20 text-rose-700 dark:text-rose-300'
+                              : 'bg-amber-100 dark:bg-amber-500/20 text-amber-700 dark:text-amber-300'
+                          }`}
+                        >
+                          {log.totalScore}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </div>
+            </>
+          )}
         </div>
       )}
 
