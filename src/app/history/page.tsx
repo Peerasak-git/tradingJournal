@@ -23,18 +23,25 @@ import ChecklistModal from '@/components/ChecklistModal';
 import DatePicker from '@/components/DatePicker';
 
 const LIVE_ASSETS = [
-  { label: 'XAUUSD', symbol: 'PAXGUSDT', decimals: 2 },
-  { label: 'BTCUSD', symbol: 'BTCUSDT', decimals: 2 },
-  { label: 'ETHUSD', symbol: 'ETHUSDT', decimals: 2 },
-  { label: 'EURUSD', symbol: 'EURUSDT', decimals: 5 },
-  { label: 'GBPUSD', symbol: 'GBPUSDT', decimals: 5 },
+  { label: 'XAUUSD', symbol: 'XAUUSD', decimals: 2 },
+  { label: 'BTCUSD', symbol: 'BTCUSD', decimals: 2 },
+  { label: 'ETHUSD', symbol: 'ETHUSD', decimals: 2 },
+  { label: 'EURUSD', symbol: 'EURUSD', decimals: 4 },
+  { label: 'GBPUSD', symbol: 'GBPUSD', decimals: 4 },
+  { label: 'XAGUSD', symbol: 'XAGUSD', decimals: 2 },
 ];
 
 const getMappedSymbol = (inst: string) => {
   const clean = inst.replace(/[^A-Z]/gi, '').toUpperCase();
-  if (clean === 'XAUUSD' || clean === 'GOLD') return 'PAXGUSDT';
-  if (clean.endsWith('USD')) return clean.replace('USD', 'USDT');
-  return null;
+  if (clean === 'XAUUSD' || clean === 'GOLD') return 'XAUUSD';
+  if (clean === 'XAGUSD' || clean === 'SILVER') return 'XAGUSD';
+  if (clean === 'BTCUSD' || clean === 'BTCUSDT') return 'BTCUSD';
+  if (clean === 'ETHUSD' || clean === 'ETHUSDT') return 'ETHUSD';
+  if (clean === 'EURUSD' || clean === 'EURUSDT') return 'EURUSD';
+  if (clean === 'GBPUSD' || clean === 'GBPUSDT') return 'GBPUSD';
+  if (clean.endsWith('USD')) return clean;
+  if (clean.endsWith('USDT')) return clean.replace('USDT', 'USD');
+  return clean;
 };
 
 const getMultiplier = (inst: string) => {
@@ -64,26 +71,73 @@ export default function HistoryPage() {
   useEffect(() => {
     const fetchPrice = async () => {
       try {
-        const res = await fetch('https://api.binance.com/api/v3/ticker/price');
-        const data = await res.json();
-        if (Array.isArray(data)) {
-          const priceMap: Record<string, number> = {};
-          data.forEach((item: any) => {
-            priceMap[item.symbol] = parseFloat(item.price);
-          });
-          setAllPrices(priceMap);
-          
-          if (priceMap[liveAsset.symbol]) {
-             const formatted = priceMap[liveAsset.symbol].toFixed(liveAsset.decimals);
-             setLivePrice(formatted);
-             document.title = `$${formatted} ${liveAsset.label} | Trading Journal`;
+        const res = await fetch('/api/market/prices');
+        if (res.ok) {
+          const data = await res.json();
+          if (data?.prices && typeof data.prices === 'object') {
+            setAllPrices(data.prices);
+
+            const activePrice = data.prices[liveAsset.symbol];
+            if (activePrice !== undefined) {
+              const formatted = Number(activePrice).toFixed(liveAsset.decimals);
+              setLivePrice(formatted);
+              document.title = `$${formatted} ${liveAsset.label} | Trading Journal`;
+              return;
+            }
+          }
+        }
+      } catch {
+        // Fallback to direct external feeds if local route fails
+      }
+
+      // Direct client fallback
+      try {
+        const fallbackPrices: Record<string, number> = {};
+        const [goldRes, binanceRes] = await Promise.allSettled([
+          fetch('https://api.gold-api.com/price/XAU'),
+          fetch('https://api.binance.com/api/v3/ticker/price?symbols=%5B%22BTCUSDT%22,%22ETHUSDT%22,%22PAXGUSDT%22%5D'),
+        ]);
+
+        if (goldRes.status === 'fulfilled' && goldRes.value.ok) {
+          const gData = await goldRes.value.json();
+          if (typeof gData?.price === 'number') {
+            fallbackPrices['XAUUSD'] = gData.price;
+            fallbackPrices['GOLD'] = gData.price;
+          }
+        }
+
+        if (binanceRes.status === 'fulfilled' && binanceRes.value.ok) {
+          const bData = await binanceRes.value.json();
+          if (Array.isArray(bData)) {
+            bData.forEach((item: any) => {
+              const p = parseFloat(item.price);
+              if (!isNaN(p)) {
+                fallbackPrices[item.symbol] = p;
+                if (item.symbol === 'BTCUSDT') fallbackPrices['BTCUSD'] = p;
+                if (item.symbol === 'ETHUSDT') fallbackPrices['ETHUSD'] = p;
+                if (item.symbol === 'PAXGUSDT') {
+                  fallbackPrices['PAXG'] = p;
+                  if (!fallbackPrices['XAUUSD']) fallbackPrices['XAUUSD'] = p;
+                }
+              }
+            });
+          }
+        }
+
+        if (Object.keys(fallbackPrices).length > 0) {
+          setAllPrices(prev => ({ ...prev, ...fallbackPrices }));
+          const activePrice = fallbackPrices[liveAsset.symbol];
+          if (activePrice !== undefined) {
+            const formatted = Number(activePrice).toFixed(liveAsset.decimals);
+            setLivePrice(formatted);
+            document.title = `$${formatted} ${liveAsset.label} | Trading Journal`;
           }
         }
       } catch (err) {
-        // silently ignore
+        console.warn('Fallback price error:', err);
       }
     };
-    
+
     setLivePrice(null);
     fetchPrice();
     const interval = setInterval(fetchPrice, 3000); // 3s
