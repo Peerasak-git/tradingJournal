@@ -1,14 +1,14 @@
 'use client';
 
-import { X, Save, TrendingUp, TrendingDown, Clock, Target, ShieldCheck, Info, BarChart3, Calendar, Plus, Minus, Brain, Smile, Activity, ChevronDown, Search, FileText, ListChecks, CheckCircle2, AlertTriangle, Star, ClipboardPaste, Camera, Loader2, Link2, ExternalLink, Sparkles } from 'lucide-react';
-import { Direction, TradeStatus, Trade } from '@/types/trade';
+import { X, Save, TrendingUp, TrendingDown, Clock, Target, ShieldCheck, Info, BarChart3, Calendar, Plus, Minus, Brain, Smile, Activity, ChevronDown, Search, FileText, ListChecks, CheckCircle2, AlertTriangle, Star, ClipboardPaste, Camera, Loader2, Link2, ExternalLink, Sparkles, ShieldAlert, CheckSquare, Square, DollarSign, Flame } from 'lucide-react';
+import { Direction, TradeStatus, Trade, PreTradeChecklist, CognitiveBiasType } from '@/types/trade';
 import { useLanguage } from '@/context/LanguageContext';
 import { useAccount } from '@/context/AccountContext';
 import { getTrades, compressBase64Image } from '@/lib/clientStorage';
 import { runClientOcr } from '@/lib/clientOcr';
 import { getTodayCheckin } from '@/lib/emotionStorage';
 import { getImageFromIndexedDB } from '@/lib/imageStorage';
-import { PRESET_EMOTIONS, DailyEmotionalCheckin } from '@/types/emotion';
+import { PRESET_EMOTIONS, DailyEmotionalCheckin, PRESET_MISTAKES } from '@/types/emotion';
 import { useEffect, useState, useRef } from 'react';
 
 function formatDateForDatetimeLocal(raw: any): string {
@@ -75,6 +75,16 @@ export default function TradeModal({ isOpen, onClose, onSave, initialData }: Tra
   const [isZoomImageOpen, setIsZoomImageOpen] = useState(false);
   const [todayEmotionCheckin, setTodayEmotionCheckin] = useState<DailyEmotionalCheckin | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Pre-Trade Mindset Checklist & Cognitive Biases / Mistakes Tracker
+  const [mindsetChecklist, setMindsetChecklist] = useState<PreTradeChecklist>({
+    validSetup: false,
+    properRisk: false,
+    acceptedSL: false,
+    calmMindset: false,
+  });
+  const [selectedMistakes, setSelectedMistakes] = useState<CognitiveBiasType[]>([]);
+  const [mistakeCostInput, setMistakeCostInput] = useState<string>('');
 
   const [formData, setFormData] = useState({
     accountId: '',
@@ -216,6 +226,17 @@ export default function TradeModal({ isOpen, onClose, onSave, initialData }: Tra
           }
         }).catch(() => {});
       }
+
+      setMindsetChecklist(
+        initialData.notes?.checklist || {
+          validSetup: false,
+          properRisk: false,
+          acceptedSL: false,
+          calmMindset: false,
+        }
+      );
+      setSelectedMistakes(initialData.notes?.mistakes || []);
+      setMistakeCostInput(initialData.notes?.mistakeCost ? String(initialData.notes.mistakeCost) : '');
     } else {
       setFormData({
         accountId: selectedAccount?.id || accounts[0]?.id || 'acc-001',
@@ -240,6 +261,14 @@ export default function TradeModal({ isOpen, onClose, onSave, initialData }: Tra
         exitTradingViewUrl: '',
         entryImage: '',
       });
+      setMindsetChecklist({
+        validSetup: false,
+        properRisk: false,
+        acceptedSL: false,
+        calmMindset: false,
+      });
+      setSelectedMistakes([]);
+      setMistakeCostInput('');
     }
   }, [initialData, isOpen, selectedAccount?.id, accounts]);
 
@@ -408,7 +437,12 @@ export default function TradeModal({ isOpen, onClose, onSave, initialData }: Tra
           exitTradingViewUrl: formData.exitTradingViewUrl?.trim() || null,
           entryImage: cleanEntryImage,
           exitImage: cleanExitImage,
+          checklist: mindsetChecklist,
+          mistakes: selectedMistakes.length > 0 ? selectedMistakes : undefined,
+          mistakeCost: Number(mistakeCostInput) > 0 ? Number(mistakeCostInput) : undefined,
         },
+        mindsetScoreAtEntry: todayEmotionCheckin?.totalScore || (initialData?.mindsetScoreAtEntry ?? undefined),
+        emotionalStateAtEntry: todayEmotionCheckin?.status || (initialData?.emotionalStateAtEntry ?? undefined),
       });
       onClose();
     } catch (err: any) {
@@ -1459,6 +1493,179 @@ export default function TradeModal({ isOpen, onClose, onSave, initialData }: Tra
               {renderPsychologySelect('before', t('beforeFeeling'), <Smile size={12} className="text-slate-400" />, formData.preTrade, 'preTrade')}
               {renderPsychologySelect('during', t('duringFeeling'), <Activity size={12} className="text-slate-400" />, formData.duringTrade, 'duringTrade')}
               {renderPsychologySelect('after', t('afterFeeling'), <Save size={12} className="text-slate-400" />, formData.postTrade, 'postTrade')}
+            </div>
+
+            {/* Pre-Trade Mindset Checklist (4 Core Rules) */}
+            <div className="mt-5 p-4 rounded-2xl bg-slate-50/80 dark:bg-white/[0.03] border border-slate-200/80 dark:border-white/[0.06] space-y-3">
+              <div className="flex items-center justify-between gap-2 flex-wrap">
+                <div className="flex items-center gap-2 text-xs font-bold text-slate-800 dark:text-white">
+                  <ShieldCheck size={15} className="text-blue-500" />
+                  <span>{language === 'th' ? 'เกราะคัดกรองสติก่อนเข้าไม้ (Mindset Checklist)' : 'Pre-Trade Mindset Checklist'}</span>
+                  <span className={`text-[10px] font-black px-2 py-0.5 rounded-full ${
+                    Object.values(mindsetChecklist).filter(Boolean).length === 4
+                      ? 'bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-500/30'
+                      : 'bg-slate-200 dark:bg-white/10 text-slate-600 dark:text-slate-300'
+                  }`}>
+                    {Object.values(mindsetChecklist).filter(Boolean).length}/4 ข้อ
+                  </span>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    const allPassed = Object.values(mindsetChecklist).every(Boolean);
+                    setMindsetChecklist({
+                      validSetup: !allPassed,
+                      properRisk: !allPassed,
+                      acceptedSL: !allPassed,
+                      calmMindset: !allPassed,
+                    });
+                  }}
+                  className="text-[11px] font-bold text-blue-600 dark:text-blue-400 hover:underline cursor-pointer"
+                >
+                  {Object.values(mindsetChecklist).every(Boolean)
+                    ? language === 'th' ? 'ล้างการเลือก' : 'Clear all'
+                    : language === 'th' ? '✓ ผ่านเกณฑ์ทั้งหมด (Pass All)' : '✓ Pass All'}
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                <div
+                  onClick={() => setMindsetChecklist(p => ({ ...p, validSetup: !p.validSetup }))}
+                  className={`p-3 rounded-xl border transition-all cursor-pointer flex items-center gap-2.5 ${
+                    mindsetChecklist.validSetup
+                      ? 'bg-emerald-50/90 dark:bg-emerald-950/25 border-emerald-300 dark:border-emerald-700/50 text-emerald-900 dark:text-emerald-200 shadow-xs'
+                      : 'bg-white dark:bg-slate-800/60 border-slate-200 dark:border-white/[0.06] text-slate-700 dark:text-slate-300 hover:border-slate-300'
+                  }`}
+                >
+                  <div className={`w-4 h-4 rounded-md flex items-center justify-center shrink-0 border ${
+                    mindsetChecklist.validSetup ? 'bg-emerald-500 border-emerald-600 text-white' : 'border-slate-300 dark:border-slate-600'
+                  }`}>
+                    {mindsetChecklist.validSetup && <CheckCircle2 size={12} strokeWidth={3} />}
+                  </div>
+                  <div className="min-w-0">
+                    <span className="font-bold">🎯 Valid Setup:</span>{' '}
+                    <span className="opacity-90">{language === 'th' ? 'ตรงเงื่อนไขระบบเทรด 100%' : 'Valid setup 100%'}</span>
+                  </div>
+                </div>
+
+                <div
+                  onClick={() => setMindsetChecklist(p => ({ ...p, properRisk: !p.properRisk }))}
+                  className={`p-3 rounded-xl border transition-all cursor-pointer flex items-center gap-2.5 ${
+                    mindsetChecklist.properRisk
+                      ? 'bg-emerald-50/90 dark:bg-emerald-950/25 border-emerald-300 dark:border-emerald-700/50 text-emerald-900 dark:text-emerald-200 shadow-xs'
+                      : 'bg-white dark:bg-slate-800/60 border-slate-200 dark:border-white/[0.06] text-slate-700 dark:text-slate-300 hover:border-slate-300'
+                  }`}
+                >
+                  <div className={`w-4 h-4 rounded-md flex items-center justify-center shrink-0 border ${
+                    mindsetChecklist.properRisk ? 'bg-emerald-500 border-emerald-600 text-white' : 'border-slate-300 dark:border-slate-600'
+                  }`}>
+                    {mindsetChecklist.properRisk && <CheckCircle2 size={12} strokeWidth={3} />}
+                  </div>
+                  <div className="min-w-0">
+                    <span className="font-bold">🛡️ Proper Risk:</span>{' '}
+                    <span className="opacity-90">{language === 'th' ? 'Lot Size เหมาะสม ไม่ Overlot' : 'Proper Lot / Risk %'}</span>
+                  </div>
+                </div>
+
+                <div
+                  onClick={() => setMindsetChecklist(p => ({ ...p, acceptedSL: !p.acceptedSL }))}
+                  className={`p-3 rounded-xl border transition-all cursor-pointer flex items-center gap-2.5 ${
+                    mindsetChecklist.acceptedSL
+                      ? 'bg-emerald-50/90 dark:bg-emerald-950/25 border-emerald-300 dark:border-emerald-700/50 text-emerald-900 dark:text-emerald-200 shadow-xs'
+                      : 'bg-white dark:bg-slate-800/60 border-slate-200 dark:border-white/[0.06] text-slate-700 dark:text-slate-300 hover:border-slate-300'
+                  }`}
+                >
+                  <div className={`w-4 h-4 rounded-md flex items-center justify-center shrink-0 border ${
+                    mindsetChecklist.acceptedSL ? 'bg-emerald-500 border-emerald-600 text-white' : 'border-slate-300 dark:border-slate-600'
+                  }`}>
+                    {mindsetChecklist.acceptedSL && <CheckCircle2 size={12} strokeWidth={3} />}
+                  </div>
+                  <div className="min-w-0">
+                    <span className="font-bold">⚖️ Accept Loss:</span>{' '}
+                    <span className="opacity-90">{language === 'th' ? 'ยอมรับ SL ได้โดยไม่หัวร้อน' : '100% SL acceptance'}</span>
+                  </div>
+                </div>
+
+                <div
+                  onClick={() => setMindsetChecklist(p => ({ ...p, calmMindset: !p.calmMindset }))}
+                  className={`p-3 rounded-xl border transition-all cursor-pointer flex items-center gap-2.5 ${
+                    mindsetChecklist.calmMindset
+                      ? 'bg-emerald-50/90 dark:bg-emerald-950/25 border-emerald-300 dark:border-emerald-700/50 text-emerald-900 dark:text-emerald-200 shadow-xs'
+                      : 'bg-white dark:bg-slate-800/60 border-slate-200 dark:border-white/[0.06] text-slate-700 dark:text-slate-300 hover:border-slate-300'
+                  }`}
+                >
+                  <div className={`w-4 h-4 rounded-md flex items-center justify-center shrink-0 border ${
+                    mindsetChecklist.calmMindset ? 'bg-emerald-500 border-emerald-600 text-white' : 'border-slate-300 dark:border-slate-600'
+                  }`}>
+                    {mindsetChecklist.calmMindset && <CheckCircle2 size={12} strokeWidth={3} />}
+                  </div>
+                  <div className="min-w-0">
+                    <span className="font-bold">🧘 Calm State:</span>{' '}
+                    <span className="opacity-90">{language === 'th' ? 'ไม่เข้าเพราะ FOMO/คันมือ/แก้แค้น' : 'No FOMO or Revenge'}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Cognitive Biases & Trading Mistakes Tracker */}
+            <div className="mt-4 p-4 rounded-2xl bg-slate-50/80 dark:bg-white/[0.03] border border-slate-200/80 dark:border-white/[0.06] space-y-3">
+              <div className="flex items-center justify-between gap-2 flex-wrap">
+                <div className="flex items-center gap-2 text-xs font-bold text-slate-800 dark:text-white">
+                  <Flame size={15} className="text-rose-500" />
+                  <span>{language === 'th' ? 'บันทึกกับดักอารมณ์ / ข้อผิดพลาด (Cognitive Biases)' : 'Trading Mistakes / Biases'}</span>
+                  {selectedMistakes.length > 0 && (
+                    <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-rose-100 dark:bg-rose-500/20 text-rose-700 dark:text-rose-300 border border-rose-300 dark:border-rose-500/30">
+                      {selectedMistakes.length} กับดัก
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              <div className="flex flex-wrap gap-1.5">
+                {PRESET_MISTAKES.map((m) => {
+                  const isSelected = selectedMistakes.includes(m.id as CognitiveBiasType);
+                  return (
+                    <button
+                      key={m.id}
+                      type="button"
+                      onClick={() => {
+                        setSelectedMistakes(prev =>
+                          isSelected ? prev.filter(x => x !== m.id) : [...prev, m.id as CognitiveBiasType]
+                        );
+                      }}
+                      className={`text-[11px] font-semibold px-2.5 py-1.5 rounded-xl border transition-all cursor-pointer ${
+                        isSelected
+                          ? 'bg-rose-500 text-white border-rose-600 shadow-sm shadow-rose-500/30 scale-[1.02]'
+                          : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-white/[0.08] hover:border-rose-300'
+                      }`}
+                      title={m.descTh}
+                    >
+                      {language === 'th' ? m.labelTh : m.labelEn}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {selectedMistakes.length > 0 && (
+                <div className="pt-2 flex items-center gap-3">
+                  <div className="text-xs text-slate-500 font-medium">
+                    {language === 'th' ? 'ประมาณการเงินที่เสียไปเพราะกับดักนี้ ($):' : 'Estimated cost of mistake ($):'}
+                  </div>
+                  <div className="relative w-36">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs">$</span>
+                    <input
+                      type="number"
+                      step="any"
+                      min="0"
+                      placeholder="0.00"
+                      value={mistakeCostInput}
+                      onChange={(e) => setMistakeCostInput(e.target.value)}
+                      className="w-full pl-7 pr-3 py-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-white/10 rounded-xl text-xs font-bold text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-rose-500/30"
+                    />
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 

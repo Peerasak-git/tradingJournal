@@ -6,7 +6,10 @@ import {
   CooldownSession,
   EmotionLogEntry,
   EmotionTimePeriod,
+  DailyDebrief,
+  CircuitBreakerTrigger,
 } from '@/types/emotion';
+import { Trade } from '@/types/trade';
 import { safeSetLocalStorage, getUserKey, getActiveUserId } from '@/lib/clientStorage';
 import { getSupabase } from '@/lib/supabase';
 
@@ -338,6 +341,103 @@ export async function deleteEmotionLogEntry(logId: string): Promise<DailyEmotion
   }
 
   return updatedCheckin;
+}
+
+/**
+ * Save Post-Market Reflection / End-of-Day Debrief
+ */
+export async function saveDailyDebrief(debrief: DailyDebrief): Promise<DailyEmotionalCheckin> {
+  const checkins = await getDailyCheckins();
+  const today = getTodayDateString();
+  let existing = checkins.find((c) => c.date === today);
+
+  if (!existing) {
+    const defaultCheckin = await saveDailyCheckin(['calm'], 'บันทึกทบทวนปิดวัน');
+    existing = defaultCheckin;
+  }
+
+  const updated: DailyEmotionalCheckin = {
+    ...existing,
+    debrief,
+    updatedAt: new Date().toISOString(),
+  };
+
+  const filtered = checkins.filter((c) => c.date !== today);
+  const updatedCheckins = [updated, ...filtered];
+
+  const key = getUserKey(EMOTION_KEY);
+  safeSetLocalStorage(key, JSON.stringify(updatedCheckins));
+
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('dailyEmotionUpdated', { detail: updated }));
+  }
+
+  return updated;
+}
+
+/**
+ * Intelligent Circuit Breaker Checker:
+ * Evaluates trade history and psychological signals to prevent fatal drawdowns.
+ */
+export function checkCircuitBreaker(trades: Trade[]): CircuitBreakerTrigger | null {
+  if (!trades || trades.length === 0) return null;
+
+  const todayStr = getTodayDateString();
+  const todayTrades = trades.filter((t) => t.entryDate && t.entryDate.startsWith(todayStr));
+
+  // 1. Consecutive Loss Detection (2+ losses in a row today)
+  const closedToday = todayTrades
+    .filter((t) => t.status === 'WIN' || t.status === 'LOSS')
+    .sort((a, b) => new Date(b.entryDate).getTime() - new Date(a.entryDate).getTime());
+
+  if (closedToday.length >= 2) {
+    if (closedToday[0].status === 'LOSS' && closedToday[1].status === 'LOSS') {
+      return {
+        isTriggered: true,
+        type: 'CONSECUTIVE_LOSS',
+        titleTh: '⚠️ พักด่วน: แพ้ติดต่อกัน 2 ไม้ในวันนี้ (Loss Streak)',
+        titleEn: '⚠️ Pause Alert: 2 Consecutive Losses Today',
+        reasonTh: 'ตรวจพบการเสีย 2 ไม้ติดกัน ความเสี่ยงที่จะเกิด Revenge Trading สูงมาก แนะนำให้หยุดพัก 30 นาทีเพื่อตัดวงจร',
+        reasonEn: 'Detected 2 consecutive losses. High risk of revenge trading. We strongly suggest taking a 30-min break.',
+        suggestedCooldownMins: 30,
+      };
+    }
+  }
+
+  // 2. High Frequency Overtrading Frenzy (4+ trades within 60 mins)
+  const now = Date.now();
+  const recentTrades = todayTrades.filter((t) => {
+    const entryTime = new Date(t.entryDate).getTime();
+    return now - entryTime <= 60 * 60 * 1000;
+  });
+
+  if (recentTrades.length >= 4) {
+    return {
+      isTriggered: true,
+      type: 'OVERTRADING_FREQUENCY',
+      titleTh: '⚡ คำเตือน: เข้าออเดอร์ถี่เกินไป (Overtrading Frenzy)',
+      titleEn: '⚡ Warning: High Frequency Trading Detected',
+      reasonTh: `คุณเปิดไปแล้ว ${recentTrades.length} ไม้ภายใน 1 ชั่วโมง อาจเกิดจากอาการคันมือหรือ FOMO แนะนำให้พักล้างชาร์ต 15 นาที`,
+      reasonEn: `You placed ${recentTrades.length} trades within 1 hour. Step away from charts for 15 minutes.`,
+      suggestedCooldownMins: 15,
+    };
+  }
+
+  // 3. Daily Loss Limit Threshold (-$250+)
+  const todayLossPnL = closedToday.reduce((acc, t) => acc + (t.financials.netPnL || 0), 0);
+  if (todayLossPnL <= -250) {
+    return {
+      isTriggered: true,
+      type: 'DAILY_DRAWDOWN',
+      titleTh: '🛑 ถึงจุดจำกัดขาดทุนประจำวัน (Daily Loss Limit)',
+      titleEn: '🛑 Daily Loss Limit Reached',
+      reasonTh: `ขาดทุนสะสมวันนี้ -$${Math.abs(todayLossPnL).toFixed(0)} ถึงเกณฑ์เตือนภัย Circuit Breaker ควรหยุดเทรดตลอดทั้งวันเพื่อรักษาทุน`,
+      reasonEn: `Today's net loss is -$${Math.abs(todayLossPnL).toFixed(0)}. Stop trading for today to protect capital.`,
+      suggestedCooldownMins: 120,
+    };
+  }
+
+  return null;
 }
 
 // ---------------------------------------------------------------------------

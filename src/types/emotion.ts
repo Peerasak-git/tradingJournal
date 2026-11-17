@@ -56,6 +56,34 @@ export interface EmotionLogEntry {
   note?: string;
 }
 
+export interface DailyDebrief {
+  disciplineScore: number; // 1-10
+  followedRules: 'yes' | 'partial' | 'no';
+  mentalWin: string; // สิ่งที่ทำได้ดีทางจิตวิทยาในวันนี้
+  oneLesson: string; // บทเรียนสำคัญที่ได้เรียนรู้จากจิตวิทยาตัวเองในวันนี้
+  completedAt: string;
+}
+
+export interface CircuitBreakerTrigger {
+  isTriggered: boolean;
+  type: 'CONSECUTIVE_LOSS' | 'DAILY_DRAWDOWN' | 'OVERTRADING_FREQUENCY' | 'WARNING_MINDSET';
+  titleTh: string;
+  titleEn: string;
+  reasonTh: string;
+  reasonEn: string;
+  suggestedCooldownMins: number;
+}
+
+export const PRESET_MISTAKES = [
+  { id: 'paper_hands', labelTh: '🏃‍♂️ ปิดกำไรเร็วเกินไป / กลัวกำไรหด (Paper Hands)', labelEn: '🏃‍♂️ Paper Hands (Closed too early)', descTh: 'รีบปิดทำกำไรก่อนถึง TP ไม่ยอมปล่อยให้ Run ตามแผน' },
+  { id: 'moved_sl', labelTh: '🛑 เลื่อน SL หนี / Hope Mode ไม่ยอมคัต', labelEn: '🛑 Moved Stop Loss / Hope Mode', descTh: 'ไม่ยอมรับการขาดทุน เลื่อน SL ห่างออกไป หวังให้กราฟกลับมา' },
+  { id: 'fomo_chase', labelTh: '🚀 วิ่งไล่ราคา / กลัวตกรถ (FOMO Chase)', labelEn: '🚀 FOMO / Chasing Candles', descTh: 'เห็นแท่งเทียนวิ่งแรงแล้วกระโดดเข้า ทั้งที่ไม่มี Setup ชัดเจน' },
+  { id: 'revenge_lot', labelTh: '⚔️ เบิ้ล Lot แก้แค้นหลังโดน SL (Revenge)', labelEn: '⚔️ Revenge Trading / Increased Lot', descTh: 'เพิ่งโดน SL แล้วเปิดไม้สวนทันทีด้วย Lot ที่ใหญ่ขึ้นเพื่อเอาคืน' },
+  { id: 'overconfidence', labelTh: '🦹 มั่นใจเกินเหตุหลังชนะติดกัน (Euphoria)', labelEn: '🦹 Overconfidence after win streak', descTh: 'ชนะหลายไม้ติดแล้วเริ่มคิดว่าอ่านตลาดออก 100% จนละเลยวินัย' },
+  { id: 'overtrading', labelTh: '⚡ Overtrading คันมือเข้าออเดอร์ถี่เกินไป', labelEn: '⚡ Urge to Overtrade', descTh: 'เปิดหลายคู่เงินหรือหลายไม้พร้อมกันเกินขีดจำกัดความเสี่ยง' },
+  { id: 'no_plan_entry', labelTh: '🎰 เข้าไม้ตามอารมณ์ไร้ Setup (YOLO)', labelEn: '🎰 Entry without trading plan', descTh: 'เปิดเพราะความรู้สึกหรือพึ่งดวง โดยไม่ได้วิเคราะห์ตามกลยุทธ์' },
+] as const;
+
 export interface DailyEmotionalCheckin {
   id: string;
   userId?: string;
@@ -69,6 +97,7 @@ export interface DailyEmotionalCheckin {
   note?: string;
   currentPeriod?: EmotionTimePeriod;
   logs?: EmotionLogEntry[]; // History logs across different times of the day (Morning, Afternoon, Evening, Night)
+  debrief?: DailyDebrief; // Post-Market Reflection / End of Day Debrief
   updatedAt: string;
 }
 

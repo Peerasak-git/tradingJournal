@@ -30,13 +30,22 @@ import {
 } from 'lucide-react';
 
 import { getTrades, addOrUpdateTrade, cleanupLocalStorageQuota } from '@/lib/clientStorage';
-import { getTodayCheckin, calculateEmotionalScore, getCooldownSession, isCooldownActive } from '@/lib/emotionStorage';
-import { CooldownSession } from '@/types/emotion';
+import {
+  getTodayCheckin,
+  calculateEmotionalScore,
+  getCooldownSession,
+  isCooldownActive,
+  checkCircuitBreaker,
+  startCooldownSession,
+  getDailyCheckins,
+} from '@/lib/emotionStorage';
+import { CooldownSession, DailyEmotionalCheckin, CircuitBreakerTrigger } from '@/types/emotion';
 import TradingCalendar from '@/components/TradingCalendar';
 import AutoOrderScanModal from '@/components/AutoOrderScanModal';
 import TradeModal from '@/components/TradeModal';
 import DailyEmotionalCheckinCard from '@/components/DailyEmotionalCheckinCard';
 import TradingCooldownWidget from '@/components/TradingCooldownWidget';
+import MindsetCorrelationWidget from '@/components/MindsetCorrelationWidget';
 
 type DashboardTab = 'overview' | 'calendar' | 'categories' | 'recent' | 'all';
 type CategoryDimension = 'instrument' | 'direction' | 'strategy' | 'session' | 'dayOfWeek';
@@ -248,6 +257,21 @@ export default function Dashboard() {
 
   // Psychological Trading Cooldown State
   const [cooldownSession, setCooldownSession] = useState<CooldownSession | null>(null);
+  const [checkins, setCheckins] = useState<DailyEmotionalCheckin[]>([]);
+  const [dismissedCircuitTrigger, setDismissedCircuitTrigger] = useState(false);
+
+  useEffect(() => {
+    getDailyCheckins().then(setCheckins).catch(console.error);
+    const handleCheckinUpdate = () => {
+      getDailyCheckins().then(setCheckins).catch(console.error);
+    };
+    window.addEventListener('dailyEmotionUpdated', handleCheckinUpdate);
+    window.addEventListener('dailyDebriefSaved', handleCheckinUpdate);
+    return () => {
+      window.removeEventListener('dailyEmotionUpdated', handleCheckinUpdate);
+      window.removeEventListener('dailyDebriefSaved', handleCheckinUpdate);
+    };
+  }, []);
 
   useEffect(() => {
     const syncCooldown = () => {
@@ -267,6 +291,10 @@ export default function Dashboard() {
   const { t, language } = useLanguage();
   const { selectedAccount, accounts, refreshAccounts } = useAccount();
   const { user } = useAuth();
+
+  const circuitTrigger = useMemo(() => {
+    return checkCircuitBreaker(trades);
+  }, [trades]);
 
   const reloadTrades = () => {
     getTrades().then(setTrades).catch(console.error);
@@ -758,6 +786,63 @@ export default function Dashboard() {
         </div>
       )}
 
+      {/* Tilt Circuit Breaker Protective Warning Banner */}
+      {circuitTrigger?.isTriggered && !isCooldownActive(cooldownSession) && !dismissedCircuitTrigger && (
+        <div className="mb-4 p-4 rounded-2xl bg-gradient-to-r from-rose-500/15 via-amber-500/10 to-rose-500/15 border-2 border-rose-500/40 backdrop-blur-md shadow-lg shadow-rose-500/10 animate-fade-in flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+          <div className="flex items-start gap-3">
+            <div className="w-10 h-10 rounded-xl bg-rose-500/20 text-rose-500 flex items-center justify-center shrink-0 border border-rose-500/30 shadow-inner">
+              <ShieldAlert size={22} className="animate-pulse" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-black uppercase tracking-wider text-rose-600 dark:text-rose-400 bg-rose-500/15 px-2.5 py-0.5 rounded-full border border-rose-500/25">
+                  {language === 'th' ? circuitTrigger.titleTh : circuitTrigger.titleEn}
+                </span>
+                <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">
+                  {circuitTrigger.type === 'CONSECUTIVE_LOSS'
+                    ? 'Loss Streak Protection'
+                    : circuitTrigger.type === 'OVERTRADING_FREQUENCY'
+                    ? 'Overtrading Prevention'
+                    : circuitTrigger.type === 'DAILY_DRAWDOWN'
+                    ? 'Daily Drawdown Limit'
+                    : 'Psychological Readiness'}
+                </span>
+              </div>
+              <p className="text-sm font-bold text-slate-900 dark:text-white mt-1">
+                {language === 'th' ? circuitTrigger.reasonTh : circuitTrigger.reasonEn}
+              </p>
+              <p className="text-xs text-slate-600 dark:text-slate-400 mt-0.5">
+                {language === 'th'
+                  ? 'ระบบตรวจพบรูปแบบพฤติกรรมที่มีความเสี่ยงสูงต่อสภาวะอารมณ์ แนะนำให้เปิดโหมดพักใจเพื่อหยุดวงจรความสูญเสีย'
+                  : 'High-risk trading pattern detected. Activating a cool-down session is highly recommended.'}
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 shrink-0 self-end md:self-center">
+            <button
+              onClick={() => {
+                startCooldownSession(
+                  circuitTrigger.suggestedCooldownMins || 30,
+                  language === 'th' ? circuitTrigger.reasonTh : circuitTrigger.reasonEn
+                );
+              }}
+              className="px-4 py-2 rounded-xl bg-gradient-to-r from-rose-600 to-amber-600 hover:from-rose-700 hover:to-amber-700 text-white text-xs font-black shadow-md shadow-rose-500/30 transition-all hover:scale-105 active:scale-95 flex items-center gap-1.5 cursor-pointer"
+            >
+              <Timer size={14} />
+              {language === 'th'
+                ? `พักใจทันที (${circuitTrigger.suggestedCooldownMins || 30} นาที)`
+                : `Start Cool-down (${circuitTrigger.suggestedCooldownMins || 30}m)`}
+            </button>
+            <button
+              onClick={() => setDismissedCircuitTrigger(true)}
+              className="px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-white/5 dark:hover:bg-white/10 text-slate-700 dark:text-slate-300 text-xs font-semibold transition cursor-pointer"
+            >
+              {language === 'th' ? 'รับทราบ' : 'Dismiss'}
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Daily Pre-Trade Emotional Check-in Card */}
       <DailyEmotionalCheckinCard />
 
@@ -1216,6 +1301,9 @@ export default function Dashboard() {
               )}
             </div>
           </div>
+
+          {/* Mindset & Psychology Correlation Analysis Matrix */}
+          <MindsetCorrelationWidget trades={accountTrades} checkins={checkins} />
         </div>
       )}
 

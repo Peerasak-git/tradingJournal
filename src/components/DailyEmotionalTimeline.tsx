@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useMemo } from 'react';
-import { EmotionLogEntry, PRESET_EMOTIONS, EmotionTimePeriod } from '@/types/emotion';
+import { EmotionLogEntry, PRESET_EMOTIONS, EmotionTimePeriod, DailyDebrief } from '@/types/emotion';
 import { PERIOD_METADATA } from '@/lib/emotionStorage';
 import { useLanguage } from '@/context/LanguageContext';
 import {
@@ -20,20 +20,27 @@ import {
   Flame,
   Timer,
   ChevronRight,
+  Trophy,
+  Star,
+  Lightbulb,
 } from 'lucide-react';
 
 interface DailyEmotionalTimelineProps {
   logs: EmotionLogEntry[];
+  debrief?: DailyDebrief;
   onSelectLog?: (log: EmotionLogEntry) => void;
   onDeleteLog?: (logId: string) => void;
   onOpenCooldown?: () => void;
+  onOpenDebrief?: () => void;
 }
 
 export default function DailyEmotionalTimeline({
   logs = [],
+  debrief,
   onSelectLog,
   onDeleteLog,
   onOpenCooldown,
+  onOpenDebrief,
 }: DailyEmotionalTimelineProps) {
   const { language } = useLanguage();
 
@@ -300,6 +307,53 @@ export default function DailyEmotionalTimeline({
             </div>
           );
         })}
+
+        {/* End of Day Debrief Reflective Node */}
+        {debrief && (
+          <div className="relative group p-4 rounded-2xl border bg-gradient-to-br from-purple-500/[0.08] via-indigo-500/[0.05] to-white/90 dark:to-slate-900/90 border-purple-500/40 shadow-md shadow-purple-500/10 space-y-3">
+            <div className="absolute -left-[27px] sm:-left-[35px] top-5 w-4 h-4 rounded-full border-2 border-white dark:border-slate-950 bg-purple-500 shadow-sm shadow-purple-500/50 flex items-center justify-center" />
+
+            <div className="flex items-center justify-between gap-2 border-b border-purple-100 dark:border-white/[0.06] pb-2 flex-wrap">
+              <div className="flex items-center gap-2 text-xs font-black text-purple-900 dark:text-purple-200">
+                <Trophy size={14} className="text-purple-500" />
+                <span>{language === 'th' ? '🪞 บันทึกตกผลึกปิดวัน (Daily De-brief)' : '🪞 Daily Post-Market De-brief'}</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-purple-100 dark:bg-purple-500/20 text-purple-700 dark:text-purple-300">
+                  วินัย {debrief.disciplineScore}/10 ⭐
+                </span>
+                {onOpenDebrief && (
+                  <button
+                    type="button"
+                    onClick={onOpenDebrief}
+                    className="text-[11px] font-bold text-purple-600 dark:text-purple-400 hover:underline cursor-pointer"
+                  >
+                    {language === 'th' ? 'แก้ไข' : 'Edit'}
+                  </button>
+                )}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+              {debrief.mentalWin && (
+                <div className="p-2.5 rounded-xl bg-emerald-50/80 dark:bg-emerald-950/20 border border-emerald-200/60 dark:border-emerald-800/30">
+                  <div className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider mb-0.5">
+                    {language === 'th' ? '🏆 ชัยชนะทางจิตวิทยา' : '🏆 Mental Win'}
+                  </div>
+                  <div className="text-slate-800 dark:text-slate-200">{debrief.mentalWin}</div>
+                </div>
+              )}
+              {debrief.oneLesson && (
+                <div className="p-2.5 rounded-xl bg-amber-50/80 dark:bg-amber-950/20 border border-amber-200/60 dark:border-amber-800/30">
+                  <div className="text-[10px] font-bold text-amber-600 dark:text-amber-400 uppercase tracking-wider mb-0.5">
+                    {language === 'th' ? '💡 บทเรียนสำคัญ' : '💡 Key Lesson'}
+                  </div>
+                  <div className="text-slate-800 dark:text-slate-200">{debrief.oneLesson}</div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

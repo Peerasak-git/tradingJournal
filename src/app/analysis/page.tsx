@@ -33,6 +33,9 @@ import {
 import { Trade } from '@/types/trade';
 import { Review } from '@/types/review';
 import { getTrades, getReviews } from '@/lib/clientStorage';
+import { getDailyCheckins } from '@/lib/emotionStorage';
+import { DailyEmotionalCheckin } from '@/types/emotion';
+import MindsetCorrelationWidget from '@/components/MindsetCorrelationWidget';
 import {
   computeTechnicalStats,
   computePsychologyStats,
@@ -56,6 +59,7 @@ export default function AnalysisPage() {
 
   const [trades, setTrades] = useState<Trade[]>([]);
   const [reviews, setReviews] = useState<Review[]>([]);
+  const [checkins, setCheckins] = useState<DailyEmotionalCheckin[]>([]);
   const [loading, setLoading] = useState(true);
   const [dateFilter, setDateFilter] = useState<DateFilter>('all');
   const [activeTab, setActiveTab] = useState<ActiveTab>('overview');
@@ -64,9 +68,14 @@ export default function AnalysisPage() {
   const loadData = async () => {
     setLoading(true);
     try {
-      const [tData, rData] = await Promise.all([getTrades(), getReviews()]);
+      const [tData, rData, cData] = await Promise.all([
+        getTrades(),
+        getReviews(),
+        getDailyCheckins().catch(() => []),
+      ]);
       setTrades(tData || []);
       setReviews(rData || []);
+      setCheckins(cData || []);
     } catch (err) {
       console.error('Error loading analysis data:', err);
     } finally {
@@ -923,6 +932,9 @@ export default function AnalysisPage() {
               ))}
             </div>
           </div>
+
+          {/* Deep Mindset & Emotional State Correlation Matrix */}
+          <MindsetCorrelationWidget trades={filteredTrades} checkins={checkins} />
         </div>
       )}
 
@@ -1075,6 +1087,9 @@ export default function AnalysisPage() {
               )}
             </div>
           </div>
+
+          {/* Deep Mindset & Cognitive Biases Correlation Matrix */}
+          <MindsetCorrelationWidget trades={filteredTrades} checkins={checkins} />
         </div>
       )}
     </main>

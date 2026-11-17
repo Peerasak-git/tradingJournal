@@ -23,6 +23,7 @@ import { useLanguage } from '@/context/LanguageContext';
 import TradingCooldownModal from './TradingCooldownModal';
 import TradingCooldownWidget from './TradingCooldownWidget';
 import DailyEmotionalTimeline from './DailyEmotionalTimeline';
+import DailyDebriefModal from './DailyDebriefModal';
 import {
   HeartHandshake,
   Sparkles,
@@ -45,6 +46,7 @@ import {
   Sun,
   Sunset,
   Moon,
+  Trophy,
 } from 'lucide-react';
 
 type EmotionCategoryTab = 'all' | 'positive' | 'neutral' | 'negative';
@@ -95,6 +97,7 @@ export default function DailyEmotionalCheckinCard() {
   // Time-of-Day Emotional Logging State (Morning, Afternoon, Evening, Night)
   const [selectedPeriod, setSelectedPeriod] = useState<EmotionTimePeriod>(() => getCurrentTimePeriod().period);
   const [activeSubTab, setActiveSubTab] = useState<'checkin' | 'timeline'>('checkin');
+  const [isDebriefModalOpen, setIsDebriefModalOpen] = useState<boolean>(false);
 
   useEffect(() => {
     // Initial sync
@@ -735,17 +738,42 @@ export default function DailyEmotionalCheckinCard() {
                 );
               })}
             </div>
+
+            {/* Daily Debrief Button */}
+            <button
+              type="button"
+              onClick={() => setIsDebriefModalOpen(true)}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer shadow-xs ${
+                todayCheckin?.debrief
+                  ? 'bg-purple-100 dark:bg-purple-500/20 text-purple-700 dark:text-purple-300 border border-purple-300 dark:border-purple-500/30'
+                  : 'bg-white/90 dark:bg-slate-800/90 text-slate-700 dark:text-slate-300 border border-slate-200/80 dark:border-white/[0.08] hover:border-purple-400 dark:hover:border-purple-500'
+              }`}
+              title="บันทึกตกผลึกและประเมินวินัยปิดวัน"
+            >
+              <Trophy size={13} className={todayCheckin?.debrief ? 'text-purple-500' : 'text-amber-500'} />
+              <span>
+                {todayCheckin?.debrief
+                  ? language === 'th'
+                    ? `ตกผลึกปิดวันแล้ว (${todayCheckin.debrief.disciplineScore}/10 ⭐)`
+                    : `Debriefed (${todayCheckin.debrief.disciplineScore}/10 ⭐)`
+                  : language === 'th'
+                  ? '🪞 ตกผลึกปิดวัน'
+                  : 'Daily De-brief'}
+              </span>
+            </button>
           </div>
 
           {activeSubTab === 'timeline' ? (
             <DailyEmotionalTimeline
               logs={todayCheckin?.logs || []}
+              debrief={todayCheckin?.debrief}
               onSelectLog={handleSelectLog}
               onDeleteLog={handleDeleteLog}
               onOpenCooldown={() => {
                 setIsExpanded(true);
                 setIsCooldownModalOpen(true);
               }}
+              onOpenDebrief={() => setIsDebriefModalOpen(true)}
             />
           ) : (
             <>
@@ -1206,6 +1234,18 @@ export default function DailyEmotionalCheckinCard() {
         defaultEmotions={negativeSelected}
         onStarted={() => {
           setIsExpanded(true);
+        }}
+      />
+
+      {/* Daily Post-Market Debrief Modal */}
+      <DailyDebriefModal
+        isOpen={isDebriefModalOpen}
+        onClose={() => setIsDebriefModalOpen(false)}
+        initialDebrief={todayCheckin?.debrief}
+        onSaved={() => {
+          getTodayCheckin().then((c) => {
+            if (c) setTodayCheckin(c);
+          });
         }}
       />
     </div>
