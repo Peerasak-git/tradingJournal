@@ -140,6 +140,11 @@ export default function MindsetHubPage() {
   const [savedOnlineQuoteIds, setSavedOnlineQuoteIds] = useState<Record<string, boolean>>({});
   const [onlineSourceLabel, setOnlineSourceLabel] = useState<string>('');
 
+  // 5-minute Auto-rotation Timer State (300 seconds)
+  const QUOTE_AUTO_ROTATE_SECONDS = 300;
+  const [quoteCountdown, setQuoteCountdown] = useState<number>(QUOTE_AUTO_ROTATE_SECONDS);
+  const [isAutoRotateQuotes, setIsAutoRotateQuotes] = useState<boolean>(true);
+
   // Load data
   useEffect(() => {
     setTodayState(getTodayMindset());
@@ -288,6 +293,39 @@ export default function MindsetHubPage() {
       nextIdx = (nextIdx + 1) % allQuotes.length;
     }
     setCurrentQuoteIndex(nextIdx);
+    setQuoteCountdown(QUOTE_AUTO_ROTATE_SECONDS);
+  };
+
+  // Auto rotate quote countdown (5 minutes = 300s)
+  useEffect(() => {
+    if (!isAutoRotateQuotes) return;
+
+    const interval = setInterval(() => {
+      setQuoteCountdown((prev) => {
+        if (prev <= 1) {
+          // Trigger next quote
+          if (allQuotes.length > 1) {
+            setCurrentQuoteIndex((currIdx) => {
+              let nextIdx = Math.floor(Math.random() * allQuotes.length);
+              if (nextIdx === currIdx) {
+                nextIdx = (nextIdx + 1) % allQuotes.length;
+              }
+              return nextIdx;
+            });
+          }
+          return QUOTE_AUTO_ROTATE_SECONDS;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [isAutoRotateQuotes, allQuotes.length]);
+
+  const formatCountdown = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
   };
 
   const handleCopyQuote = (q: MindsetQuote) => {
@@ -437,6 +475,22 @@ export default function MindsetHubPage() {
                     คำคมส่วนตัว
                   </span>
                 )}
+                {/* 5-Min Countdown Indicator Badge */}
+                <div
+                  className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-slate-800/80 border border-indigo-400/30 text-[11px] font-mono font-bold text-indigo-300 shadow-sm"
+                  title={isAutoRotateQuotes ? 'นับถอยหลัง 5 นาทีเพื่อเปลี่ยนคำคมอัตโนมัติ' : 'หยุดนับเวลาชั่วคราว'}
+                >
+                  <Clock size={12} className={`text-amber-400 ${isAutoRotateQuotes ? 'animate-pulse' : ''}`} />
+                  <span>เปลี่ยนอัตโนมัติใน {formatCountdown(quoteCountdown)}</span>
+                  <button
+                    type="button"
+                    onClick={() => setIsAutoRotateQuotes((prev) => !prev)}
+                    className="ml-0.5 text-slate-400 hover:text-white p-0.5 rounded transition cursor-pointer"
+                    title={isAutoRotateQuotes ? 'กดเพื่อหยุดนับเวลาถอยหลัง (Pause)' : 'กดเพื่อเริ่มนับเวลาต่อ (Resume)'}
+                  >
+                    {isAutoRotateQuotes ? <Pause size={10} /> : <Play size={10} />}
+                  </button>
+                </div>
               </div>
               <p className="text-sm sm:text-base md:text-lg font-bold text-white leading-relaxed">
                 "{activeHeroQuote.quoteTh}"
@@ -478,10 +532,14 @@ export default function MindsetHubPage() {
             </button>
             <button
               onClick={handleShuffleQuote}
-              className="px-3.5 py-2 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white text-xs font-bold transition shadow-md shadow-amber-500/20 flex items-center gap-1.5 cursor-pointer hover:scale-105 active:scale-95"
+              className="px-3.5 py-2 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white text-xs font-bold transition shadow-md shadow-amber-500/20 flex items-center gap-2 cursor-pointer hover:scale-105 active:scale-95"
+              title="สุ่มคำคมใหม่ทันที และรีเซ็ตเวลานับถอยหลัง 5 นาที"
             >
               <Shuffle size={13} />
               <span>สุ่มคำคมถัดไป 🎲</span>
+              <span className="text-[10px] font-mono font-black bg-black/35 px-1.5 py-0.5 rounded-md text-amber-200 border border-white/10">
+                {formatCountdown(quoteCountdown)}
+              </span>
             </button>
             <button
               onClick={() => setActiveTab('quotes')}
@@ -490,6 +548,14 @@ export default function MindsetHubPage() {
               คลังทั้งหมด ({allQuotes.length}) →
             </button>
           </div>
+        </div>
+
+        {/* 5-minute Auto-rotate Progress Bar */}
+        <div className="absolute bottom-0 left-0 right-0 h-1 bg-white/10 overflow-hidden">
+          <div
+            className="h-full bg-gradient-to-r from-amber-500 via-pink-500 to-indigo-500 transition-all duration-1000 ease-linear"
+            style={{ width: `${(quoteCountdown / QUOTE_AUTO_ROTATE_SECONDS) * 100}%` }}
+          />
         </div>
       </div>
 
