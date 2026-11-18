@@ -62,6 +62,9 @@ import {
   Plus,
   Trash2,
   X,
+  Globe,
+  ExternalLink,
+  Loader2,
 } from 'lucide-react';
 
 type MindsetTab = 'agame' | 'urges' | 'zen' | 'bio' | 'quotes';
@@ -128,6 +131,14 @@ export default function MindsetHubPage() {
   const [newQuoteEn, setNewQuoteEn] = useState<string>('');
   const [newCategory, setNewCategory] = useState<MindsetQuote['category']>('discipline');
   const [newReflection, setNewReflection] = useState<string>('');
+
+  // Online Quotes Discovery State
+  const [isOnlineModalOpen, setIsOnlineModalOpen] = useState<boolean>(false);
+  const [onlineTopic, setOnlineTopic] = useState<string>('all');
+  const [onlineQuotesList, setOnlineQuotesList] = useState<MindsetQuote[]>([]);
+  const [isFetchingOnline, setIsFetchingOnline] = useState<boolean>(false);
+  const [savedOnlineQuoteIds, setSavedOnlineQuoteIds] = useState<Record<string, boolean>>({});
+  const [onlineSourceLabel, setOnlineSourceLabel] = useState<string>('');
 
   // Load data
   useEffect(() => {
@@ -313,6 +324,52 @@ export default function MindsetHubPage() {
     }
   };
 
+  // Online Quotes Handlers
+  const handleFetchOnlineQuotes = async (topicOverride?: string) => {
+    setIsFetchingOnline(true);
+    const targetTopic = topicOverride !== undefined ? topicOverride : onlineTopic;
+    try {
+      const storedKey = typeof window !== 'undefined' ? localStorage.getItem('gemini_api_key') || '' : '';
+      const res = await fetch('/api/ai/quotes', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          topic: targetTopic,
+          count: 5,
+          apiKey: storedKey,
+        }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success && Array.isArray(data.quotes)) {
+        setOnlineQuotesList(data.quotes);
+        setOnlineSourceLabel(data.source || 'Online Wisdom Pool');
+      }
+    } catch (err) {
+      console.error('Error fetching online quotes:', err);
+    } finally {
+      setIsFetchingOnline(false);
+    }
+  };
+
+  const handleOpenOnlineModal = () => {
+    setIsOnlineModalOpen(true);
+    if (onlineQuotesList.length === 0) {
+      handleFetchOnlineQuotes(onlineTopic);
+    }
+  };
+
+  const handleSaveOnlineQuote = (q: MindsetQuote) => {
+    saveCustomQuote({
+      author: q.author,
+      role: q.role,
+      category: q.category,
+      quoteTh: q.quoteTh,
+      quoteEn: q.quoteEn,
+      reflectionTh: q.reflectionTh,
+    });
+    setSavedOnlineQuoteIds((prev) => ({ ...prev, [q.id]: true }));
+  };
+
   const filteredQuotes = useMemo(() => {
     return allQuotes.filter((q) => {
       const matchCat = selectedQuoteCategory === 'all' || q.category === selectedQuoteCategory;
@@ -403,6 +460,14 @@ export default function MindsetHubPage() {
           </div>
 
           <div className="flex items-center gap-2 self-end md:self-center shrink-0 flex-wrap">
+            <button
+              onClick={handleOpenOnlineModal}
+              className="px-3.5 py-2 rounded-xl bg-gradient-to-r from-blue-600 via-indigo-600 to-cyan-500 hover:from-blue-700 hover:to-indigo-700 text-white text-xs font-bold transition shadow-md shadow-blue-500/20 flex items-center gap-1.5 cursor-pointer hover:scale-105 active:scale-95"
+              title="ค้นหาและดึงคำคมจิตวิทยาจากอินเทอร์เน็ต"
+            >
+              <Globe size={13} />
+              <span>หาคำคมจากเน็ต 🌐</span>
+            </button>
             <button
               onClick={() => handleCopyQuote(activeHeroQuote)}
               className="px-3 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-semibold transition flex items-center gap-1.5 cursor-pointer"
@@ -1261,7 +1326,14 @@ export default function MindsetHubPage() {
               </p>
             </div>
 
-            <div className="flex items-center gap-2 self-start sm:self-auto shrink-0">
+            <div className="flex items-center gap-2 self-start sm:self-auto shrink-0 flex-wrap">
+              <button
+                onClick={handleOpenOnlineModal}
+                className="px-3.5 py-2 rounded-xl bg-gradient-to-r from-blue-600 via-indigo-600 to-cyan-500 hover:from-blue-700 hover:to-indigo-700 text-white text-xs font-bold transition shadow-md shadow-blue-500/20 flex items-center gap-1.5 cursor-pointer hover:scale-105 active:scale-95"
+              >
+                <Globe size={14} />
+                <span>หาคำคมในเน็ต 🌐</span>
+              </button>
               <button
                 onClick={handleShuffleQuote}
                 className="px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-white/[0.06] dark:hover:bg-white/[0.1] text-slate-700 dark:text-slate-200 text-xs font-bold transition flex items-center gap-1.5 cursor-pointer"
@@ -1272,7 +1344,7 @@ export default function MindsetHubPage() {
               </button>
               <button
                 onClick={() => setIsAddQuoteModalOpen(true)}
-                className="px-4 py-2 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white text-xs font-bold transition shadow-md shadow-blue-500/20 flex items-center gap-1.5 cursor-pointer"
+                className="px-4 py-2 rounded-xl bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white text-xs font-bold transition shadow-md shadow-purple-500/20 flex items-center gap-1.5 cursor-pointer"
               >
                 <Plus size={14} />
                 <span>เพิ่มคำคมส่วนตัว</span>
@@ -1574,6 +1646,239 @@ export default function MindsetHubPage() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Online Quotes Discovery Modal */}
+      {isOnlineModalOpen && (
+        <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-md flex items-center justify-center p-3 sm:p-5 overflow-y-auto">
+          <div className="max-w-3xl w-full bg-white dark:bg-[#151518] border border-slate-200 dark:border-white/[0.12] rounded-3xl shadow-2xl overflow-hidden animate-scale-up flex flex-col max-h-[92vh]">
+            {/* Modal Header */}
+            <div className="p-5 sm:p-6 border-b border-slate-100 dark:border-white/[0.08] bg-gradient-to-r from-blue-600/10 via-purple-600/10 to-pink-600/10 flex items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-blue-600 via-indigo-600 to-purple-600 text-white flex items-center justify-center shadow-md shadow-blue-500/25 shrink-0">
+                  <Globe size={20} />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider bg-blue-500/20 text-blue-500 border border-blue-500/30">
+                      INTERNET & AI DISCOVERY
+                    </span>
+                    {onlineSourceLabel && (
+                      <span className="text-[10px] text-slate-400 font-medium">
+                        • แหล่งข้อมูล: {onlineSourceLabel}
+                      </span>
+                    )}
+                  </div>
+                  <h3 className="text-base sm:text-lg font-black text-slate-900 dark:text-white mt-0.5">
+                    ค้นหาและดึงคำคมจิตวิทยาจากอินเทอร์เน็ต
+                  </h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    ดึงหลักคิดจากตำนานเทรดเดอร์ทั่วโลก หรือกดเปิดค้นหาใน Google / Goodreads ได้ทันที
+                  </p>
+                </div>
+              </div>
+
+              <button
+                onClick={() => setIsOnlineModalOpen(false)}
+                className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 dark:bg-white/[0.06] dark:hover:bg-white/[0.1] text-slate-500 hover:text-slate-900 dark:hover:text-white flex items-center justify-center transition cursor-pointer shrink-0"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            {/* Filter / Fetch Controller */}
+            <div className="p-4 sm:p-5 border-b border-slate-100 dark:border-white/[0.08] bg-slate-50/60 dark:bg-white/[0.02] space-y-3">
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+                <div className="flex items-center gap-2 flex-1 overflow-x-auto pb-1 scrollbar-none">
+                  {[
+                    { key: 'all', label: '🌟 ทั้งหมด' },
+                    { key: 'risk', label: '🛡️ คุมความเสี่ยง' },
+                    { key: 'discipline', label: '⚖️ วินัย & อารมณ์' },
+                    { key: 'patience', label: '🧘 รอคอย & นั่งทับมือ' },
+                    { key: 'acceptance', label: '🧠 ยอมรับ SL' },
+                    { key: 'stoic', label: '🏛️ Stoic' },
+                    { key: 'Mark Douglas', label: '📖 Mark Douglas' },
+                    { key: 'Tom Hougaard', label: '📖 Tom Hougaard' },
+                  ].map((topic) => (
+                    <button
+                      key={topic.key}
+                      onClick={() => {
+                        setOnlineTopic(topic.key);
+                        handleFetchOnlineQuotes(topic.key);
+                      }}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-bold transition shrink-0 cursor-pointer ${
+                        onlineTopic === topic.key
+                          ? 'bg-blue-600 text-white shadow-sm shadow-blue-500/25'
+                          : 'bg-white dark:bg-white/[0.06] text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-white/[0.1] border border-slate-200 dark:border-white/[0.08]'
+                      }`}
+                    >
+                      {topic.label}
+                    </button>
+                  ))}
+                </div>
+
+                <button
+                  onClick={() => handleFetchOnlineQuotes(onlineTopic)}
+                  disabled={isFetchingOnline}
+                  className="px-4 py-2 rounded-xl bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white text-xs font-bold transition shadow-md shadow-blue-500/20 flex items-center justify-center gap-2 shrink-0 cursor-pointer disabled:opacity-50"
+                >
+                  {isFetchingOnline ? (
+                    <>
+                      <Loader2 size={14} className="animate-spin" />
+                      <span>กำลังดึงข้อมูล...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles size={14} />
+                      <span>ดึงคำคมชุดใหม่ ✨</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+
+            {/* Content Area: Quotes List */}
+            <div className="p-4 sm:p-6 overflow-y-auto space-y-4 flex-1">
+              {isFetchingOnline && onlineQuotesList.length === 0 ? (
+                <div className="py-16 text-center space-y-3">
+                  <Loader2 size={32} className="animate-spin text-blue-500 mx-auto" />
+                  <p className="text-sm font-bold text-slate-700 dark:text-slate-300">
+                    กำลังเชื่อมต่อและดึงคำคมจิตวิทยาจากอินเทอร์เน็ต...
+                  </p>
+                  <p className="text-xs text-slate-400">
+                    รวบรวมหลักคิดจากวรรณกรรมเทรดเดอร์ชั้นนำและตำนานระดับโลก
+                  </p>
+                </div>
+              ) : onlineQuotesList.length === 0 ? (
+                <div className="py-12 text-center text-slate-400">
+                  <p className="text-sm font-semibold">กดปุ่ม "ดึงคำคมชุดใหม่" เพื่อเริ่มค้นหาคำคมจากเน็ต</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {onlineQuotesList.map((q, idx) => {
+                    const isAlreadySaved =
+                      savedOnlineQuoteIds[q.id] ||
+                      allQuotes.some(
+                        (existing) =>
+                          existing.quoteTh.trim() === q.quoteTh.trim() ||
+                          existing.quoteEn.trim() === q.quoteEn.trim()
+                      );
+
+                    return (
+                      <div
+                        key={q.id || idx}
+                        className="p-5 rounded-2xl bg-slate-50 dark:bg-white/[0.03] border border-slate-200 dark:border-white/[0.08] hover:border-blue-500/30 transition space-y-3 relative group"
+                      >
+                        <div className="flex items-center justify-between gap-2 flex-wrap">
+                          <div className="flex items-center gap-2">
+                            <span className="text-[10px] font-black px-2 py-0.5 rounded-md bg-blue-500/10 text-blue-500 border border-blue-500/20">
+                              {q.category.toUpperCase()}
+                            </span>
+                            <span className="text-xs font-black text-slate-900 dark:text-white">
+                              {q.author}
+                            </span>
+                            <span className="text-xs text-slate-400">•</span>
+                            <span className="text-xs text-slate-500 dark:text-slate-400">
+                              {q.role}
+                            </span>
+                          </div>
+
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => handleCopyQuote(q)}
+                              className="px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-white dark:bg-white/[0.06] hover:bg-slate-100 dark:hover:bg-white/[0.1] text-slate-600 dark:text-slate-300 transition flex items-center gap-1 cursor-pointer"
+                              title="คัดลอกข้อความ"
+                            >
+                              {copiedQuoteId === q.id ? <Check size={12} className="text-emerald-400" /> : <Copy size={12} />}
+                              <span>{copiedQuoteId === q.id ? 'คัดลอกแล้ว' : 'คัดลอก'}</span>
+                            </button>
+
+                            <button
+                              onClick={() => handleSaveOnlineQuote(q)}
+                              disabled={isAlreadySaved}
+                              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
+                                isAlreadySaved
+                                  ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 cursor-default'
+                                  : 'bg-blue-600 hover:bg-blue-700 text-white shadow-sm shadow-blue-500/20'
+                              }`}
+                            >
+                              {isAlreadySaved ? (
+                                <>
+                                  <Check size={13} />
+                                  <span>อยู่ในคลังแล้ว</span>
+                                </>
+                              ) : (
+                                <>
+                                  <Plus size={13} />
+                                  <span>บันทึกลงคลังของฉัน</span>
+                                </>
+                              )}
+                            </button>
+                          </div>
+                        </div>
+
+                        <blockquote className="text-sm sm:text-base font-bold text-slate-900 dark:text-white leading-relaxed">
+                          "{q.quoteTh}"
+                        </blockquote>
+
+                        {q.quoteEn && (
+                          <p className="text-xs text-slate-500 dark:text-slate-400 italic">
+                            "{q.quoteEn}"
+                          </p>
+                        )}
+
+                        {q.reflectionTh && (
+                          <div className="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-xs text-amber-700 dark:text-amber-300">
+                            <span className="font-bold mr-1">💡 ปฏิบัติจริง:</span>
+                            <span>{q.reflectionTh}</span>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* Footer: Direct External Search Shortcuts */}
+            <div className="p-4 sm:p-5 border-t border-slate-100 dark:border-white/[0.08] bg-slate-50 dark:bg-black/20">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                <span className="text-xs font-bold text-slate-600 dark:text-slate-400">
+                  🌐 ค้นหาต่อบนอินเทอร์เน็ตโดยตรง:
+                </span>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <a
+                    href="https://www.google.com/search?q=trading+psychology+quotes+mark+douglas+tom+hougaard"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="px-2.5 py-1.5 rounded-lg bg-white dark:bg-white/[0.06] hover:bg-slate-100 dark:hover:bg-white/[0.1] text-xs font-semibold text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-white/[0.08] flex items-center gap-1.5 transition"
+                  >
+                    <span>Google Quotes</span>
+                    <ExternalLink size={11} />
+                  </a>
+                  <a
+                    href="https://www.goodreads.com/quotes/tag/trading"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="px-2.5 py-1.5 rounded-lg bg-white dark:bg-white/[0.06] hover:bg-slate-100 dark:hover:bg-white/[0.1] text-xs font-semibold text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-white/[0.08] flex items-center gap-1.5 transition"
+                  >
+                    <span>Goodreads</span>
+                    <ExternalLink size={11} />
+                  </a>
+                  <a
+                    href="https://twitter.com/search?q=%23TradingMindset%20quotes"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="px-2.5 py-1.5 rounded-lg bg-white dark:bg-white/[0.06] hover:bg-slate-100 dark:hover:bg-white/[0.1] text-xs font-semibold text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-white/[0.08] flex items-center gap-1.5 transition"
+                  >
+                    <span>X (Twitter)</span>
+                    <ExternalLink size={11} />
+                  </a>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       )}
