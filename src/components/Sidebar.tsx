@@ -31,7 +31,8 @@ import {
   Banknote,
   Star,
   Lock,
-  Cloud
+  Cloud,
+  Brain
 } from 'lucide-react';
 import { isSupabaseConfigured } from '@/lib/supabase';
 import SupabaseSyncModal from './SupabaseSyncModal';
@@ -72,6 +73,7 @@ export default function Sidebar() {
         { name: t('dashboard'), icon: LayoutDashboard, href: '/' },
         { name: 'Trade History', icon: History, href: '/history' },
         { name: t('analysis') || 'Analysis', icon: BarChart2, href: '/analysis' },
+        { name: t('mindsetHub') || 'Mindset Master', icon: Brain, href: '/mindset' },
       ],
     },
     {
