@@ -46,6 +46,7 @@ import TradeModal from '@/components/TradeModal';
 import DailyEmotionalCheckinCard from '@/components/DailyEmotionalCheckinCard';
 import TradingCooldownWidget from '@/components/TradingCooldownWidget';
 import MindsetCorrelationWidget from '@/components/MindsetCorrelationWidget';
+import WhatsNewModal from '@/components/WhatsNewModal';
 
 type DashboardTab = 'overview' | 'calendar' | 'categories' | 'recent' | 'all';
 type CategoryDimension = 'instrument' | 'direction' | 'strategy' | 'session' | 'dayOfWeek';
@@ -194,6 +195,7 @@ export default function Dashboard() {
   // Auto Order Slip Scanner Modal & Trade Modal
   const [isScanModalOpen, setIsScanModalOpen] = useState(false);
   const [isTradeModalOpen, setIsTradeModalOpen] = useState(false);
+  const [isWhatsNewOpen, setIsWhatsNewOpen] = useState(false);
 
   // Emotional Readiness State synchronized with Daily Emotional Check-in
   const [emotionalState, setEmotionalState] = useState<{
@@ -719,6 +721,14 @@ export default function Dashboard() {
           >
             <Sparkles size={14} />
             <span>{t('autoScanSlip')}</span>
+          </button>
+
+          <button
+            onClick={() => setIsWhatsNewOpen(true)}
+            className="inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-purple-500/10 hover:bg-purple-500/20 text-purple-700 dark:text-purple-300 border border-purple-500/30 text-xs font-bold transition-all duration-300 hover:scale-105 active:scale-95 shrink-0 cursor-pointer shadow-xs"
+          >
+            <Sparkles size={13} className="text-purple-500" />
+            <span>{language === 'th' ? 'มีอะไรใหม่ ✨' : "What's New"}</span>
           </button>
 
           {/* Global Category Filter Bar */}
@@ -1681,6 +1691,12 @@ export default function Dashboard() {
         isOpen={isTradeModalOpen}
         onClose={() => setIsTradeModalOpen(false)}
         onSave={handleSaveTrade}
+      />
+
+      {/* What's New Modal */}
+      <WhatsNewModal
+        isOpen={isWhatsNewOpen}
+        onClose={() => setIsWhatsNewOpen(false)}
       />
     </main>
   );

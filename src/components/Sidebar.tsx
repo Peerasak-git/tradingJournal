@@ -32,10 +32,12 @@ import {
   Star,
   Lock,
   Cloud,
-  Brain
+  Brain,
+  Sparkles
 } from 'lucide-react';
 import { isSupabaseConfigured } from '@/lib/supabase';
 import SupabaseSyncModal from './SupabaseSyncModal';
+import WhatsNewModal from './WhatsNewModal';
 
 export default function Sidebar() {
   const pathname = usePathname();
@@ -43,6 +45,7 @@ export default function Sidebar() {
   const [isOpen, setIsOpen] = useState(false);
   const [isAccountOpen, setIsAccountOpen] = useState(false);
   const [isSyncModalOpen, setIsSyncModalOpen] = useState(false);
+  const [isWhatsNewOpen, setIsWhatsNewOpen] = useState(false);
   const [isCloudConnected, setIsCloudConnected] = useState(false);
   const { theme, toggleTheme } = useTheme();
   const { language, setLanguage, t } = useLanguage();
@@ -330,6 +333,18 @@ export default function Sidebar() {
               <Lock size={14} />
               {hasPin ? 'LOCK SCREEN' : 'SET PIN LOCK'}
             </button>
+            <button
+              onClick={() => setIsWhatsNewOpen(true)}
+              className="w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-bold border border-purple-500/30 bg-purple-500/10 text-purple-700 dark:text-purple-300 hover:bg-purple-500/20 transition-all cursor-pointer shadow-xs"
+            >
+              <span className="flex items-center gap-2">
+                <Sparkles size={14} className="text-purple-500" />
+                WHAT'S NEW
+              </span>
+              <span className="text-[10px] font-black px-1.5 py-0.5 rounded-full bg-purple-500 text-white animate-pulse">
+                v2.2 ✨
+              </span>
+            </button>
           </div>
 
           {/* New Trade Button */}
@@ -346,12 +361,23 @@ export default function Sidebar() {
           </Link>
 
           {/* Footer */}
-          <div className="flex items-center gap-2 mt-4 px-1">
-            <Zap size={11} className="text-slate-400 dark:text-slate-600" />
-            <span className="text-[10px] text-slate-400 dark:text-slate-600 font-medium">CFD Trading Journal v1.0</span>
+          <div className="flex items-center justify-between mt-4 px-1">
+            <button
+              onClick={() => setIsWhatsNewOpen(true)}
+              className="flex items-center gap-1.5 text-[10px] text-slate-500 hover:text-blue-600 dark:text-slate-400 dark:hover:text-blue-400 font-medium transition cursor-pointer text-left"
+            >
+              <Zap size={11} className="text-amber-500 shrink-0" />
+              <span>CFD Trading Journal v2.2 (มีอะไรใหม่ ✨)</span>
+            </button>
           </div>
         </div>
       </aside>
+
+      {/* What's New Modal */}
+      <WhatsNewModal
+        isOpen={isWhatsNewOpen}
+        onClose={() => setIsWhatsNewOpen(false)}
+      />
 
       {/* Supabase Sync Modal */}
       <SupabaseSyncModal
