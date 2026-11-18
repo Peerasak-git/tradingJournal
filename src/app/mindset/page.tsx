@@ -368,6 +368,8 @@ export default function MindsetHubPage() {
     const targetTopic = topicOverride !== undefined ? topicOverride : onlineTopic;
     try {
       const storedKey = typeof window !== 'undefined' ? localStorage.getItem('gemini_api_key') || '' : '';
+      // Pass IDs of quotes currently displayed to guarantee no immediate duplicate/repetition
+      const currentShownIds = onlineQuotesList.map((q) => q.id);
       const res = await fetch('/api/ai/quotes', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -375,6 +377,7 @@ export default function MindsetHubPage() {
           topic: targetTopic,
           count: 5,
           apiKey: storedKey,
+          excludeIds: currentShownIds,
         }),
       });
       const data = await res.json();
@@ -1760,13 +1763,18 @@ export default function MindsetHubPage() {
                 <div className="flex items-center gap-2 flex-1 overflow-x-auto pb-1 scrollbar-none">
                   {[
                     { key: 'all', label: '🌟 ทั้งหมด' },
+                    { key: 'social', label: '🔥 ไวรัลโซเชียล & Twitter/X' },
                     { key: 'risk', label: '🛡️ คุมความเสี่ยง' },
                     { key: 'discipline', label: '⚖️ วินัย & อารมณ์' },
                     { key: 'patience', label: '🧘 รอคอย & นั่งทับมือ' },
                     { key: 'acceptance', label: '🧠 ยอมรับ SL' },
-                    { key: 'stoic', label: '🏛️ Stoic' },
+                    { key: 'Tom Dante', label: '🎙️ Tom Dante' },
+                    { key: 'Steve Burns', label: '🐦 Steve Burns' },
+                    { key: 'Mark Minervini', label: '🏆 Mark Minervini' },
+                    { key: 'Peter Brandt', label: '📊 Peter Brandt' },
                     { key: 'Mark Douglas', label: '📖 Mark Douglas' },
                     { key: 'Tom Hougaard', label: '📖 Tom Hougaard' },
+                    { key: 'stoic', label: '🏛️ Stoic' },
                   ].map((topic) => (
                     <button
                       key={topic.key}

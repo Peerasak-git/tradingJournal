@@ -67,12 +67,13 @@ const RELEASES: Release[] = [
       {
         icon: Globe,
         color: 'text-blue-400 bg-blue-500/10 border-blue-500/20',
-        titleTh: 'ปุ่มค้นหาและดึงคำคมจิตวิทยาจากอินเทอร์เน็ต & AI (Online Discovery)',
-        descTh: 'ระบบค้นหาและดึงคำคมสดใหม่จากคลาวด์และ AI เมื่อต้องการแรงบันดาลใจหรือเตือนสติตามสถานการณ์เฉพาะ:',
+        titleTh: 'ค้นหาและดึงคำคมจากโซเชียล & อินเทอร์เน็ต (Twitter/X & Reddit Wisdom)',
+        descTh: 'อัปเกรดคลังคำคมออนไลน์เป็นกว่า 50+ รายการ คัดสรรบทเรียนไวรัลจาก Twitter/X, Reddit และเทรดเดอร์มือโปร พร้อมระบบป้องกันคำคมซ้ำ:',
         subItems: [
-          '✨ สุ่มดึงคำคมจากคลาวด์ & Gemini AI ตามหัวข้อที่ต้องการ เช่น วินัย, แก้ Revenge Trade, นั่งทับมือ, หรือเจาะจงนักเขียน',
+          '🔥 ไวรัลคำคมจาก Twitter/X & Reddit: Tom Dante, Steve Burns (@SteveBurnsFX), Mark Minervini, Peter Brandt, Qullamaggie, Yvan Byeajee, Lance Beggs',
+          '🚫 ระบบป้องกันคำคมซ้ำ (Smart Deduplication): กดดึงคำคมชุดใหม่จะไม่แสดงคำคมซ้ำกับที่กำลังเปิดดูอยู่',
+          '🎯 แท็บฟิลเตอร์ใหม่: เลือกดูเฉพาะ "🔥 ไวรัลโซเชียล & Twitter/X" หรือเจาะจงตามชื่อเทรดเดอร์ได้ทันที',
           '💾 ปุ่ม "+ บันทึกลงคลังของฉัน": บันทึกคำคมที่ชอบเข้าคลังส่วนตัวในคลิกเดียว',
-          '🌐 ทางลัดค้นหาคำคมต่อบน Google Quotes, Goodreads และ X (Twitter) ได้โดยตรง',
         ],
         href: '/mindset',
       },
