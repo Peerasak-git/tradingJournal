@@ -20,6 +20,14 @@ import {
   recordZenSessionCompleted,
 } from '@/lib/mindsetHubStorage';
 import {
+  DEFAULT_QUOTES,
+  CATEGORY_LABELS,
+  MindsetQuote,
+  getCustomQuotes,
+  saveCustomQuote,
+  deleteCustomQuote,
+} from '@/data/mindsetQuotes';
+import {
   Brain,
   Sparkles,
   Trophy,
@@ -46,9 +54,17 @@ import {
   Smile,
   Frown,
   Meh,
+  Quote,
+  Copy,
+  Check,
+  Shuffle,
+  Search,
+  Plus,
+  Trash2,
+  X,
 } from 'lucide-react';
 
-type MindsetTab = 'agame' | 'urges' | 'zen' | 'bio';
+type MindsetTab = 'agame' | 'urges' | 'zen' | 'bio' | 'quotes';
 
 const DOUGLAS_TRUTHS = [
   {
@@ -99,18 +115,41 @@ export default function MindsetHubPage() {
   const [breathSecondsLeft, setBreathSecondsLeft] = useState<number>(4);
   const [breathCyclesCompleted, setBreathCyclesCompleted] = useState<number>(0);
 
+  // Quotes State
+  const [customQuotes, setCustomQuotes] = useState<MindsetQuote[]>([]);
+  const [currentQuoteIndex, setCurrentQuoteIndex] = useState<number>(0);
+  const [copiedQuoteId, setCopiedQuoteId] = useState<string | null>(null);
+  const [selectedQuoteCategory, setSelectedQuoteCategory] = useState<string>('all');
+  const [quoteSearchTerm, setQuoteSearchTerm] = useState<string>('');
+  const [isAddQuoteModalOpen, setIsAddQuoteModalOpen] = useState<boolean>(false);
+  const [newAuthor, setNewAuthor] = useState<string>('');
+  const [newRole, setNewRole] = useState<string>('');
+  const [newQuoteTh, setNewQuoteTh] = useState<string>('');
+  const [newQuoteEn, setNewQuoteEn] = useState<string>('');
+  const [newCategory, setNewCategory] = useState<MindsetQuote['category']>('discipline');
+  const [newReflection, setNewReflection] = useState<string>('');
+
   // Load data
   useEffect(() => {
     setTodayState(getTodayMindset());
     setHistory(getMindsetHistory());
+    setCustomQuotes(getCustomQuotes());
     getTrades().then(setTrades).catch(console.error);
 
     const handleUpdate = () => {
       setTodayState(getTodayMindset());
       setHistory(getMindsetHistory());
     };
+    const handleQuotesUpdate = () => {
+      setCustomQuotes(getCustomQuotes());
+    };
+
     window.addEventListener('mindsetHubUpdated', handleUpdate);
-    return () => window.removeEventListener('mindsetHubUpdated', handleUpdate);
+    window.addEventListener('customQuotesUpdated', handleQuotesUpdate);
+    return () => {
+      window.removeEventListener('mindsetHubUpdated', handleUpdate);
+      window.removeEventListener('customQuotesUpdated', handleQuotesUpdate);
+    };
   }, []);
 
   // Box Breathing Timer logic (4s inhale -> 4s hold -> 4s exhale -> 4s hold)
@@ -221,6 +260,72 @@ export default function MindsetHubPage() {
     saveMindsetDay(updated);
   };
 
+  // Quotes Logic
+  const allQuotes = useMemo(() => {
+    return [...customQuotes, ...DEFAULT_QUOTES];
+  }, [customQuotes]);
+
+  const activeHeroQuote = useMemo(() => {
+    if (allQuotes.length === 0) return DEFAULT_QUOTES[0];
+    return allQuotes[currentQuoteIndex % allQuotes.length];
+  }, [allQuotes, currentQuoteIndex]);
+
+  const handleShuffleQuote = () => {
+    if (allQuotes.length <= 1) return;
+    let nextIdx = Math.floor(Math.random() * allQuotes.length);
+    if (nextIdx === currentQuoteIndex) {
+      nextIdx = (nextIdx + 1) % allQuotes.length;
+    }
+    setCurrentQuoteIndex(nextIdx);
+  };
+
+  const handleCopyQuote = (q: MindsetQuote) => {
+    const text = `"${q.quoteTh}" - ${q.author} (${q.quoteEn})`;
+    navigator.clipboard.writeText(text);
+    setCopiedQuoteId(q.id);
+    setTimeout(() => setCopiedQuoteId(null), 2000);
+  };
+
+  const handleAddCustomQuote = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newQuoteTh.trim() || !newAuthor.trim()) return;
+
+    saveCustomQuote({
+      author: newAuthor.trim(),
+      role: newRole.trim() || 'คำคมเตือนสติตนเอง',
+      quoteTh: newQuoteTh.trim(),
+      quoteEn: newQuoteEn.trim(),
+      category: newCategory,
+      reflectionTh: newReflection.trim(),
+    });
+
+    setNewAuthor('');
+    setNewRole('');
+    setNewQuoteTh('');
+    setNewQuoteEn('');
+    setNewReflection('');
+    setIsAddQuoteModalOpen(false);
+  };
+
+  const handleDeleteCustomQuote = (id: string) => {
+    if (window.confirm('คุณแน่ใจหรือไม่ว่าต้องการลบคำคมนี้?')) {
+      deleteCustomQuote(id);
+    }
+  };
+
+  const filteredQuotes = useMemo(() => {
+    return allQuotes.filter((q) => {
+      const matchCat = selectedQuoteCategory === 'all' || q.category === selectedQuoteCategory;
+      const matchSearch =
+        quoteSearchTerm.trim() === '' ||
+        q.author.toLowerCase().includes(quoteSearchTerm.toLowerCase()) ||
+        q.quoteTh.toLowerCase().includes(quoteSearchTerm.toLowerCase()) ||
+        q.quoteEn.toLowerCase().includes(quoteSearchTerm.toLowerCase()) ||
+        q.role.toLowerCase().includes(quoteSearchTerm.toLowerCase());
+      return matchCat && matchSearch;
+    });
+  }, [allQuotes, selectedQuoteCategory, quoteSearchTerm]);
+
   return (
     <main className="p-4 sm:p-6 md:p-8 max-w-7xl mx-auto space-y-6 animate-fade-in">
       {/* Page Header */}
@@ -252,6 +357,75 @@ export default function MindsetHubPage() {
           <Sparkles size={15} className="animate-spin-slow" />
           <span>{language === 'th' ? 'ฝึกหายใจปรับสติ (Box Breathing)' : 'Start Box Breathing'}</span>
         </button>
+      </div>
+
+      {/* Hero Mindset Quote Banner */}
+      <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-slate-900 via-indigo-950/80 to-slate-900 border border-indigo-500/30 p-5 sm:p-6 shadow-xl shadow-indigo-950/20 text-white">
+        <div className="absolute top-0 right-0 w-80 h-80 bg-gradient-to-bl from-purple-500/10 via-blue-500/5 to-transparent rounded-full blur-3xl pointer-events-none" />
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-5 relative z-10">
+          <div className="flex items-start gap-4 flex-1">
+            <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-amber-500/20 to-purple-500/20 border border-amber-500/30 text-amber-400 flex items-center justify-center shrink-0 shadow-inner">
+              <Quote size={22} className="rotate-180" />
+            </div>
+            <div className="space-y-1.5 flex-1">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-[10px] font-black uppercase tracking-wider text-amber-400 bg-amber-500/10 px-2.5 py-0.5 rounded-full border border-amber-500/25">
+                  ✨ คำคมเตือนสติประจำวัน (Mindset Wisdom)
+                </span>
+                <span className="text-[11px] font-bold text-slate-400 flex items-center gap-1">
+                  {CATEGORY_LABELS[activeHeroQuote.category]?.icon} {CATEGORY_LABELS[activeHeroQuote.category]?.th}
+                </span>
+                {activeHeroQuote.isCustom && (
+                  <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-purple-500/20 text-purple-300 border border-purple-500/30">
+                    คำคมส่วนตัว
+                  </span>
+                )}
+              </div>
+              <p className="text-sm sm:text-base md:text-lg font-bold text-white leading-relaxed">
+                "{activeHeroQuote.quoteTh}"
+              </p>
+              {activeHeroQuote.quoteEn && (
+                <p className="text-xs sm:text-sm text-slate-300/80 italic font-medium">
+                  "{activeHeroQuote.quoteEn}"
+                </p>
+              )}
+              <div className="flex items-center gap-2 pt-1 text-xs text-slate-400 flex-wrap">
+                <span className="font-bold text-amber-300">— {activeHeroQuote.author}</span>
+                <span>•</span>
+                <span className="text-slate-400">{activeHeroQuote.role}</span>
+              </div>
+              {activeHeroQuote.reflectionTh && (
+                <p className="text-[11px] text-emerald-400/90 bg-emerald-500/10 px-2.5 py-1 rounded-lg border border-emerald-500/20 inline-block mt-1">
+                  💡 {activeHeroQuote.reflectionTh}
+                </p>
+              )}
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 self-end md:self-center shrink-0 flex-wrap">
+            <button
+              onClick={() => handleCopyQuote(activeHeroQuote)}
+              className="px-3 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-semibold transition flex items-center gap-1.5 cursor-pointer"
+              title="คัดลอกคำคม"
+            >
+              {copiedQuoteId === activeHeroQuote.id ? <Check size={13} className="text-emerald-400" /> : <Copy size={13} />}
+              <span>{copiedQuoteId === activeHeroQuote.id ? 'คัดลอกแล้ว' : 'คัดลอก'}</span>
+            </button>
+            <button
+              onClick={handleShuffleQuote}
+              className="px-3.5 py-2 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white text-xs font-bold transition shadow-md shadow-amber-500/20 flex items-center gap-1.5 cursor-pointer hover:scale-105 active:scale-95"
+            >
+              <Shuffle size={13} />
+              <span>สุ่มคำคมถัดไป 🎲</span>
+            </button>
+            <button
+              onClick={() => setActiveTab('quotes')}
+              className="px-3 py-2 rounded-xl bg-purple-500/20 hover:bg-purple-500/30 text-purple-300 border border-purple-500/30 text-xs font-semibold transition cursor-pointer"
+            >
+              คลังทั้งหมด ({allQuotes.length}) →
+            </button>
+          </div>
+        </div>
       </div>
 
       {/* Main Navigation Tabs */}
@@ -325,6 +499,21 @@ export default function MindsetHubPage() {
           <span>{language === 'th' ? '4. สุขภาพร่างกาย & การนอน' : '4. Bio & Lifestyle Tracker'}</span>
           <span className="text-[10px] font-black px-1.5 py-0.5 rounded-md bg-purple-500/20 text-purple-400">
             {todayState.bioMetrics?.sleepHours || 7.5}h
+          </span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('quotes')}
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-xs sm:text-sm font-bold transition-all cursor-pointer ${
+            activeTab === 'quotes'
+              ? 'bg-blue-600 text-white shadow-sm shadow-blue-500/25 scale-[1.01]'
+              : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-white/[0.04]'
+          }`}
+        >
+          <Quote size={16} />
+          <span>{language === 'th' ? '5. คลังคำคมเตือนสติ' : '5. Quotes Library'}</span>
+          <span className="text-[10px] font-black px-1.5 py-0.5 rounded-md bg-amber-500/20 text-amber-400">
+            {allQuotes.length}
           </span>
         </button>
       </div>
@@ -1044,6 +1233,347 @@ export default function MindsetHubPage() {
                 </p>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* TAB 5: QUOTES LIBRARY */}
+      {activeTab === 'quotes' && (
+        <div className="space-y-6">
+          {/* Header Action Bar */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-5 rounded-2xl bg-white dark:bg-[#1a1a1a] border border-slate-200 dark:border-white/[0.08] shadow-xs">
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider bg-amber-500/20 text-amber-500 border border-amber-500/30">
+                  WISDOM VAULT
+                </span>
+                <span className="text-xs text-slate-400 font-medium">
+                  {filteredQuotes.length} / {allQuotes.length} คำคม
+                </span>
+              </div>
+              <h2 className="text-lg sm:text-xl font-black text-slate-900 dark:text-white mt-1">
+                {language === 'th' ? 'คลังคำคมเตือนสติ & ปรัชญาจิตวิทยาการเทรด' : 'Mindset & Trading Wisdom Library'}
+              </h2>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                {language === 'th'
+                  ? 'รวมสุดยอดประโยคเตือนสติจากตำนานเทรดเดอร์ระดับโลก และปรัชญา Stoic สำหรับอ่านก่อนเทรดหรือดึงสติยามฉุกเฉิน'
+                  : 'Curated psychological rules from world-class traders & Stoic philosophy for high-performance execution.'}
+              </p>
+            </div>
+
+            <div className="flex items-center gap-2 self-start sm:self-auto shrink-0">
+              <button
+                onClick={handleShuffleQuote}
+                className="px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-white/[0.06] dark:hover:bg-white/[0.1] text-slate-700 dark:text-slate-200 text-xs font-bold transition flex items-center gap-1.5 cursor-pointer"
+                title="สุ่มอ่านคำคมใหม่"
+              >
+                <Shuffle size={14} />
+                <span>สุ่มคำคม</span>
+              </button>
+              <button
+                onClick={() => setIsAddQuoteModalOpen(true)}
+                className="px-4 py-2 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white text-xs font-bold transition shadow-md shadow-blue-500/20 flex items-center gap-1.5 cursor-pointer"
+              >
+                <Plus size={14} />
+                <span>เพิ่มคำคมส่วนตัว</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Search & Category Filter Pills */}
+          <div className="space-y-3">
+            {/* Search Box */}
+            <div className="relative">
+              <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+              <input
+                type="text"
+                value={quoteSearchTerm}
+                onChange={(e) => setQuoteSearchTerm(e.target.value)}
+                placeholder="ค้นหาตามชื่อปรมาจารย์ (Mark Douglas, Tom Hougaard...), คำคม หรือหลักคิด..."
+                className="w-full pl-10 pr-10 py-2.5 rounded-xl bg-white dark:bg-[#1a1a1a] border border-slate-200 dark:border-white/[0.08] text-sm text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition"
+              />
+              {quoteSearchTerm && (
+                <button
+                  onClick={() => setQuoteSearchTerm('')}
+                  className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-white"
+                >
+                  <X size={15} />
+                </button>
+              )}
+            </div>
+
+            {/* Category Filter Chips */}
+            <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
+              <button
+                onClick={() => setSelectedQuoteCategory('all')}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition shrink-0 cursor-pointer ${
+                  selectedQuoteCategory === 'all'
+                    ? 'bg-blue-600 text-white shadow-sm shadow-blue-500/20'
+                    : 'bg-white dark:bg-[#1a1a1a] text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white border border-slate-200 dark:border-white/[0.06]'
+                }`}
+              >
+                🌟 ทั้งหมด ({allQuotes.length})
+              </button>
+              {(Object.keys(CATEGORY_LABELS) as Array<keyof typeof CATEGORY_LABELS>).map((catKey) => {
+                const count = allQuotes.filter((q) => q.category === catKey).length;
+                const info = CATEGORY_LABELS[catKey];
+                const isActive = selectedQuoteCategory === catKey;
+                return (
+                  <button
+                    key={catKey}
+                    onClick={() => setSelectedQuoteCategory(catKey)}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition shrink-0 flex items-center gap-1.5 cursor-pointer ${
+                      isActive
+                        ? 'bg-blue-600 text-white shadow-sm shadow-blue-500/20'
+                        : 'bg-white dark:bg-[#1a1a1a] text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white border border-slate-200 dark:border-white/[0.06]'
+                    }`}
+                  >
+                    <span>{info.icon}</span>
+                    <span>{info.th.split('&')[0].trim()}</span>
+                    <span className="text-[10px] opacity-75">({count})</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Quotes Grid */}
+          {filteredQuotes.length === 0 ? (
+            <div className="p-12 text-center rounded-2xl bg-white dark:bg-[#1a1a1a] border border-dashed border-slate-300 dark:border-white/[0.1]">
+              <Quote className="mx-auto text-slate-400 dark:text-slate-600 mb-2" size={32} />
+              <p className="text-sm font-semibold text-slate-700 dark:text-slate-300">ไม่พบคำคมที่ตรงกับการค้นหา</p>
+              <p className="text-xs text-slate-400 mt-1">ลองเปลี่ยนคำค้นหา หรือเลือกหมวดหมู่อื่น</p>
+              <button
+                onClick={() => {
+                  setSelectedQuoteCategory('all');
+                  setQuoteSearchTerm('');
+                }}
+                className="mt-3 px-3 py-1.5 rounded-lg bg-blue-600 text-white text-xs font-bold cursor-pointer hover:bg-blue-700 transition"
+              >
+                ล้างการค้นหาทั้งหมด
+              </button>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {filteredQuotes.map((q) => {
+                const catInfo = CATEGORY_LABELS[q.category] || {
+                  th: q.category,
+                  icon: '💡',
+                };
+                const isCopied = copiedQuoteId === q.id;
+
+                return (
+                  <div
+                    key={q.id}
+                    className="p-5 rounded-2xl bg-white dark:bg-[#1a1a1a] border border-slate-200 dark:border-white/[0.08] hover:border-amber-500/40 hover:shadow-lg hover:shadow-amber-500/5 transition flex flex-col justify-between group relative"
+                  >
+                    <div className="space-y-3">
+                      {/* Card Top: Category & Custom Badge */}
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-[10px] font-black px-2 py-0.5 rounded-md bg-slate-100 dark:bg-white/[0.06] text-slate-600 dark:text-slate-300 flex items-center gap-1 border border-slate-200 dark:border-white/[0.06]">
+                          <span>{catInfo.icon}</span>
+                          <span>{catInfo.th.split('&')[0].trim()}</span>
+                        </span>
+
+                        <div className="flex items-center gap-1">
+                          {q.isCustom && (
+                            <span className="text-[10px] font-black px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-400 border border-blue-500/20">
+                              คำคมส่วนตัว
+                            </span>
+                          )}
+                          {q.isCustom && (
+                            <button
+                              onClick={() => handleDeleteCustomQuote(q.id)}
+                              className="text-slate-400 hover:text-rose-500 p-1 rounded transition opacity-80 group-hover:opacity-100 cursor-pointer"
+                              title="ลบคำคมนี้"
+                            >
+                              <Trash2 size={13} />
+                            </button>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Main Quote in Thai */}
+                      <blockquote className="text-sm sm:text-base font-bold text-slate-900 dark:text-white leading-relaxed">
+                        "{q.quoteTh}"
+                      </blockquote>
+
+                      {/* English Original */}
+                      {q.quoteEn && (
+                        <p className="text-xs text-slate-500 dark:text-slate-400 italic">
+                          "{q.quoteEn}"
+                        </p>
+                      )}
+
+                      {/* Reflection / Practical Rule */}
+                      {q.reflectionTh && (
+                        <div className="p-2.5 rounded-xl bg-amber-500/5 dark:bg-amber-500/10 border border-amber-500/20 text-[11px] text-amber-700 dark:text-amber-300 leading-snug">
+                          <span className="font-bold mr-1">💡 ปฏิบัติจริง:</span>
+                          <span>{q.reflectionTh}</span>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Card Bottom: Author & Action Buttons */}
+                    <div className="pt-4 mt-3 border-t border-slate-100 dark:border-white/[0.06] flex items-center justify-between gap-2">
+                      <div className="min-w-0">
+                        <h4 className="text-xs font-black text-slate-900 dark:text-white truncate">
+                          {q.author}
+                        </h4>
+                        <p className="text-[10px] text-slate-500 dark:text-slate-400 truncate">
+                          {q.role}
+                        </p>
+                      </div>
+
+                      <button
+                        onClick={() => handleCopyQuote(q)}
+                        className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold transition flex items-center gap-1 cursor-pointer shrink-0 ${
+                          isCopied
+                            ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                            : 'bg-slate-100 dark:bg-white/[0.06] hover:bg-slate-200 dark:hover:bg-white/[0.1] text-slate-600 dark:text-slate-300'
+                        }`}
+                        title="คัดลอกคำคม"
+                      >
+                        {isCopied ? <Check size={12} /> : <Copy size={12} />}
+                        <span className="text-[11px]">{isCopied ? 'คัดลอกแล้ว' : 'แชร์'}</span>
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Add Custom Quote Modal */}
+      {isAddQuoteModalOpen && (
+        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
+          <div className="max-w-lg w-full bg-white dark:bg-[#18181b] border border-slate-200 dark:border-white/[0.1] rounded-2xl p-6 shadow-2xl space-y-4 animate-scale-up">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-white/[0.08]">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-amber-500 to-orange-500 text-white flex items-center justify-center font-bold">
+                  <Quote size={16} />
+                </div>
+                <div>
+                  <h3 className="text-base font-black text-slate-900 dark:text-white">
+                    เพิ่มคำคมเตือนสติตนเอง (Personal Mantra)
+                  </h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    บันทึกกฎเหล็ก หรือข้อคิดที่คุณได้เรียนรู้จากตลาดไว้เตือนใจ
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setIsAddQuoteModalOpen(false)}
+                className="text-slate-400 hover:text-slate-600 dark:hover:text-white p-1 rounded-lg"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <form onSubmit={handleAddCustomQuote} className="space-y-3.5">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                    ชื่อเจ้าของคำคม / ตัวเอง <span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={newAuthor}
+                    onChange={(e) => setNewAuthor(e.target.value)}
+                    placeholder="เช่น กฎเหล็กของฉัน หรือ Mark Douglas"
+                    className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/[0.1] text-xs text-slate-900 dark:text-white focus:outline-none focus:border-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                    บทบาท / ฉายา
+                  </label>
+                  <input
+                    type="text"
+                    value={newRole}
+                    onChange={(e) => setNewRole(e.target.value)}
+                    placeholder="เช่น กฎประจำใจ, ประสบการณ์ขาดทุนครั้งใหญ่"
+                    className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/[0.1] text-xs text-slate-900 dark:text-white focus:outline-none focus:border-blue-500"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                  หมวดหมู่หลัก <span className="text-rose-500">*</span>
+                </label>
+                <select
+                  value={newCategory}
+                  onChange={(e) => setNewCategory(e.target.value as MindsetQuote['category'])}
+                  className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/[0.1] text-xs text-slate-900 dark:text-white focus:outline-none focus:border-blue-500"
+                >
+                  <option value="discipline">⚖️ วินัย & การควบคุมอารมณ์</option>
+                  <option value="risk">🛡️ การคุมความเสี่ยง & เอาตัวรอด</option>
+                  <option value="patience">🧘 การรอคอย & นั่งทับมือ</option>
+                  <option value="acceptance">🧠 การยอมรับ Stop Loss & สถิติ</option>
+                  <option value="stoic">🏛️ ปรัชญา Stoic & จิตวิทยาความนิ่ง</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                  ข้อความคำคม (ภาษาไทย) <span className="text-rose-500">*</span>
+                </label>
+                <textarea
+                  required
+                  rows={3}
+                  value={newQuoteTh}
+                  onChange={(e) => setNewQuoteTh(e.target.value)}
+                  placeholder="เขียนประโยคเด็ดที่อ่านแล้วเตือนสติคุณได้ทันที..."
+                  className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/[0.1] text-xs text-slate-900 dark:text-white focus:outline-none focus:border-blue-500 resize-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                  คำคมต้นฉบับภาษาอังกฤษ (ถ้ามี)
+                </label>
+                <input
+                  type="text"
+                  value={newQuoteEn}
+                  onChange={(e) => setNewQuoteEn(e.target.value)}
+                  placeholder="English quote text (optional)..."
+                  className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/[0.1] text-xs text-slate-900 dark:text-white focus:outline-none focus:border-blue-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                  ข้อคิด / แนวทางปฏิบัติจริง (Takeaway)
+                </label>
+                <input
+                  type="text"
+                  value={newReflection}
+                  onChange={(e) => setNewReflection(e.target.value)}
+                  placeholder="เช่น ต้องเช็ค RR 1:2 ก่อนกดเสมอ หรือ ถ้าโดน SL 2 ไม้ติดให้ปิดจอทันที"
+                  className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/[0.1] text-xs text-slate-900 dark:text-white focus:outline-none focus:border-blue-500"
+                />
+              </div>
+
+              <div className="pt-3 border-t border-slate-100 dark:border-white/[0.08] flex items-center justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIsAddQuoteModalOpen(false)}
+                  className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-white/[0.06] dark:hover:bg-white/[0.1] text-slate-700 dark:text-slate-300 text-xs font-bold transition cursor-pointer"
+                >
+                  ยกเลิก
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white text-xs font-bold transition shadow-md shadow-blue-500/25 cursor-pointer"
+                >
+                  บันทึกคำคมลงคลัง
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
