@@ -17,6 +17,8 @@ import {
   CheckCircle2,
   Calendar,
   ExternalLink,
+  Quote,
+  Globe,
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -44,7 +46,47 @@ interface Release {
 
 const RELEASES: Release[] = [
   {
-    version: 'v2.2 (ล่าสุด)',
+    version: 'v2.3 (ล่าสุด)',
+    date: 'พฤศจิกายน 2026',
+    titleTh: '📖 คลังคำคมเตือนสติ & ดึงคำคมจิตวิทยาจากเน็ต (Wisdom Vault & AI)',
+    badgeTh: 'Latest Update',
+    items: [
+      {
+        icon: Quote,
+        color: 'text-amber-400 bg-amber-500/10 border-amber-500/20',
+        titleTh: 'คลังคำคมเตือนสติจิตวิทยาการเทรด (Quotes Library - แท็บที่ 5)',
+        descTh: 'รวบรวม 15+ สุดยอดประโยคเตือนสติจากตำนานเทรดเดอร์ระดับโลก และปรัชญา Stoic พร้อมแนวทางปฏิบัติจริงก่อนเปิดไม้:',
+        subItems: [
+          '🛡️ 5 หมวดหมู่หลัก: คุมความเสี่ยง & เอาตัวรอด, วินัย & การควบคุมอารมณ์, การรอคอย & นั่งทับมือ, การยอมรับ Stop Loss & สถิติ, และ ปรัชญา Stoic',
+          '📖 คำคมคัดสรรจากปรมาจารย์: Mark Douglas, Paul Tudor Jones, Tom Hougaard, Jared Tendler, Jesse Livermore, Marcus Aurelius, Epictetus',
+          '💡 Actionable Takeaways: สรุปหลักคิดสั้นกระชับนำไปใช้ก่อนกดส่งคำสั่งซื้อขาย',
+          '➕ บันทึกกฎเหล็กส่วนตัว (Personal Mantras): จดบันทึกคำเตือนใจและบทเรียนของตัวเองลง LocalStorage พร้อมจัดการลบ/แก้ไขได้ตลอดเวลา',
+        ],
+        href: '/mindset',
+      },
+      {
+        icon: Globe,
+        color: 'text-blue-400 bg-blue-500/10 border-blue-500/20',
+        titleTh: 'ปุ่มค้นหาและดึงคำคมจิตวิทยาจากอินเทอร์เน็ต & AI (Online Discovery)',
+        descTh: 'ระบบค้นหาและดึงคำคมสดใหม่จากคลาวด์และ AI เมื่อต้องการแรงบันดาลใจหรือเตือนสติตามสถานการณ์เฉพาะ:',
+        subItems: [
+          '✨ สุ่มดึงคำคมจากคลาวด์ & Gemini AI ตามหัวข้อที่ต้องการ เช่น วินัย, แก้ Revenge Trade, นั่งทับมือ, หรือเจาะจงนักเขียน',
+          '💾 ปุ่ม "+ บันทึกลงคลังของฉัน": บันทึกคำคมที่ชอบเข้าคลังส่วนตัวในคลิกเดียว',
+          '🌐 ทางลัดค้นหาคำคมต่อบน Google Quotes, Goodreads และ X (Twitter) ได้โดยตรง',
+        ],
+        href: '/mindset',
+      },
+      {
+        icon: Sparkles,
+        color: 'text-purple-400 bg-purple-500/10 border-purple-500/20',
+        titleTh: 'แบนเนอร์คำคมเด่นประจำวัน (Daily Wisdom Hero Banner)',
+        descTh: 'แสดงด้านบนสุดของหน้า Mindset Hub สุ่มคำคมเตือนสติตอนเช้า พร้อมปุ่มสุ่มคำคมถัดไป (🎲 สุ่มคำคม) และปุ่มคัดลอก (Copy) ไปแชร์หรือเตือนใจ',
+        href: '/mindset',
+      },
+    ],
+  },
+  {
+    version: 'v2.2',
     date: 'พฤศจิกายน 2026',
     titleTh: '🚀 ยกระดับจิตวิทยาระดับโปร: Mindset Master Hub & Spot Gold',
     badgeTh: 'Major Update',
@@ -157,7 +199,7 @@ export default function WhatsNewModal({ isOpen, onClose }: WhatsNewModalProps) {
                   {language === 'th' ? "What's New มีอะไรใหม่ในระบบ" : "What's New in Trading Journal"}
                 </h2>
                 <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-500 border border-emerald-500/30 uppercase">
-                  v2.2 LIVE
+                  v2.3 LIVE
                 </span>
               </div>
               <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
