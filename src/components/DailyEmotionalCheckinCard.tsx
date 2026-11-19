@@ -95,9 +95,26 @@ export default function DailyEmotionalCheckinCard() {
   const [cooldownSession, setCooldownSession] = useState<CooldownSession | null>(null);
 
   // Time-of-Day Emotional Logging State (Morning, Afternoon, Evening, Night)
+  const [currentRealTimePeriod, setCurrentRealTimePeriod] = useState<EmotionTimePeriod>(() => getCurrentTimePeriod().period);
   const [selectedPeriod, setSelectedPeriod] = useState<EmotionTimePeriod>(() => getCurrentTimePeriod().period);
+  const [isManualPeriodSelected, setIsManualPeriodSelected] = useState<boolean>(false);
   const [activeSubTab, setActiveSubTab] = useState<'checkin' | 'timeline'>('checkin');
   const [isDebriefModalOpen, setIsDebriefModalOpen] = useState<boolean>(false);
+
+  // Real-time clock watcher: update currentRealTimePeriod and auto-switch if not manually overridden
+  useEffect(() => {
+    const updatePeriod = () => {
+      const realNowPeriod = getCurrentTimePeriod().period;
+      setCurrentRealTimePeriod(realNowPeriod);
+      if (!isManualPeriodSelected) {
+        setSelectedPeriod(realNowPeriod);
+      }
+    };
+
+    updatePeriod();
+    const interval = setInterval(updatePeriod, 10000); // Check every 10s
+    return () => clearInterval(interval);
+  }, [isManualPeriodSelected]);
 
   useEffect(() => {
     // Initial sync
@@ -119,16 +136,27 @@ export default function DailyEmotionalCheckinCard() {
   }, []);
 
   useEffect(() => {
+    const realNowPeriod = getCurrentTimePeriod().period;
+    setCurrentRealTimePeriod(realNowPeriod);
+
     getTodayCheckin().then((checkin) => {
       if (checkin) {
         setTodayCheckin(checkin);
-        setSelectedIds(checkin.selectedEmotionIds || []);
-        setNote(checkin.note || '');
-        if (checkin.currentPeriod) {
-          setSelectedPeriod(checkin.currentPeriod);
+        // Default to the current real-time period
+        setSelectedPeriod(realNowPeriod);
+        const logForPeriod = checkin.logs?.find((l) => l.period === realNowPeriod);
+        if (logForPeriod) {
+          setSelectedIds(logForPeriod.selectedEmotionIds || []);
+          setNote(logForPeriod.note || '');
+        } else {
+          setSelectedIds([]);
+          setNote('');
         }
         setIsExpanded(false);
       } else {
+        setSelectedPeriod(realNowPeriod);
+        setSelectedIds([]);
+        setNote('');
         setIsExpanded(true);
       }
     });
@@ -136,17 +164,19 @@ export default function DailyEmotionalCheckinCard() {
     const handleUpdate = (e: any) => {
       if (e?.detail) {
         setTodayCheckin(e.detail);
-        setSelectedIds(e.detail.selectedEmotionIds || []);
-        setNote(e.detail.note || '');
-        if (e.detail.currentPeriod) {
-          setSelectedPeriod(e.detail.currentPeriod);
+        const realNow = getCurrentTimePeriod().period;
+        const targetPeriod = isManualPeriodSelected ? selectedPeriod : realNow;
+        const logForPeriod = e.detail.logs?.find((l: EmotionLogEntry) => l.period === targetPeriod);
+        if (logForPeriod) {
+          setSelectedIds(logForPeriod.selectedEmotionIds || []);
+          setNote(logForPeriod.note || '');
         }
       }
     };
 
     window.addEventListener('dailyEmotionUpdated', handleUpdate);
     return () => window.removeEventListener('dailyEmotionUpdated', handleUpdate);
-  }, []);
+  }, [isManualPeriodSelected, selectedPeriod]);
 
   const currentScore = useMemo(() => {
     return calculateEmotionalScore(selectedIds);
@@ -219,6 +249,7 @@ export default function DailyEmotionalCheckinCard() {
   const handleSelectLog = (log: EmotionLogEntry) => {
     setSelectedIds(log.selectedEmotionIds || []);
     setSelectedPeriod(log.period);
+    setIsManualPeriodSelected(true);
     setNote(log.note || '');
     setActiveSubTab('checkin');
   };
@@ -709,17 +740,23 @@ export default function DailyEmotionalCheckinCard() {
               {(['morning', 'afternoon', 'evening', 'night'] as EmotionTimePeriod[]).map((p) => {
                 const meta = PERIOD_METADATA[p];
                 const isSelected = selectedPeriod === p;
-                const isCurrentRealTime = getCurrentTimePeriod().period === p;
+                const isCurrentRealTime = currentRealTimePeriod === p;
+                const logForPeriod = todayCheckin?.logs?.find((l) => l.period === p);
+                const hasLogged = !!logForPeriod;
+
                 return (
                   <button
                     key={p}
                     type="button"
                     onClick={() => {
                       setSelectedPeriod(p);
-                      const logForPeriod = todayCheckin?.logs?.find((l) => l.period === p);
+                      setIsManualPeriodSelected(p !== currentRealTimePeriod);
                       if (logForPeriod) {
                         setSelectedIds(logForPeriod.selectedEmotionIds || []);
                         setNote(logForPeriod.note || '');
+                      } else {
+                        setSelectedIds([]);
+                        setNote('');
                       }
                     }}
                     className={`flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer relative ${
@@ -727,17 +764,43 @@ export default function DailyEmotionalCheckinCard() {
                         ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-xs font-black'
                         : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
                     }`}
-                    title={meta.timeRangeTh}
+                    title={`${meta.timeRangeTh} ${isCurrentRealTime ? '(ช่วงเวลาปัจจุบัน)' : ''}`}
                   >
                     <span>{meta.icon}</span>
                     <span>{language === 'th' ? meta.labelTh.split(' ')[0] : meta.labelEn}</span>
+                    {hasLogged && (
+                      <span className="text-[10px] text-emerald-500 font-bold ml-0.5" title="เช็คอินแล้ว">✓</span>
+                    )}
                     {isCurrentRealTime && (
-                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse ml-0.5" />
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse ml-0.5" title="ช่วงเวลาปัจจุบัน" />
                     )}
                   </button>
                 );
               })}
             </div>
+
+            {/* Quick jump to Current Real-time Period button if viewing past/other period */}
+            {isManualPeriodSelected && selectedPeriod !== currentRealTimePeriod && (
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedPeriod(currentRealTimePeriod);
+                  setIsManualPeriodSelected(false);
+                  const logForCurrent = todayCheckin?.logs?.find((l) => l.period === currentRealTimePeriod);
+                  if (logForCurrent) {
+                    setSelectedIds(logForCurrent.selectedEmotionIds || []);
+                    setNote(logForCurrent.note || '');
+                  } else {
+                    setSelectedIds([]);
+                    setNote('');
+                  }
+                }}
+                className="flex items-center gap-1 px-2.5 py-1 rounded-xl text-[11px] font-bold bg-blue-500/10 text-blue-600 dark:text-blue-400 hover:bg-blue-500/20 border border-blue-500/20 transition cursor-pointer"
+                title="กลับไปที่ช่วงเวลาจริงปัจจุบัน"
+              >
+                <span>← ไปช่วงเวลาปัจจุบัน ({PERIOD_METADATA[currentRealTimePeriod]?.labelTh})</span>
+              </button>
+            )}
 
             {/* Daily Debrief Button */}
             <button
