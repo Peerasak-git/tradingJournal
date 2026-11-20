@@ -20,6 +20,10 @@ import {
   Quote,
   Globe,
   Sun,
+  EyeOff,
+  Timer,
+  ListChecks,
+  MonitorOff,
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -47,10 +51,55 @@ interface Release {
 
 const RELEASES: Release[] = [
   {
-    version: 'v2.3 (ล่าสุด)',
+    version: 'v2.4 (ล่าสุด)',
+    date: 'พฤศจิกายน 2026',
+    titleTh: '🧘 ดีท็อกซ์อาการติดกราฟ & ตัวจับเวลาล็อคหน้าจอ (Chart Detox Protocol)',
+    badgeTh: 'Latest Update',
+    items: [
+      {
+        icon: EyeOff,
+        color: 'text-rose-400 bg-rose-500/10 border-rose-500/20',
+        titleTh: 'โปรโตคอลบำบัดอาการติดกราฟ 5 ขั้นตอน (Chart Detox Protocol - แท็บที่ 6)',
+        descTh: 'ระบบแก้ปัญหาการเฝ้าจอเกินขนาด (Screen Addiction) และการแทรกแซงออเดอร์ด้วยหลักประสาทวิทยา (Neuroscience) และวินัยสถาบัน:',
+        subItems: [
+          '🎯 1. Set-and-Forget Architecture: ตั้ง Stop Loss / Take Profit จบในคำสั่งเดียว และใช้ Price Alert แจ้งเตือนแทนการนั่งเฝ้าติ๊กเกอร์',
+          '📱 2. Physical & Mobile Separation: ซ่อน/ลบแอป MT4/5/TradingView จากหน้าแรกมือถือ เปิดโหมดขาวดำ (Grayscale) และลุกออกจากโต๊ะ 30 นาที',
+          '📈 3. Timeframe Upgrade: บังคับดูเฉพาะแท่ง H1 / H4 จบแท่ง เลิกจ้อง M1/M5 ที่เต็มไปด้วย Market Noise หลอกระบบประสาท',
+          '👔 4. CEO vs. Driver Mindset: สลับบทบาทเป็นผู้บริหารระบบ วางแผนเสร็จปล่อยให้ออเดอร์ทำงาน ไม่จับพวงมาลัยเฝ้าตลอดเวลา',
+          '🧘 5. Dopamine Redirection: เปลี่ยนแรงกระตุ้นจากการจ้องแท่งเทียน ไปสู่การจดบันทึกลง Trade Journal และทำ Box Breathing รีเซ็ตสมอง',
+        ],
+        href: '/mindset',
+      },
+      {
+        icon: Timer,
+        color: 'text-indigo-400 bg-indigo-500/10 border-indigo-500/20',
+        titleTh: 'ตัวจับเวลาล็อคหน้าจอฉุกเฉิน (Emergency 30-Minute Screen Lockout Timer)',
+        descTh: 'ตัวช่วยตัดวงจรความอยากเฝ้าจอทันทีหลังเข้าออเดอร์ ป้องกันการ Cut Loss หรือเลื่อน TP ก่อนเวลา:',
+        subItems: [
+          '⏱️ โหมดจับเวลา 15, 30 (แนะนำ), 45, 60 นาที พร้อมแสดงเวลานับถอยหลัง Real-time บน Badge แท็บ',
+          '🔔 เสียงระฆังเตือนสติ (Zen Chime) แจ้งเตือนอัตโนมัติเมื่อหมดเวลา',
+          '⏯️ ควบคุม เริ่ม / หยุดชั่วคราว / รีเซ็ตเวลา ได้ตลอดเวลา',
+        ],
+        href: '/mindset',
+      },
+      {
+        icon: ListChecks,
+        color: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20',
+        titleTh: 'แบบประเมินภาวะติดกราฟ 5 ข้อ (Chart Addiction Self-Assessment)',
+        descTh: 'แบบวินิจฉัยพฤติกรรมการเทรดตนเอง พร้อมคำนวณระดับอาการและคำแนะนำแบบเฉพาะเจาะจง:',
+        subItems: [
+          '📊 ประเมิน 3 ระดับ: สุขภาพจิตดีเยี่ยม (Zen Master 0-1), เริ่มติดหน้าจอ (Screen Glued 2-3), และ ติดกราฟขั้นวิกฤต (Severe Addiction 4-5)',
+          '💾 บันทึกความคืบหน้าของเช็คลิสต์และคะแนนประเมินลง LocalStorage แบบถาวร',
+        ],
+        href: '/mindset',
+      },
+    ],
+  },
+  {
+    version: 'v2.3',
     date: 'พฤศจิกายน 2026',
     titleTh: '📖 คลังคำคมเตือนสติ & ดึงคำคมจิตวิทยาจากเน็ต (Wisdom Vault & AI)',
-    badgeTh: 'Latest Update',
+    badgeTh: 'Mindset Wisdom',
     items: [
       {
         icon: Quote,

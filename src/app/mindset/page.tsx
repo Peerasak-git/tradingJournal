@@ -65,9 +65,21 @@ import {
   Globe,
   ExternalLink,
   Loader2,
+  EyeOff,
+  Smartphone,
+  Bell,
+  MonitorOff,
+  Lock,
+  Unlock,
+  Coffee,
+  ShieldCheck,
+  Timer,
+  ListChecks,
+  BarChart2,
+  Compass,
 } from 'lucide-react';
 
-type MindsetTab = 'agame' | 'urges' | 'zen' | 'bio' | 'quotes';
+type MindsetTab = 'agame' | 'urges' | 'zen' | 'bio' | 'quotes' | 'detox';
 
 const DOUGLAS_TRUTHS = [
   {
@@ -94,6 +106,204 @@ const DOUGLAS_TRUTHS = [
     num: 5,
     titleTh: 'ทุกวินาทีในตลาดมีเอกลักษณ์เฉพาะตัว (Every moment is unique)',
     descTh: 'ตลาดตอนนี้ประกอบด้วยผู้เล่นและสภาพแวดล้อมที่ไม่เคยซ้ำกับในอดีต อย่าผูกใจเจ็บหรือดีใจเกินเหตุกับแพทเทิร์นเดิม',
+  },
+];
+
+const DETOX_STEPS_STORAGE_KEY = 'tj_chart_detox_steps';
+const DETOX_ASSESSMENT_STORAGE_KEY = 'tj_chart_detox_assessment';
+
+interface DetoxProtocolStep {
+  id: string;
+  num: number;
+  badgeTh: string;
+  titleTh: string;
+  subtitleTh: string;
+  color: string;
+  bgLight: string;
+  borderColor: string;
+  icon: any;
+  items: {
+    id: string;
+    textTh: string;
+    detailTh?: string;
+  }[];
+  neuroscienceTh: string;
+  quoteTh?: string;
+}
+
+const DETOX_STEPS: DetoxProtocolStep[] = [
+  {
+    id: 'step_1',
+    num: 1,
+    badgeTh: 'SET-AND-FORGET',
+    titleTh: '1. ระบบตั้งแล้วปล่อย (Set-and-Forget Architecture)',
+    subtitleTh: 'กำหนด Stop Loss & Take Profit ให้เสร็จสิ้น แล้วใช้ Price Alert แทนการนั่งเฝ้าหน้าจอ',
+    color: 'text-blue-500 dark:text-blue-400',
+    bgLight: 'bg-blue-50 dark:bg-blue-950/20',
+    borderColor: 'border-blue-200 dark:border-blue-900/40',
+    icon: Bell,
+    items: [
+      {
+        id: 's1_risk',
+        textTh: 'คำนวณความเสี่ยง (1-2% Risk per Trade) และวาง Stop Loss ทันทีก่อนกดเปิดคำสั่ง',
+        detailTh: 'ไม่มีข้อยกเว้น การเปิดไม้โดยไม่มี SL คือจุดเริ่มต้นของการเฝ้าจอด้วยความกลัว',
+      },
+      {
+        id: 's1_alert',
+        textTh: 'ตั้งแจ้งเตือนราคา (Price Alert) บน TradingView หรือแอปโบรกเกอร์ที่จุดสำคัญ',
+        detailTh: 'ตั้งแจ้งเตือนที่จุด TP และจุดก่อนถึง SL เพื่อให้ระบบเป็นฝ่ายเรียกหาเรา',
+      },
+      {
+        id: 's1_close',
+        textTh: 'พับหน้าจอโน้ตบุ๊ก หรือกดปิดหน้าต่างกราฟทันทีที่ส่งออเดอร์เรียบร้อย',
+        detailTh: 'ท่องไว้เสมอว่า "สายตาของเราไม่สามารถดันกราฟให้วิ่งไปหากำไรได้"',
+      },
+    ],
+    neuroscienceTh: '🧠 กลไกทางสมอง: ทุกครั้งที่คุณเห็นแท่งเทียนกระพริบขึ้นลง สมองจะหลั่งฮอร์โมน Cortisol (ความเครียด) และสร้าง Dopamine Loop หลอกว่าเราควบคุมสถานการณ์ได้ ซึ่งนำไปสู่การเลื่อน SL หนี หรือตัดกำไรก่อนเวลา',
+    quoteTh: '"การเฝ้าจอติ๊กเกอร์ตลอดเวลา ไม่ได้ทำให้คุณเป็นเทรดเดอร์ที่ดีขึ้น แต่มันทำให้คุณกลายเป็นทาสของความวิตกกังวล" — Mark Douglas',
+  },
+  {
+    id: 'step_2',
+    num: 2,
+    badgeTh: 'PHYSICAL DISTANCE',
+    titleTh: '2. การเว้นระยะห่างทางกายภาพ & เคลียร์มือถือ (Physical Separation)',
+    subtitleTh: 'ขจัดสิ่งเร้าจากมือถือ และลุกออกจากโต๊ะเทรดทันทีหลังส่งคำสั่งอย่างน้อย 30 นาที',
+    color: 'text-rose-500 dark:text-rose-400',
+    bgLight: 'bg-rose-50 dark:bg-rose-950/20',
+    borderColor: 'border-rose-200 dark:border-rose-900/40',
+    icon: Smartphone,
+    items: [
+      {
+        id: 's2_hide',
+        textTh: 'ย้ายแอป MT4/MT5/TradingView ออกจากหน้าจอหลัก (Home Screen) หรือซ่อนในโฟลเดอร์',
+        detailTh: 'สร้าง Friction (อุปสรรค) เล็กน้อยเพื่อป้องกันนิสัยกดเปิดดูอัตโนมัติโดยไม่รู้ตัว',
+      },
+      {
+        id: 's2_grayscale',
+        textTh: 'เปิดโหมดหน้าจอขาวดำ (Grayscale Mode) ในมือถือ หรือปิดการแจ้งเตือนยอดเงิน PnL ทั้งหมด',
+        detailTh: 'สีเขียวและสีแดงของตัวเลขผลกำไรเป็นตัวกระตุ้นโดพามีนที่รุนแรงที่สุดในมนุษย์',
+      },
+      {
+        id: 's2_walk',
+        textTh: 'ลุกออกจากโต๊ะเทรดทันที 30 นาที ไปดื่มน้ำ ยืดเหยียด หรือเปลี่ยนสภาพแวดล้อม',
+        detailTh: 'ใช้ Emergency Lockout Timer จับเวลาและห้ามเข้าใกล้คอมพิวเตอร์จนกว่าเสียงระฆังจะดัง',
+      },
+    ],
+    neuroscienceTh: '🚶‍♂️ กลไกทางสมอง: การเดินออกจากโต๊ะเพียง 10 ก้าว ช่วยรีเซ็ตสมองส่วน Amygdala และลดแรงขับความหุนหันพลันแล่น (Impulsive Overtrading) ได้มากกว่า 80%',
+    quoteTh: '"ความอดทนในการนั่งทับมือหลังเปิดไม้ คือทักษะที่ทำเงินให้เทรดเดอร์มืออาชีพมากที่สุดในโลก" — Jesse Livermore',
+  },
+  {
+    id: 'step_3',
+    num: 3,
+    badgeTh: 'TIMEFRAME UPGRADE',
+    titleTh: '3. อัปเกรด Timeframe เป็น H1 / H4 (Timeframe Upgrade)',
+    subtitleTh: 'ดูเฉพาะตอนแท่งเทียนระดับ 1 ชม. หรือ 4 ชม. จบแท่ง เลิกจ้องแท่ง M1 / M5 ที่มีแต่ Noise',
+    color: 'text-amber-500 dark:text-amber-400',
+    bgLight: 'bg-amber-50 dark:bg-amber-950/20',
+    borderColor: 'border-amber-200 dark:border-amber-900/40',
+    icon: TrendingUp,
+    items: [
+      {
+        id: 's3_remove',
+        textTh: 'ลบกราฟแท่งเทียน M1 / M5 ออกจากหน้าต่างเทรดอย่างเด็ดขาด',
+        detailTh: 'ไทม์เฟรมต่ำกว่า 15 นาทีเต็มไปด้วยการสุ่มของสถาบัน (Liquidity Hunting) ที่ทำลายจิตวิทยา',
+      },
+      {
+        id: 's3_candle_close',
+        textTh: 'ตัดสินใจและวิเคราะห์กราฟเฉพาะเมื่อ "แท่งเทียนปิดตัวลงสมบูรณ์แล้ว" เท่านั้น',
+        detailTh: 'ไม่ตัดสินระหว่างแท่งกำลังวิ่ง เพราะไส้เทียนและโมเมนตัมหลอกลวงเปลี่ยนทิศได้ตลอดเวลา',
+      },
+      {
+        id: 's3_schedule',
+        textTh: 'กำหนดตารางดูกราฟเป็นรอบเวลาที่แน่นอน (เช่น ทุกต้นชั่วโมง รอบละ 5 นาที)',
+        detailTh: 'เมื่อครบ 5 นาทีในการตรวจสอบ ให้ปิดโปรแกรมกราฟลงทันทีจนกว่าจะถึงรอบถัดไป',
+      },
+    ],
+    neuroscienceTh: '📊 สถิติทางการแพทย์: เทรดเดอร์ที่เฝ้าหน้าจอ M1/M5 มีระดับความดันโลหิตและอัตราการเต้นของหัวใจเทียบเท่ากับผู้เล่นคาสิโน ในขณะที่การเทรด H1/H4 ให้ผลตอบแทนทางสถิติที่เสถียรกว่าหลายเท่า',
+    quoteTh: '"Timeframe ใหญ่ให้ภาพความจริง Timeframe เล็กให้ภาพลวงตาและความเครียด" — Mark Minervini',
+  },
+  {
+    id: 'step_4',
+    num: 4,
+    badgeTh: 'CEO MINDSET',
+    titleTh: '4. สลับบทบาทเป็น CEO ผู้บริหารระบบ (CEO vs. Driver Mindset)',
+    subtitleTh: 'คุณคือผู้จัดการแผนกลยุทธ์ ไม่ใช่คนขับรถที่ต้องคอยประคองพวงมาลัยทุกวินาที',
+    color: 'text-purple-500 dark:text-purple-400',
+    bgLight: 'bg-purple-50 dark:bg-purple-950/20',
+    borderColor: 'border-purple-200 dark:border-purple-900/40',
+    icon: Award,
+    items: [
+      {
+        id: 's4_delegate',
+        textTh: 'ส่งมอบงานให้ออเดอร์ทำงานตามคำสั่ง: "งานของฉันคือวางแผน งานของระบบคือรันสถิติ"',
+        detailTh: 'หน้าที่ของเทรดเดอร์มือโปรคือ Executing Plan ไม่ใช่การควบคุมทิศทางของลมในมหาสมุทร',
+      },
+      {
+        id: 's4_cost',
+        textTh: 'ยอมรับผลลัพธ์ล่วงหน้า: การโดน Stop Loss คือ "ต้นทุนการทำธุรกิจ" ไม่ใช่ความล้มเหลวส่วนตัว',
+        detailTh: 'ไม้นี้เป็นเพียง 1 ไม้ในชุดตัวอย่าง 1,000 ไม้ อย่าให้มันทำลายความสงบในจิตใจของคุณ',
+      },
+      {
+        id: 's4_process',
+        textTh: 'ประเมินความสำเร็จของวันจากการ "ทำตามวินัย 100%" ไม่ใช่จำนวนเงินบวกหรือลบ',
+        detailTh: 'ไม้ที่แพ้แต่ทำตามแผน ถือเป็นไม้ระดับ A-Game / ไม้ที่ชนะแต่แหกกฎ ถือเป็นไม้ที่อันตรายที่สุด',
+      },
+    ],
+    neuroscienceTh: '👔 หลักการจิตวิทยา: การเปลี่ยนกรอบความคิด (Cognitive Reappraisal) จาก "ผู้เล่นที่กลัวแพ้" เป็น "ผู้บริหารกองทุน" จะปิดการทำงานของอารมณ์ความกลัว และเปิดการทำงานของสมองส่วน Prefrontal Cortex',
+    quoteTh: '"เทรดเดอร์ระดับแชมป์โลกไม่เคยเฝ้ากราฟจนเสียสุขภาพจิต พวกเขารู้จักปล่อยวางและปล่อยให้ Edge ทำงาน" — Tom Hougaard',
+  },
+  {
+    id: 'step_5',
+    num: 5,
+    badgeTh: 'DOPAMINE REDIRECTION',
+    titleTh: '5. เปลี่ยนทิศทางโดพามีนสู่การบันทึก & บำบัด (Dopamine Redirection)',
+    subtitleTh: 'เมื่อเกิดความอยากเปิดกราฟ ให้แปลงพลังงานนั้นไปสู่การจดบันทึก การฝึกสติ และพัฒนาชีวิต',
+    color: 'text-emerald-500 dark:text-emerald-400',
+    bgLight: 'bg-emerald-50 dark:bg-emerald-950/20',
+    borderColor: 'border-emerald-200 dark:border-emerald-900/40',
+    icon: Heart,
+    items: [
+      {
+        id: 's5_journal',
+        textTh: 'บันทึกภาพหน้าจอ Setup และสภาวะอารมณ์ลง Trade Journal ทันทีหลังเปิดไม้',
+        detailTh: 'การเขียนหรือพิมพ์สิ่งที่คิดออกมา จะดึงพลังงานออกจากความอยากจ้องหน้าจอได้อย่างหมดจด',
+      },
+      {
+        id: 's5_box',
+        textTh: 'ฝึกการหายใจ Zen Box Breathing (4-4-4-4) อย่างน้อย 3-5 นาทีเพื่อปรับคลื่นสมอง',
+        detailTh: 'กระตุ้นระบบประสาท Parasympathetic ลดการเต้นของหัวใจและความกระวนกระวายใจ',
+      },
+      {
+        id: 's5_offline',
+        textTh: 'หากิจกรรม Offline ทำทันที: ดื่มน้ำเย็น 1 แก้วใหญ่, เดินรับแดด, หรืออ่านหนังสือ 1 บท',
+        detailTh: 'เติมเต็มโดพามีนที่ดีจากความสำเร็จเล็กๆ นอกตลาด เพื่อให้ชีวิตไม่ผูกติดอยู่กับกราฟราคา',
+      },
+    ],
+    neuroscienceTh: '⚡ วิทยาศาสตร์ฮอร์โมน: ร่างกายมนุษย์ไม่สามารถขจัดโดพามีนทิ้งได้ตามใจชอบ แต่เราสามารถ "แทนที่" (Sublimation) ด้วยพฤติกรรมที่มีประโยชน์และสร้างความสงบให้กับระบบประสาทได้',
+    quoteTh: '"จิตใจที่สงบและอยู่ห่างจากความผันผวนของราคา คืออาวุธที่อันตรายที่สุดในตลาดการเงิน" — Jared Tendler',
+  },
+];
+
+const DETOX_ASSESSMENT_QUESTIONS = [
+  {
+    id: 1,
+    questionTh: 'คุณเปิดดูจอกราฟ หรือเช็คพอร์ตในมือถือมากกว่า 20 ครั้งต่อวัน แม้ไม่ได้มีสัญญาณเปิดออเดอร์ใหม่?',
+  },
+  {
+    id: 2,
+    questionTh: 'เมื่อมีออเดอร์ค้างอยู่ คุณรู้สึกกระวนกระวายใจจนต้องจ้องกราฟแท่งต่อแท่ง (M1/M5) แทบละสายตาไม่ได้?',
+  },
+  {
+    id: 3,
+    questionTh: 'คุณเคยหยิบมือถือมาเปิดดูกราฟระหว่างทานข้าว ขับรถ หรืออยู่กับครอบครัว/คนรัก จนเสียสมาธิและบรรยากาศ?',
+  },
+  {
+    id: 4,
+    questionTh: 'การแกว่งตัวของแท่งเทียนทำให้คุณใจสั่น จนเผลอขยับ Stop Loss หนี หรือปิดทำกำไรเร็วเกินไปเพราะทนดูไม่ไหว?',
+  },
+  {
+    id: 5,
+    questionTh: 'ในวันเสาร์-อาทิตย์ที่ตลาดปิด คุณรู้สึกกระสับกระส่าย เหงา ว่างเปล่า หรือโหยหาความตื่นเต้นจากการขยับของกราฟ?',
   },
 ];
 
@@ -145,12 +355,31 @@ export default function MindsetHubPage() {
   const [quoteCountdown, setQuoteCountdown] = useState<number>(QUOTE_AUTO_ROTATE_SECONDS);
   const [isAutoRotateQuotes, setIsAutoRotateQuotes] = useState<boolean>(true);
 
+  // Chart Detox Protocol States
+  const [detoxTimerSeconds, setDetoxTimerSeconds] = useState<number>(1800); // 30 minutes default
+  const [detoxTimerPreset, setDetoxTimerPreset] = useState<number>(1800);
+  const [isDetoxTimerRunning, setIsDetoxTimerRunning] = useState<boolean>(false);
+  const [completedDetoxSteps, setCompletedDetoxSteps] = useState<Record<string, boolean>>({});
+  const [detoxAssessmentAnswers, setDetoxAssessmentAnswers] = useState<Record<number, boolean>>({});
+
   // Load data
   useEffect(() => {
     setTodayState(getTodayMindset());
     setHistory(getMindsetHistory());
     setCustomQuotes(getCustomQuotes());
     getTrades().then(setTrades).catch(console.error);
+
+    // Load Detox data from LocalStorage
+    if (typeof window !== 'undefined') {
+      try {
+        const savedSteps = localStorage.getItem(DETOX_STEPS_STORAGE_KEY);
+        if (savedSteps) setCompletedDetoxSteps(JSON.parse(savedSteps));
+        const savedAssessment = localStorage.getItem(DETOX_ASSESSMENT_STORAGE_KEY);
+        if (savedAssessment) setDetoxAssessmentAnswers(JSON.parse(savedAssessment));
+      } catch (e) {
+        console.error('Error loading detox data', e);
+      }
+    }
 
     const handleUpdate = () => {
       setTodayState(getTodayMindset());
@@ -424,6 +653,112 @@ export default function MindsetHubPage() {
     });
   }, [allQuotes, selectedQuoteCategory, quoteSearchTerm]);
 
+  // Play Detox Bell Chime (Web Audio API)
+  const playDetoxBell = () => {
+    try {
+      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+      if (!AudioCtx) return;
+      const ctx = new AudioCtx();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(523.25, ctx.currentTime); // C5
+      osc.frequency.exponentialRampToValueAtTime(783.99, ctx.currentTime + 0.3); // G5
+      gain.gain.setValueAtTime(0.35, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 1.8);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start();
+      osc.stop(ctx.currentTime + 1.8);
+    } catch (e) {
+      // Audio not permitted without user interaction
+    }
+  };
+
+  // Detox Lockout Timer Effect
+  useEffect(() => {
+    let interval: NodeJS.Timeout | null = null;
+    if (isDetoxTimerRunning && detoxTimerSeconds > 0) {
+      interval = setInterval(() => {
+        setDetoxTimerSeconds((prev) => {
+          if (prev <= 1) {
+            setIsDetoxTimerRunning(false);
+            playDetoxBell();
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+    }
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [isDetoxTimerRunning, detoxTimerSeconds]);
+
+  const formatDetoxTime = (totalSecs: number) => {
+    const mins = Math.floor(totalSecs / 60);
+    const secs = totalSecs % 60;
+    return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+  };
+
+  const handleSelectDetoxPreset = (secs: number) => {
+    setDetoxTimerPreset(secs);
+    setDetoxTimerSeconds(secs);
+    setIsDetoxTimerRunning(false);
+  };
+
+  const toggleDetoxStep = (itemId: string) => {
+    setCompletedDetoxSteps((prev) => {
+      const updated = { ...prev, [itemId]: !prev[itemId] };
+      if (typeof window !== 'undefined') {
+        localStorage.setItem(DETOX_STEPS_STORAGE_KEY, JSON.stringify(updated));
+      }
+      return updated;
+    });
+  };
+
+  const toggleDetoxAssessment = (qId: number) => {
+    setDetoxAssessmentAnswers((prev) => {
+      const updated = { ...prev, [qId]: !prev[qId] };
+      if (typeof window !== 'undefined') {
+        localStorage.setItem(DETOX_ASSESSMENT_STORAGE_KEY, JSON.stringify(updated));
+      }
+      return updated;
+    });
+  };
+
+  const resetDetoxAssessment = () => {
+    setDetoxAssessmentAnswers({});
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem(DETOX_ASSESSMENT_STORAGE_KEY);
+    }
+  };
+
+  // Total detox checklist items count & completed count
+  const detoxStats = useMemo(() => {
+    let totalItems = 0;
+    let completedCount = 0;
+    DETOX_STEPS.forEach((step) => {
+      step.items.forEach((item) => {
+        totalItems += 1;
+        if (completedDetoxSteps[item.id]) {
+          completedCount += 1;
+        }
+      });
+    });
+    const percentage = totalItems > 0 ? Math.round((completedCount / totalItems) * 100) : 0;
+    return { totalItems, completedCount, percentage };
+  }, [completedDetoxSteps]);
+
+  // Assessment score
+  const detoxScore = useMemo(() => {
+    let score = 0;
+    DETOX_ASSESSMENT_QUESTIONS.forEach((q) => {
+      if (detoxAssessmentAnswers[q.id]) score += 1;
+    });
+    return score;
+  }, [detoxAssessmentAnswers]);
+
   return (
     <main className="p-4 sm:p-6 md:p-8 max-w-7xl mx-auto space-y-6 animate-fade-in">
       {/* Page Header */}
@@ -648,6 +983,29 @@ export default function MindsetHubPage() {
           <span>{language === 'th' ? '5. คลังคำคมเตือนสติ' : '5. Quotes Library'}</span>
           <span className="text-[10px] font-black px-1.5 py-0.5 rounded-md bg-amber-500/20 text-amber-400">
             {allQuotes.length}
+          </span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('detox')}
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-xs sm:text-sm font-bold transition-all cursor-pointer ${
+            activeTab === 'detox'
+              ? 'bg-rose-600 text-white shadow-sm shadow-rose-500/25 scale-[1.01]'
+              : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-white/[0.04]'
+          }`}
+        >
+          <EyeOff size={16} />
+          <span>{language === 'th' ? '6. ดีท็อกซ์ติดกราฟ & พักจอ' : '6. Chart Detox & Lockout'}</span>
+          <span
+            className={`text-[10px] font-black px-1.5 py-0.5 rounded-md transition-all ${
+              isDetoxTimerRunning
+                ? 'bg-amber-400 text-slate-900 font-mono animate-pulse font-bold'
+                : detoxStats.completedCount > 0
+                ? 'bg-emerald-500/20 text-emerald-400'
+                : 'bg-rose-500/20 text-rose-400'
+            }`}
+          >
+            {isDetoxTimerRunning ? `⏱️ ${formatDetoxTime(detoxTimerSeconds)}` : `${detoxStats.completedCount}/${detoxStats.totalItems}`}
           </span>
         </button>
       </div>
@@ -1584,6 +1942,532 @@ export default function MindsetHubPage() {
               })}
             </div>
           )}
+        </div>
+      )}
+
+      {/* ===================================================================== */}
+      {/* TAB 6: CHART DETOX PROTOCOL & SCREEN LOCKOUT                          */}
+      {/* ===================================================================== */}
+      {activeTab === 'detox' && (
+        <div className="space-y-6 animate-fade-in">
+          {/* Hero Banner */}
+          <div className="relative overflow-hidden rounded-3xl p-6 sm:p-8 bg-gradient-to-br from-rose-950/40 via-purple-950/30 to-slate-900 border border-rose-500/30 shadow-xl">
+            <div className="absolute top-0 right-0 -mr-16 -mt-16 w-64 h-64 rounded-full bg-rose-500/10 blur-3xl pointer-events-none" />
+            <div className="absolute bottom-0 left-0 -ml-16 -mb-16 w-64 h-64 rounded-full bg-indigo-500/10 blur-3xl pointer-events-none" />
+
+            <div className="relative z-10 flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+              <div className="space-y-3 max-w-2xl">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="px-3 py-1 rounded-full text-[11px] font-black uppercase tracking-wider bg-rose-500/20 text-rose-300 border border-rose-500/30 flex items-center gap-1.5">
+                    <EyeOff size={12} />
+                    <span>CHART DETOX PROTOCOL</span>
+                  </span>
+                  <span className="px-3 py-1 rounded-full text-[11px] font-semibold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 flex items-center gap-1.5">
+                    <Brain size={12} />
+                    <span>Neuroscience-Backed Habit System</span>
+                  </span>
+                </div>
+
+                <h2 className="text-2xl sm:text-3xl font-black text-white tracking-tight leading-tight">
+                  โปรโตคอลบำบัดอาการติดกราฟ & ตัวช่วยกักกันสติ
+                </h2>
+                <p className="text-xs sm:text-sm text-slate-300 leading-relaxed">
+                  หยุดทำตัวเป็น "นักขับรถที่ต้องคอยประคองพวงมาลัยตลอดเวลา" และเปลี่ยนมาเป็น "CEO ผู้บริหารระบบ" — ตั้ง Stop Loss / Take Profit ให้เสร็จสิ้น แล้วเดินออกจากหน้าจอเพื่อปล่อยให้แต้มต่อทางสถิติทำงานตามแผน
+                </p>
+
+                {/* Progress bar */}
+                <div className="pt-2">
+                  <div className="flex items-center justify-between text-xs font-bold text-slate-300 mb-1.5">
+                    <span className="flex items-center gap-1.5">
+                      <ShieldCheck size={14} className="text-emerald-400" />
+                      <span>ความคืบหน้าการปฏิบัติ Detox ทั้งหมด</span>
+                    </span>
+                    <span className="text-emerald-400 font-mono font-black">
+                      {detoxStats.completedCount}/{detoxStats.totalItems} ข้อ ({detoxStats.percentage}%)
+                    </span>
+                  </div>
+                  <div className="h-2 w-full rounded-full bg-white/10 overflow-hidden">
+                    <div
+                      className="h-full bg-gradient-to-r from-rose-500 via-amber-500 to-emerald-500 transition-all duration-500"
+                      style={{ width: `${detoxStats.percentage}%` }}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Quick Summary Pill / Status Card */}
+              <div className="p-4 sm:p-5 rounded-2xl bg-white/[0.04] backdrop-blur-md border border-white/10 flex flex-col gap-3 min-w-[260px]">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-slate-400 font-medium">ระดับภาวะติดกราฟ</span>
+                  <span
+                    className={`text-xs font-black px-2.5 py-0.5 rounded-full ${
+                      detoxScore <= 1
+                        ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                        : detoxScore <= 3
+                        ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
+                        : 'bg-rose-500/20 text-rose-400 border border-rose-500/30 animate-pulse'
+                    }`}
+                  >
+                    {detoxScore <= 1 ? '🟢 ปกติ / Zen Master' : detoxScore <= 3 ? '🟡 เริ่มติดจอ' : '🔴 วิกฤต / Dopamine Loop'}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-slate-400 font-medium">สถานะตัวจับเวลาพักจอ</span>
+                  <span className="text-xs font-mono font-bold text-white flex items-center gap-1.5">
+                    <Timer size={13} className={isDetoxTimerRunning ? 'text-amber-400 animate-spin' : 'text-slate-400'} />
+                    <span>{isDetoxTimerRunning ? `กำลังจับเวลา (${formatDetoxTime(detoxTimerSeconds)})` : 'สแตนด์บาย'}</span>
+                  </span>
+                </div>
+                <div className="pt-2 border-t border-white/10 flex items-center justify-between text-[11px] text-slate-400">
+                  <span>กฎเหล็ก: ปิดจอ = รวยกว่าเฝ้าจอ</span>
+                  <button
+                    onClick={() => {
+                      const el = document.getElementById('screen-lockout-timer');
+                      if (el) el.scrollIntoView({ behavior: 'smooth' });
+                    }}
+                    className="text-xs font-bold text-rose-400 hover:text-rose-300 underline cursor-pointer"
+                  >
+                    ไปที่ตัวจับเวลา ↓
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* SECTION 1: EMERGENCY 30-MINUTE SCREEN LOCKOUT TIMER */}
+          <div
+            id="screen-lockout-timer"
+            className="p-6 sm:p-8 rounded-3xl bg-white dark:bg-[#151518] border-2 border-rose-500/30 dark:border-rose-500/30 shadow-2xl space-y-6 relative overflow-hidden"
+          >
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-slate-100 dark:border-white/[0.08]">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-rose-600 to-orange-500 text-white flex items-center justify-center shadow-lg shadow-rose-500/25 shrink-0">
+                  <Timer size={24} />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[11px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md bg-rose-500/10 text-rose-500 dark:text-rose-400 border border-rose-500/20">
+                      EMERGENCY LOCKOUT
+                    </span>
+                    <span className="text-xs text-slate-500 dark:text-slate-400">30-Minute Screen Quarantine</span>
+                  </div>
+                  <h3 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white mt-0.5">
+                    ตัวจับเวลาล็อคหน้าจอฉุกเฉิน 30 นาที (Screen Quarantine)
+                  </h3>
+                </div>
+              </div>
+
+              {/* Preset Selector Buttons */}
+              <div className="flex items-center gap-1.5 flex-wrap">
+                {[
+                  { label: '15 นาที', secs: 900 },
+                  { label: '30 นาที (แนะนำ)', secs: 1800 },
+                  { label: '45 นาที', secs: 2700 },
+                  { label: '60 นาที', secs: 3600 },
+                ].map((preset) => (
+                  <button
+                    key={preset.secs}
+                    onClick={() => handleSelectDetoxPreset(preset.secs)}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
+                      detoxTimerPreset === preset.secs
+                        ? 'bg-rose-500 text-white shadow-md shadow-rose-500/25'
+                        : 'bg-slate-100 dark:bg-white/[0.06] text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-white/[0.1]'
+                    }`}
+                  >
+                    {preset.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Timer Display & Controls */}
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-center">
+              {/* Digital Clock Visual */}
+              <div className="lg:col-span-5 flex flex-col items-center justify-center p-8 rounded-2xl bg-gradient-to-b from-slate-900 to-black border border-white/10 shadow-inner relative overflow-hidden group">
+                <div
+                  className={`absolute inset-0 bg-radial from-rose-500/20 to-transparent transition-opacity duration-700 pointer-events-none ${
+                    isDetoxTimerRunning ? 'opacity-100 animate-pulse' : 'opacity-30'
+                  }`}
+                />
+
+                <span className="text-[11px] font-black tracking-widest text-rose-400 uppercase mb-2">
+                  {isDetoxTimerRunning ? '🔴 SCREEN QUARANTINE IN PROGRESS' : '⚪ READY TO LOCKOUT'}
+                </span>
+
+                <div className="text-6xl sm:text-7xl font-mono font-black text-white tracking-tighter drop-shadow-md">
+                  {formatDetoxTime(detoxTimerSeconds)}
+                </div>
+
+                <div className="text-xs text-slate-400 mt-2 font-medium">
+                  {detoxTimerSeconds === 0 ? '🎉 ยินดีด้วย! ครบกำหนดการพักสายตาแล้ว' : 'เวลาที่เหลือก่อนสามารถกลับมาเช็คกราฟได้'}
+                </div>
+
+                {/* Progress bar */}
+                <div className="w-full mt-5 h-1.5 rounded-full bg-white/10 overflow-hidden">
+                  <div
+                    className="h-full bg-gradient-to-r from-rose-500 via-amber-500 to-emerald-400 transition-all duration-1000 ease-linear"
+                    style={{
+                      width: `${((detoxTimerPreset - detoxTimerSeconds) / detoxTimerPreset) * 100}%`,
+                    }}
+                  />
+                </div>
+
+                {/* Controls */}
+                <div className="flex items-center gap-3 mt-6">
+                  <button
+                    onClick={() => setIsDetoxTimerRunning(!isDetoxTimerRunning)}
+                    className={`px-6 py-3 rounded-2xl font-black text-sm flex items-center gap-2 transition cursor-pointer shadow-lg hover:scale-105 active:scale-95 ${
+                      isDetoxTimerRunning
+                        ? 'bg-amber-500 hover:bg-amber-600 text-slate-950 shadow-amber-500/25'
+                        : 'bg-gradient-to-r from-rose-600 to-orange-500 hover:from-rose-700 hover:to-orange-600 text-white shadow-rose-500/30'
+                    }`}
+                  >
+                    {isDetoxTimerRunning ? (
+                      <>
+                        <Pause size={18} />
+                        <span>หยุดชั่วคราว</span>
+                      </>
+                    ) : (
+                      <>
+                        <Play size={18} />
+                        <span>เริ่มนับเวลาล็อคจอ 30 นาที 🚀</span>
+                      </>
+                    )}
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      setIsDetoxTimerRunning(false);
+                      setDetoxTimerSeconds(detoxTimerPreset);
+                    }}
+                    className="p-3 rounded-2xl bg-white/10 hover:bg-white/20 text-white transition cursor-pointer"
+                    title="รีเซ็ตเวลา"
+                  >
+                    <RotateCcw size={18} />
+                  </button>
+
+                  <button
+                    onClick={playDetoxBell}
+                    className="p-3 rounded-2xl bg-white/10 hover:bg-white/20 text-slate-300 hover:text-white transition cursor-pointer"
+                    title="ทดสอบเสียงระฆังเตือนสติ"
+                  >
+                    <Volume2 size={18} />
+                  </button>
+                </div>
+              </div>
+
+              {/* Protocol Instructions Callout */}
+              <div className="lg:col-span-7 space-y-4">
+                <div className="p-5 rounded-2xl bg-rose-500/10 border border-rose-500/20 text-rose-900 dark:text-rose-200">
+                  <div className="flex items-center gap-2 font-black text-sm text-rose-600 dark:text-rose-400 mb-2">
+                    <Lock size={16} />
+                    <span>กฎเหล็ก 3 ข้อทันทีที่กดส่งคำสั่งเข้าออเดอร์:</span>
+                  </div>
+                  <ol className="space-y-2 text-xs sm:text-sm text-slate-700 dark:text-slate-300 list-decimal list-inside leading-relaxed">
+                    <li>
+                      <strong className="text-slate-900 dark:text-white">ล็อคหน้าจอคอมพิวเตอร์ทันที:</strong> กดปุ่ม Windows + L (หรือ Cmd + Ctrl + Q บน Mac) หรือพับหน้าจอโน้ตบุ๊กลง
+                    </li>
+                    <li>
+                      <strong className="text-slate-900 dark:text-white">คว่ำหน้าจอมือถือลง:</strong> นำโทรศัพท์ไปวางไว้นอกห้องทำงาน หรือวางให้ห่างจากสายตาอย่างน้อย 5 เมตร
+                    </li>
+                    <li>
+                      <strong className="text-slate-900 dark:text-white">ลุกออกจากโต๊ะ 30 นาที:</strong> เดินไปดื่มน้ำเย็น 1 แก้วใหญ่, ยืดกล้ามเนื้อ, หรือออกไปสูดอากาศนอกระเบียง ห้ามเปิดดูกราฟเด็ดขาดจนกว่าเสียงระฆังจะดัง
+                    </li>
+                  </ol>
+                </div>
+
+                <div className="p-4 rounded-2xl bg-slate-50 dark:bg-white/[0.04] border border-slate-200 dark:border-white/[0.06] text-xs text-slate-600 dark:text-slate-400 space-y-1.5">
+                  <div className="flex items-center gap-1.5 font-bold text-slate-900 dark:text-white">
+                    <Brain size={14} className="text-purple-400" />
+                    <span>ทำไมต้อง 30 นาทีแรก? (The Golden 30-Minute Window)</span>
+                  </div>
+                  <p className="leading-relaxed">
+                    นักประสาทวิทยาพบว่า 30 นาทีแรกหลังจากส่งคำสั่งซื้อขาย คือช่วงที่สมองของเทรดเดอร์หลั่งสาร Dopamine และ Cortisol สูงที่สุด หากนั่งเฝ้าจอ จะเกิดความกลัวและแทรกแซงออเดอร์ (ขยับ SL หรือ Cut ทิ้ง) จนทำลาย Win Rate ในระยะยาว การแยกตัวออกจากหน้าจอ 30 นาทีแรก จะช่วยให้สมองกลับเข้าสู่โหมดสงบและปล่อยให้ออเดอร์วิ่งตามสถิติ
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* SECTION 2: 5-QUESTION CHART ADDICTION SELF-ASSESSMENT */}
+          <div className="p-6 sm:p-8 rounded-3xl bg-white dark:bg-[#1a1a1a] border border-slate-200 dark:border-white/[0.08] shadow-sm space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-100 dark:border-white/[0.08]">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-indigo-600 to-purple-600 text-white flex items-center justify-center font-bold shadow-md shadow-indigo-500/20">
+                  <ListChecks size={20} />
+                </div>
+                <div>
+                  <h3 className="text-lg sm:text-xl font-black text-slate-900 dark:text-white">
+                    แบบประเมินภาวะติดกราฟ (Chart Addiction Self-Assessment)
+                  </h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    ตอบตามความจริงเพื่อตรวจเช็คระดับสารเคมีในสมองและพฤติกรรมการเทรด
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={resetDetoxAssessment}
+                  className="px-3 py-1.5 rounded-xl text-xs font-semibold text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white bg-slate-100 dark:bg-white/[0.05] hover:bg-slate-200 dark:hover:bg-white/[0.1] transition cursor-pointer flex items-center gap-1.5"
+                >
+                  <RotateCcw size={12} />
+                  <span>ล้างคำตอบ</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Assessment Questions */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+              {DETOX_ASSESSMENT_QUESTIONS.map((q) => {
+                const isChecked = !!detoxAssessmentAnswers[q.id];
+                return (
+                  <div
+                    key={q.id}
+                    onClick={() => toggleDetoxAssessment(q.id)}
+                    className={`p-4 rounded-2xl border-2 transition-all cursor-pointer flex items-start gap-3 select-none ${
+                      isChecked
+                        ? 'bg-rose-500/10 border-rose-500/40 text-slate-900 dark:text-white shadow-sm'
+                        : 'bg-slate-50 dark:bg-white/[0.02] border-slate-200 dark:border-white/[0.06] hover:border-slate-300 dark:hover:border-white/[0.15] text-slate-700 dark:text-slate-300'
+                    }`}
+                  >
+                    <div
+                      className={`w-6 h-6 rounded-lg flex items-center justify-center shrink-0 mt-0.5 font-bold text-xs transition ${
+                        isChecked
+                          ? 'bg-rose-500 text-white shadow-sm shadow-rose-500/30'
+                          : 'border-2 border-slate-300 dark:border-white/20 text-transparent'
+                      }`}
+                    >
+                      ✓
+                    </div>
+                    <div className="min-w-0">
+                      <span className="text-xs sm:text-sm font-semibold leading-relaxed">
+                        {q.questionTh}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Diagnostic Result Banner */}
+            <div
+              className={`p-5 rounded-2xl border transition-all ${
+                detoxScore <= 1
+                  ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-900 dark:text-emerald-200'
+                  : detoxScore <= 3
+                  ? 'bg-amber-500/10 border-amber-500/30 text-amber-900 dark:text-amber-200'
+                  : 'bg-rose-500/10 border-rose-500/30 text-rose-900 dark:text-rose-200'
+              }`}
+            >
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono text-sm font-black px-2.5 py-0.5 rounded-lg bg-black/20">
+                      คะแนน: {detoxScore} / 5 ข้อ
+                    </span>
+                    <span className="font-black text-sm sm:text-base">
+                      {detoxScore <= 1
+                        ? '🟢 ระดับ 1: สุขภาพจิตดีเยี่ยม (Zen Master)'
+                        : detoxScore <= 3
+                        ? '🟡 ระดับ 2: เริ่มมีภาวะติดหน้าจอ (Screen Glued)'
+                        : '🔴 ระดับ 3: ภาวะติดกราฟขั้นวิกฤต (Severe Dopamine Addiction)'}
+                    </span>
+                  </div>
+                  <p className="text-xs sm:text-sm leading-relaxed opacity-90">
+                    {detoxScore <= 1
+                      ? 'คุณมีระยะห่างที่ดีเยี่ยมกับตลาด ไม่ตกเป็นทาสของความผันผวน รักษามาตรฐานนี้ไว้โดยการปฏิบัติตามระบบ Set-and-Forget อย่างสม่ำเสมอ'
+                      : detoxScore <= 3
+                      ? 'คุณเริ่มปล่อยให้กราฟราคาดึงดูดพลังงานชีวิตมากเกินไป แนะนำให้เปิดใช้ Price Alert บน TradingView และเริ่มกำหนดเวลาดูกราฟเฉพาะตอนปิดแท่ง H1/H4 เท่านั้น'
+                      : 'สมองของคุณกำลังติดอยู่ในวงจรอารมณ์ Cortisol & Dopamine Loop อย่างรุนแรง ทำให้เสี่ยงต่อการ Overtrade และล้างพอร์ต! คุณต้องทำตาม 5-Step Detox Protocol ด้านล่างทันที ลบแอปในมือถือ และใช้ Emergency Lockout ทุกครั้งที่เปิดไม้'}
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* SECTION 3: 5-STEP ACTIONABLE DETOX PROTOCOL */}
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-lg sm:text-xl font-black text-slate-900 dark:text-white flex items-center gap-2">
+                  <ShieldCheck size={20} className="text-emerald-500" />
+                  <span>พิมพ์เขียว 5 ขั้นตอนบำบัดอาการติดกราฟ (Actionable Protocol)</span>
+                </h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  คลิกเช็คลิสต์เมื่อคุณนำหลักการไปปฏิบัติจริงในชีวิตประจำวัน (บันทึกข้อมูลถาวร)
+                </p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 gap-5">
+              {DETOX_STEPS.map((step) => {
+                const StepIcon = step.icon;
+                const stepItemsCompleted = step.items.filter((i) => completedDetoxSteps[i.id]).length;
+                const isStepAllDone = stepItemsCompleted === step.items.length;
+
+                return (
+                  <div
+                    key={step.id}
+                    className={`rounded-3xl border-2 transition-all overflow-hidden ${
+                      isStepAllDone
+                        ? 'bg-emerald-500/[0.03] border-emerald-500/30'
+                        : 'bg-white dark:bg-[#1a1a1a] border-slate-200 dark:border-white/[0.08]'
+                    } shadow-sm`}
+                  >
+                    {/* Step Card Header */}
+                    <div className="p-5 sm:p-6 border-b border-slate-100 dark:border-white/[0.06] flex flex-col md:flex-row md:items-center justify-between gap-4">
+                      <div className="flex items-start gap-4">
+                        <div
+                          className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 shadow-md ${
+                            isStepAllDone
+                              ? 'bg-emerald-500 text-white shadow-emerald-500/25'
+                              : 'bg-gradient-to-tr from-slate-800 to-slate-900 text-white border border-white/10'
+                          }`}
+                        >
+                          <StepIcon size={22} className={step.color} />
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md bg-black/10 dark:bg-white/10 text-slate-700 dark:text-slate-300">
+                              {step.badgeTh}
+                            </span>
+                            <span className="text-xs font-mono font-bold text-slate-400">
+                              ขั้นตอนที่ {step.num}/5
+                            </span>
+                          </div>
+                          <h4 className="text-base sm:text-lg font-black text-slate-900 dark:text-white mt-1">
+                            {step.titleTh}
+                          </h4>
+                          <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                            {step.subtitleTh}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <span
+                          className={`text-xs font-mono font-black px-3 py-1.5 rounded-xl border ${
+                            isStepAllDone
+                              ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30'
+                              : 'bg-slate-100 dark:bg-white/[0.05] text-slate-600 dark:text-slate-400 border-transparent'
+                          }`}
+                        >
+                          {isStepAllDone ? '✓ ครบทุกข้อ' : `${stepItemsCompleted}/${step.items.length} ข้อ`}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Step Checklist Items */}
+                    <div className="p-5 sm:p-6 space-y-3">
+                      <div className="grid grid-cols-1 gap-2.5">
+                        {step.items.map((item) => {
+                          const isChecked = !!completedDetoxSteps[item.id];
+                          return (
+                            <div
+                              key={item.id}
+                              onClick={() => toggleDetoxStep(item.id)}
+                              className={`p-3.5 sm:p-4 rounded-2xl border transition-all cursor-pointer flex items-start gap-3.5 select-none ${
+                                isChecked
+                                  ? 'bg-emerald-500/10 border-emerald-500/30 text-slate-900 dark:text-white'
+                                  : 'bg-slate-50/80 dark:bg-white/[0.02] border-slate-200 dark:border-white/[0.06] hover:border-slate-300 dark:hover:border-white/[0.15] text-slate-700 dark:text-slate-300'
+                              }`}
+                            >
+                              <div
+                                className={`w-5 h-5 rounded-lg flex items-center justify-center shrink-0 mt-0.5 font-bold text-xs transition ${
+                                  isChecked
+                                    ? 'bg-emerald-500 text-white shadow-sm shadow-emerald-500/30'
+                                    : 'border-2 border-slate-300 dark:border-white/20 text-transparent'
+                                }`}
+                              >
+                                ✓
+                              </div>
+                              <div className="min-w-0">
+                                <p
+                                  className={`text-xs sm:text-sm font-bold leading-snug ${
+                                    isChecked ? 'line-through opacity-80' : ''
+                                  }`}
+                                >
+                                  {item.textTh}
+                                </p>
+                                {item.detailTh && (
+                                  <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">
+                                    💡 {item.detailTh}
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+
+                      {/* Neuroscience Mechanism Callout */}
+                      <div className="p-3.5 rounded-2xl bg-blue-500/10 border border-blue-500/20 text-xs text-blue-800 dark:text-blue-300 leading-relaxed">
+                        <span>{step.neuroscienceTh}</span>
+                      </div>
+
+                      {/* Master Trader Quote */}
+                      {step.quoteTh && (
+                        <div className="p-3 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-xs text-amber-800 dark:text-amber-300 italic flex items-center gap-2">
+                          <Quote size={13} className="shrink-0 text-amber-500" />
+                          <span>{step.quoteTh}</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* SECTION 4: EMERGENCY SHORTCUTS & ACTION BAR */}
+          <div className="p-6 rounded-3xl bg-gradient-to-r from-blue-900/30 via-indigo-900/30 to-purple-900/30 border border-white/10 shadow-lg">
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+              <div>
+                <h4 className="text-base font-black text-white flex items-center gap-2">
+                  <Sparkles size={18} className="text-amber-400" />
+                  <span>ทางลัดเมื่อมือสั่นอยากกดดูกราฟ (Emergency Rescue Shortcuts)</span>
+                </h4>
+                <p className="text-xs text-slate-300 mt-0.5">
+                  เปลี่ยนทิศทางอารมณ์ไปยังเครื่องมือช่วยปรับจูนสติทันที เพื่อป้องกันการทำลายระบบ
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2 flex-wrap">
+                <button
+                  onClick={() => setActiveTab('zen')}
+                  className="px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition shadow-md shadow-blue-500/25 flex items-center gap-1.5 cursor-pointer"
+                >
+                  <Heart size={14} />
+                  <span>ฝึกหายใจ Zen Protocol</span>
+                </button>
+
+                <button
+                  onClick={() => setActiveTab('quotes')}
+                  className="px-4 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-slate-950 text-xs font-bold transition shadow-md shadow-amber-500/25 flex items-center gap-1.5 cursor-pointer"
+                >
+                  <Quote size={14} />
+                  <span>อ่านคำคมเตือนสติ</span>
+                </button>
+
+                <button
+                  onClick={() => setActiveTab('urges')}
+                  className="px-4 py-2.5 rounded-xl bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border border-rose-500/30 text-xs font-bold transition flex items-center gap-1.5 cursor-pointer"
+                >
+                  <Zap size={14} />
+                  <span>บันทึกความอยาก (In-Trade)</span>
+                </button>
+
+                <a
+                  href="/journal"
+                  className="px-4 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-bold transition flex items-center gap-1.5 cursor-pointer border border-white/10"
+                >
+                  <BookOpen size={14} />
+                  <span>เปิด Trade Journal</span>
+                </a>
+              </div>
+            </div>
+          </div>
         </div>
       )}
 
