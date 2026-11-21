@@ -43,6 +43,7 @@ import {
   Clock,
   RotateCcw,
   Volume2,
+  VolumeX,
   Eye,
   AlertTriangle,
   Play,
@@ -77,6 +78,8 @@ import {
   ListChecks,
   BarChart2,
   Compass,
+  Waves,
+  Wind,
 } from 'lucide-react';
 
 type MindsetTab = 'agame' | 'urges' | 'zen' | 'bio' | 'quotes' | 'detox';
@@ -307,6 +310,212 @@ const DETOX_ASSESSMENT_QUESTIONS = [
   },
 ];
 
+export type BreathingMode = 'sigh' | 'box' | '478' | 'coherent';
+
+export interface BreathingPhase {
+  name: string;
+  type: 'inhale' | 'hold' | 'exhale';
+  labelTh: string;
+  instructionTh: string;
+  duration: number;
+  scaleClass: string;
+  bgGradient: string;
+  ringClass: string;
+}
+
+export interface BreathingModeConfig {
+  id: BreathingMode;
+  nameTh: string;
+  nameEn: string;
+  badgeTh: string;
+  scientistTh: string;
+  descTh: string;
+  idealForTh: string;
+  cycleSeconds: number;
+  color: string;
+  phases: BreathingPhase[];
+  scienceNoteTh: string;
+}
+
+const BREATHING_MODES: BreathingModeConfig[] = [
+  {
+    id: 'sigh',
+    nameTh: 'Physiological Sigh (ถอนหายใจสรีรวิทยา)',
+    nameEn: 'Double Inhale & Long Exhale',
+    badgeTh: '⚡ เร็วที่สุดในโลก (Stanford Research)',
+    scientistTh: 'Stanford Medicine / Dr. Andrew Huberman (Cell Reports Medicine 2023)',
+    descTh: 'สูดเข้า 2 จังหวะทางจมูก (เข้าลึก + สูดซ้ำเปิดถุงลม) แล้วผ่อนลมออกทางปากยาวๆ ลดหัวใจเต้นเร็วและดับสภาวะตื่นตระหนกทันทีใน 2-3 รอบ',
+    idealForTh: '💥 เพิ่งโดน SL / กำลังหัวร้อน (Tilt) / ตื่นตระหนกมือสั่น',
+    cycleSeconds: 10,
+    color: 'from-rose-500 to-amber-500',
+    phases: [
+      {
+        name: 'inhale',
+        type: 'inhale',
+        labelTh: 'สูดเข้าลึกทางจมูก (80%)',
+        instructionTh: 'สูดลมเข้าทางจมูกลึกๆ เติมลมให้เกือบเต็มปอด',
+        duration: 3,
+        scaleClass: 'scale-110',
+        bgGradient: 'from-amber-500 to-orange-500',
+        ringClass: 'border-amber-400/40 bg-amber-500/10 shadow-amber-500/30',
+      },
+      {
+        name: 'inhale2',
+        type: 'inhale',
+        labelTh: 'สูดเข้าเพิ่มอีกนิด (Double Inhale!)',
+        instructionTh: 'สูดลมทางจมูกสั้นๆ อีก 1 ครั้ง เพื่อเปิดถุงลมปอดที่แฟบให้พองเต็มที่',
+        duration: 1,
+        scaleClass: 'scale-125',
+        bgGradient: 'from-rose-500 to-pink-500',
+        ringClass: 'border-rose-400/60 bg-rose-500/20 shadow-rose-500/40 animate-pulse',
+      },
+      {
+        name: 'exhale',
+        type: 'exhale',
+        labelTh: 'ผ่อนลมออกทางปากยาวๆ (ฟู่ววว...)',
+        instructionTh: 'ผ่อนลมออกทางปากช้าๆ ปล่อยความเครียดและความดันตกช้าๆ จนหมดปอด',
+        duration: 6,
+        scaleClass: 'scale-90',
+        bgGradient: 'from-slate-700 to-slate-900',
+        ringClass: 'border-slate-600/30 bg-slate-800/20 shadow-none',
+      },
+    ],
+    scienceNoteTh: 'การหายใจออกยาวกว่าหายใจเข้าจะกระตุ้นเส้นประสาท Vagus Nerve ส่งสาร Acetylcholine ไปสั่งให้หัวใจเต้นช้าลงทันที และขับคาร์บอนไดออกไซด์ส่วนเกินที่ทำให้สมองตื่นตระหนกออกไป',
+  },
+  {
+    id: 'box',
+    nameTh: 'Box Breathing 4-4-4-4 (หายใจสี่เหลี่ยม)',
+    nameEn: 'Navy SEALs Protocol',
+    badgeTh: '🛡️ ควบคุมความนิ่งดั่งหินผา',
+    scientistTh: 'US Navy SEALs / Mark Divine (Unbeatable Mind)',
+    descTh: 'เข้า 4 วิ, กลั้น 4 วิ, ออก 4 วิ, กลั้น 4 วิ เทคนิคมาตรฐานของหน่วยรบพิเศษเพื่อรักษาความนิ่งและการตัดสินใจระดับสูงใต้แรงกดดันมหาศาล',
+    idealForTh: '🎯 เตรียมกดเปิดออเดอร์ / ต้องการสมาธิไม่ว่อกแว่ก',
+    cycleSeconds: 16,
+    color: 'from-emerald-500 to-teal-400',
+    phases: [
+      {
+        name: 'inhale',
+        type: 'inhale',
+        labelTh: 'หายใจเข้าทางจมูกช้าๆ',
+        instructionTh: 'สูดลมเข้าทางจมูกช้าๆ ลึกๆ เป็นจังหวะ 4 วินาที',
+        duration: 4,
+        scaleClass: 'scale-120',
+        bgGradient: 'from-emerald-500 to-teal-400',
+        ringClass: 'border-emerald-400/40 bg-emerald-500/10 shadow-emerald-500/30',
+      },
+      {
+        name: 'hold',
+        type: 'hold',
+        labelTh: 'กลั้นหายใจนิ่งๆ (ปอดเต็ม)',
+        instructionTh: 'หยุดนิ่ง รักษาระดับลมในปอด จิตใจนิ่งสงบ',
+        duration: 4,
+        scaleClass: 'scale-120',
+        bgGradient: 'from-teal-500 to-cyan-500',
+        ringClass: 'border-teal-400/40 bg-teal-500/15 shadow-teal-500/20',
+      },
+      {
+        name: 'exhale',
+        type: 'exhale',
+        labelTh: 'ผ่อนลมหายใจออกช้าๆ',
+        instructionTh: 'ผ่อนลมออกทางปากหรือจมูกช้าๆ สม่ำเสมอ 4 วินาที',
+        duration: 4,
+        scaleClass: 'scale-95',
+        bgGradient: 'from-slate-700 to-slate-800',
+        ringClass: 'border-slate-600/30 bg-slate-800/20 shadow-none',
+      },
+      {
+        name: 'hold2',
+        type: 'hold',
+        labelTh: 'กลั้นหายใจว่างๆ (ปอดว่าง)',
+        instructionTh: 'ค้างไว้ในความว่างเปล่า ผ่อนคลายร่างกายส่วนบน',
+        duration: 4,
+        scaleClass: 'scale-95',
+        bgGradient: 'from-slate-800 to-slate-950',
+        ringClass: 'border-slate-700/30 bg-slate-900/30 shadow-none',
+      },
+    ],
+    scienceNoteTh: 'ความสมมาตร 4 ทิศทางช่วยปรับสมดุลระหว่างระบบประสาท Sympathetic (เร่ง) และ Parasympathetic (เบรก) ทำให้คลื่นสมองเข้าสู่ Alpha State ที่มีสมาธิและนิ่งสงบ',
+  },
+  {
+    id: '478',
+    nameTh: 'เทคนิค 4-7-8 Relaxing Breath',
+    nameEn: 'Natural Tranquilizer',
+    badgeTh: '🌙 ยาระงับประสาทธรรมชาติ',
+    scientistTh: 'Dr. Andrew Weil (Harvard-trained Integrative Medicine)',
+    descTh: 'เข้า 4 วิ, กลั้น 7 วิ, พ่นออก 8 วิ กระตุ้นเส้นประสาทเวกัสสูงสุด สลายความตึงเครียดของกล้ามเนื้อ บรรเทาความกังวลลึก และช่วยให้นอนหลับสบาย',
+    idealForTh: '😰 คิดมากวนเวียน / เครียดสะสม / นอนไม่หลับหลังเทรด',
+    cycleSeconds: 19,
+    color: 'from-indigo-500 to-purple-500',
+    phases: [
+      {
+        name: 'inhale',
+        type: 'inhale',
+        labelTh: 'หายใจเข้าเงียบๆ ทางจมูก',
+        instructionTh: 'หายใจเข้าเงียบๆ ทางจมูก แตะปลายลิ้นไว้ที่เพดานปากบน',
+        duration: 4,
+        scaleClass: 'scale-115',
+        bgGradient: 'from-indigo-500 to-blue-400',
+        ringClass: 'border-indigo-400/40 bg-indigo-500/10 shadow-indigo-500/30',
+      },
+      {
+        name: 'hold',
+        type: 'hold',
+        labelTh: 'กลั้นหายใจ 7 วินาที',
+        instructionTh: 'กลั้นนิ่งสนิท ให้ออกซิเจนซึมเข้าสู่กระแสเลือดอย่างเต็มที่',
+        duration: 7,
+        scaleClass: 'scale-115',
+        bgGradient: 'from-purple-500 to-indigo-600',
+        ringClass: 'border-purple-400/40 bg-purple-500/15 shadow-purple-500/20',
+      },
+      {
+        name: 'exhale',
+        type: 'exhale',
+        labelTh: 'พ่นลมออกทางปากช้าๆ 8 วินาที',
+        instructionTh: 'พ่นลมออกทางปากช้าๆ ทำเสียง ฟู่... ยาวๆ 8 วินาทีจนหมดปอด',
+        duration: 8,
+        scaleClass: 'scale-90',
+        bgGradient: 'from-slate-700 to-slate-900',
+        ringClass: 'border-slate-600/30 bg-slate-800/20 shadow-none',
+      },
+    ],
+    scienceNoteTh: 'การกลั้นหายใจ 7 วินาทีช่วยให้ออกซิเจนกระจายทั่วปอด และการหายใจออกยาว 8 วินาทีจะกระตุ้นการหลั่งสารสื่อประสาทที่ช่วยชะลออัตราการเต้นของหัวใจและลดความดันโลหิตลงอย่างมีนัยสำคัญ',
+  },
+  {
+    id: 'coherent',
+    nameTh: 'Coherent Breathing (ความถี่พ้อง 5.5 วินาที)',
+    nameEn: 'HRV Resonance Protocol',
+    badgeTh: '🌊 ซิงค์คลื่นหัวใจและสมอง',
+    scientistTh: 'HeartMath Institute (Cardiorespiratory Resonance)',
+    descTh: 'เข้า 5 วิ, ออก 5 วิ อย่างต่อเนื่องและนุ่มนวล สร้างอัตราการแปรผันของหัวใจ (Heart Rate Variability - HRV) สูงสุด เพื่อความเสถียรทางอารมณ์ตลอดวัน',
+    idealForTh: '☕ นั่งพักระหว่างวัน / ปรับจูนอารมณ์พื้นฐาน / ฟื้นฟูพลังงาน',
+    cycleSeconds: 10,
+    color: 'from-cyan-500 to-blue-500',
+    phases: [
+      {
+        name: 'inhale',
+        type: 'inhale',
+        labelTh: 'หายใจเข้านุ่มนวลทางจมูก (5 วิ)',
+        instructionTh: 'สูดลมเข้าช้าๆ นุ่มนวล เติมเต็มกระบังลมอย่างต่อเนื่อง',
+        duration: 5,
+        scaleClass: 'scale-120',
+        bgGradient: 'from-cyan-500 to-blue-400',
+        ringClass: 'border-cyan-400/40 bg-cyan-500/10 shadow-cyan-500/30',
+      },
+      {
+        name: 'exhale',
+        type: 'exhale',
+        labelTh: 'ผ่อนลมออกนุ่มนวลทางจมูก (5 วิ)',
+        instructionTh: 'ผ่อนลมออกอย่างสม่ำเสมอ นุ่มนวล ไม่สะดุด จังหวะเดียวกับตอนเข้า',
+        duration: 5,
+        scaleClass: 'scale-95',
+        bgGradient: 'from-blue-600 to-slate-800',
+        ringClass: 'border-blue-400/30 bg-blue-500/10 shadow-none',
+      },
+    ],
+    scienceNoteTh: 'การหายใจที่อัตรา 5.5-6 ครั้งต่อนาทีจะเกิดภาวะ Resonance หรือความถี่พ้องระหว่างหัวใจ ปอด และคลื่นสมอง ทำให้ค่า HRV อยู่ในระดับสูงสุด จิตใจปลอดโปร่งและมีภูมิคุ้มกันความเครียด',
+  },
+];
+
 export default function MindsetHubPage() {
   const { language } = useLanguage();
   const { selectedAccount } = useAccount();
@@ -322,11 +531,13 @@ export default function MindsetHubPage() {
   const [urgePair, setUrgePair] = useState<string>('XAUUSD');
   const [urgeNote, setUrgeNote] = useState<string>('');
 
-  // Box Breathing States
+  // Breathing Suite States
+  const [breathingMode, setBreathingMode] = useState<BreathingMode>('box');
   const [isBreathingActive, setIsBreathingActive] = useState<boolean>(false);
-  const [breathPhase, setBreathPhase] = useState<'inhale' | 'hold1' | 'exhale' | 'hold2'>('inhale');
+  const [currentPhaseIndex, setCurrentPhaseIndex] = useState<number>(0);
   const [breathSecondsLeft, setBreathSecondsLeft] = useState<number>(4);
   const [breathCyclesCompleted, setBreathCyclesCompleted] = useState<number>(0);
+  const [isBreathSoundEnabled, setIsBreathSoundEnabled] = useState<boolean>(true);
 
   // Quotes State
   const [customQuotes, setCustomQuotes] = useState<MindsetQuote[]>([]);
@@ -397,7 +608,52 @@ export default function MindsetHubPage() {
     };
   }, []);
 
-  // Box Breathing Timer logic (4s inhale -> 4s hold -> 4s exhale -> 4s hold)
+  // Current Breathing Mode & Phase
+  const currentModeConfig = useMemo(() => {
+    return BREATHING_MODES.find((m) => m.id === breathingMode) || BREATHING_MODES[1];
+  }, [breathingMode]);
+
+  const currentPhase = currentModeConfig.phases[currentPhaseIndex] || currentModeConfig.phases[0];
+
+  // Soft Chime for breathing phase transitions
+  const playBreathChime = (phaseType: 'inhale' | 'hold' | 'exhale') => {
+    if (!isBreathSoundEnabled) return;
+    try {
+      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+      if (!AudioCtx) return;
+      const ctx = new AudioCtx();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      if (phaseType === 'inhale') {
+        osc.frequency.setValueAtTime(392, ctx.currentTime); // G4
+        osc.frequency.exponentialRampToValueAtTime(523.25, ctx.currentTime + 0.3); // C5
+      } else if (phaseType === 'hold') {
+        osc.frequency.setValueAtTime(440, ctx.currentTime); // A4
+      } else {
+        osc.frequency.setValueAtTime(523.25, ctx.currentTime); // C5
+        osc.frequency.exponentialRampToValueAtTime(349.23, ctx.currentTime + 0.4); // F4
+      }
+      gain.gain.setValueAtTime(0.12, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.6);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start();
+      osc.stop(ctx.currentTime + 0.6);
+    } catch (e) {
+      // Audio blocked before user gesture
+    }
+  };
+
+  const handleSelectBreathingMode = (mode: BreathingMode) => {
+    setBreathingMode(mode);
+    setIsBreathingActive(false);
+    setCurrentPhaseIndex(0);
+    const targetConfig = BREATHING_MODES.find((m) => m.id === mode) || BREATHING_MODES[1];
+    setBreathSecondsLeft(targetConfig.phases[0].duration);
+  };
+
+  // Breathing Timer Logic
   useEffect(() => {
     if (!isBreathingActive) return;
 
@@ -405,27 +661,35 @@ export default function MindsetHubPage() {
       setBreathSecondsLeft((prev) => {
         if (prev > 1) return prev - 1;
 
-        // Phase Transition
-        setBreathPhase((currentPhase) => {
-          if (currentPhase === 'inhale') return 'hold1';
-          if (currentPhase === 'hold1') return 'exhale';
-          if (currentPhase === 'exhale') return 'hold2';
-          // Completed 1 full cycle
-          setBreathCyclesCompleted((c) => {
-            const next = c + 1;
-            if (next % 3 === 0) {
-              recordZenSessionCompleted();
-            }
-            return next;
-          });
-          return 'inhale';
+        // Transition to next phase
+        setCurrentPhaseIndex((prevIndex) => {
+          const nextIndex = (prevIndex + 1) % currentModeConfig.phases.length;
+          const nextPhase = currentModeConfig.phases[nextIndex];
+
+          // Play chime
+          playBreathChime(nextPhase.type);
+
+          // If completed 1 full cycle
+          if (nextIndex === 0) {
+            setBreathCyclesCompleted((c) => {
+              const next = c + 1;
+              if (next % 3 === 0) {
+                recordZenSessionCompleted();
+              }
+              return next;
+            });
+          }
+
+          return nextIndex;
         });
-        return 4;
+
+        const nextIndex = (currentPhaseIndex + 1) % currentModeConfig.phases.length;
+        return currentModeConfig.phases[nextIndex].duration;
       });
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [isBreathingActive]);
+  }, [isBreathingActive, currentModeConfig, currentPhaseIndex, isBreathSoundEnabled]);
 
   // Open trades currently running
   const openTrades = useMemo(() => {
@@ -948,10 +1212,18 @@ export default function MindsetHubPage() {
           }`}
         >
           <Heart size={16} />
-          <span>{language === 'th' ? '3. ห้องปรับจูนสติ (Zen Protocol)' : '3. Zen Reset & Protocol'}</span>
-          {(todayState.zenCompletedCount || 0) > 0 && (
+          <span>{language === 'th' ? '3. ห้องปรับจูนสติ & หายใจ' : '3. Zen Reset & Breathing'}</span>
+          {isBreathingActive ? (
+            <span className="text-[10px] font-black px-1.5 py-0.5 rounded-full bg-teal-400 text-slate-950 font-mono animate-pulse">
+              🫁 {breathSecondsLeft}s
+            </span>
+          ) : (todayState.zenCompletedCount || 0) > 0 ? (
             <span className="text-[10px] font-black px-1.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400">
               ✓ {todayState.zenCompletedCount}
+            </span>
+          ) : (
+            <span className="text-[10px] font-black px-1.5 py-0.5 rounded-md bg-teal-500/20 text-teal-400">
+              4 โหมด
             </span>
           )}
         </button>
@@ -1429,92 +1701,251 @@ export default function MindsetHubPage() {
       {/* ===================================================================== */}
       {activeTab === 'zen' && (
         <div className="space-y-6 animate-fade-in">
-          {/* Interactive Box Breathing 4-4-4-4 */}
-          <div className="bg-gradient-to-b from-slate-900 via-slate-950 to-slate-900 border border-slate-800 rounded-3xl p-6 sm:p-8 text-white relative overflow-hidden shadow-2xl">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+          {/* Interactive Neuroscience Breathing Suite */}
+          <div className="bg-gradient-to-b from-slate-900 via-slate-950 to-slate-900 border border-slate-800 rounded-3xl p-6 sm:p-8 text-white relative overflow-hidden shadow-2xl space-y-6">
+            {/* Header with Title and Mode Badges */}
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-white/10">
               <div>
-                <span className="text-xs font-black uppercase tracking-wider text-emerald-400 bg-emerald-500/10 px-2.5 py-1 rounded-full border border-emerald-500/20">
-                  🧘 Box Breathing 4-4-4-4
-                </span>
-                <h3 className="text-xl font-black mt-2">
-                  {language === 'th' ? 'แบบฝึกหายใจลด Cortisol & ดับไฟ Tilt ทันที' : 'Parasympathetic Nervous Reset'}
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-[11px] font-black uppercase tracking-wider text-emerald-400 bg-emerald-500/10 px-2.5 py-1 rounded-full border border-emerald-500/20 flex items-center gap-1.5">
+                    <Wind size={13} />
+                    <span>Neuroscience Breathing Suite</span>
+                  </span>
+                  <span className="text-[11px] font-bold text-slate-400 bg-white/5 px-2.5 py-1 rounded-full border border-white/10">
+                    {currentModeConfig.scientistTh}
+                  </span>
+                </div>
+                <h3 className="text-xl sm:text-2xl font-black mt-2 tracking-tight text-white flex items-center gap-2">
+                  <span>{currentModeConfig.nameTh}</span>
                 </h3>
-                <p className="text-xs text-slate-400 mt-1">
-                  {language === 'th'
-                    ? 'เทคนิคที่หน่วย Navy SEALs ใช้เพื่อคืนสติในภาวะวิกฤต หายใจเข้า 4 วิ กลั้น 4 วิ ผ่อน 4 วิ กลั้น 4 วิ'
-                    : 'Inhale 4s -> Hold 4s -> Exhale 4s -> Hold 4s. Resets autonomic nervous system within 2 mins.'}
+                <p className="text-xs sm:text-sm text-slate-300 mt-1 max-w-2xl leading-relaxed">
+                  {currentModeConfig.descTh}
                 </p>
               </div>
-              <div className="text-right">
-                <span className="text-2xl font-black text-emerald-400">{breathCyclesCompleted}</span>
-                <span className="text-xs text-slate-400 block">รอบที่เสร็จสมบูรณ์</span>
+
+              {/* Cycle Counter & Stats */}
+              <div className="flex items-center gap-4 bg-white/5 px-4 py-2.5 rounded-2xl border border-white/10 self-start md:self-auto">
+                <div className="text-right">
+                  <div className="text-2xl font-black font-mono text-emerald-400">{breathCyclesCompleted}</div>
+                  <span className="text-[10px] text-slate-400 uppercase tracking-wider block">รอบที่เสร็จสมบูรณ์</span>
+                </div>
+                <button
+                  onClick={() => setIsBreathSoundEnabled(!isBreathSoundEnabled)}
+                  className={`p-2 rounded-xl border transition cursor-pointer ${
+                    isBreathSoundEnabled
+                      ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
+                      : 'bg-white/5 text-slate-400 border-white/10'
+                  }`}
+                  title={isBreathSoundEnabled ? 'ปิดเสียงกระดิ่งจังหวะ' : 'เปิดเสียงกระดิ่งจังหวะ'}
+                >
+                  {isBreathSoundEnabled ? <Volume2 size={16} /> : <VolumeX size={16} />}
+                </button>
               </div>
             </div>
 
-            {/* Breathing Animation Canvas */}
-            <div className="flex flex-col items-center justify-center py-8">
-              <div className="relative w-48 h-48 sm:w-56 sm:h-56 flex items-center justify-center">
-                {/* Outer Glow Ring */}
-                <div
-                  className={`absolute inset-0 rounded-full border-4 border-emerald-500/30 transition-all duration-1000 ${
-                    breathPhase === 'inhale'
-                      ? 'scale-125 bg-emerald-500/10 shadow-lg shadow-emerald-500/20'
-                      : breathPhase === 'hold1'
-                      ? 'scale-125 bg-teal-500/15'
-                      : breathPhase === 'exhale'
-                      ? 'scale-100 bg-emerald-500/5'
-                      : 'scale-100 bg-slate-800/50'
-                  }`}
-                />
+            {/* Scenario Quick Selector (สถานการณ์ของคุณตอนนี้) */}
+            <div>
+              <span className="text-xs font-bold text-slate-400 block mb-2">
+                🎯 เลือกตามสถานการณ์ทางอารมณ์ของคุณในตอนนี้:
+              </span>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
+                {[
+                  {
+                    mode: 'sigh' as BreathingMode,
+                    label: '💥 เพิ่งโดน SL / หัวร้อน (Tilt)',
+                    sub: 'ลดหัวใจเต้นเร็ว สลายแพนิกทันที',
+                    badge: 'เร็วที่สุด 30 วิ',
+                  },
+                  {
+                    mode: 'box' as BreathingMode,
+                    label: '🎯 กำลังจะเปิดไม้ / โฟกัส',
+                    sub: 'ความนิ่งดั่งหินผา ระดับ SEALs',
+                    badge: '4-4-4-4',
+                  },
+                  {
+                    mode: '478' as BreathingMode,
+                    label: '😰 วิตกกังวลลึก / คิดวนเวียน',
+                    sub: 'คลายกล้ามเนื้อ ช่วยให้นอนหลับ',
+                    badge: 'ยาระงับประสาท',
+                  },
+                  {
+                    mode: 'coherent' as BreathingMode,
+                    label: '🌊 พักสายตา / ปรับสมดุล',
+                    sub: 'ซิงค์คลื่นหัวใจ HRV 5.5s',
+                    badge: 'Resonance',
+                  },
+                ].map((item) => {
+                  const isSelected = breathingMode === item.mode;
+                  return (
+                    <button
+                      key={item.mode}
+                      onClick={() => handleSelectBreathingMode(item.mode)}
+                      className={`p-3 rounded-2xl border text-left transition-all cursor-pointer ${
+                        isSelected
+                          ? 'bg-gradient-to-br from-blue-600/30 to-indigo-600/30 border-blue-400 text-white shadow-lg shadow-blue-500/20 scale-[1.02]'
+                          : 'bg-white/[0.03] border-white/10 text-slate-300 hover:bg-white/[0.06] hover:border-white/20'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between gap-1 mb-1">
+                        <span className="font-bold text-xs truncate text-white">{item.label}</span>
+                        <span className="text-[9px] font-black px-1.5 py-0.5 rounded bg-black/40 text-amber-300 shrink-0">
+                          {item.badge}
+                        </span>
+                      </div>
+                      <span className="text-[11px] text-slate-400 block truncate">{item.sub}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
 
-                {/* Inner Breathing Core */}
-                <div
-                  className={`w-32 h-32 rounded-full flex flex-col items-center justify-center transition-all duration-1000 z-10 ${
-                    breathPhase === 'inhale'
-                      ? 'bg-gradient-to-tr from-emerald-500 to-teal-400 scale-110 shadow-emerald-500/40'
-                      : breathPhase === 'hold1'
-                      ? 'bg-gradient-to-tr from-teal-500 to-cyan-400 scale-110'
-                      : breathPhase === 'exhale'
-                      ? 'bg-gradient-to-tr from-emerald-700 to-slate-800 scale-95'
-                      : 'bg-gradient-to-tr from-slate-800 to-slate-900 scale-95'
+            {/* Mode Selector Tabs */}
+            <div className="flex items-center gap-1.5 p-1 bg-black/40 rounded-2xl border border-white/10 overflow-x-auto">
+              {BREATHING_MODES.map((mode) => (
+                <button
+                  key={mode.id}
+                  onClick={() => handleSelectBreathingMode(mode.id)}
+                  className={`flex-1 py-2 px-3 rounded-xl text-xs font-bold transition-all whitespace-nowrap cursor-pointer flex items-center justify-center gap-1.5 ${
+                    breathingMode === mode.id
+                      ? 'bg-white text-slate-900 shadow-md font-black'
+                      : 'text-slate-400 hover:text-white hover:bg-white/5'
                   }`}
                 >
-                  <span className="text-3xl font-black text-white">{breathSecondsLeft}</span>
-                  <span className="text-[11px] font-bold text-white/90 uppercase tracking-widest mt-1">
-                    {breathPhase === 'inhale'
-                      ? 'หายใจเข้า'
-                      : breathPhase === 'hold1'
-                      ? 'กลั้นหายใจ'
-                      : breathPhase === 'exhale'
-                      ? 'ผ่อนลมออก'
-                      : 'กลั้นหายใจ'}
+                  <span>{mode.nameTh.split('(')[0].trim()}</span>
+                  <span className="text-[10px] font-mono opacity-70">({mode.cycleSeconds}s)</span>
+                </button>
+              ))}
+            </div>
+
+            {/* Breathing Animation Canvas */}
+            <div className="flex flex-col items-center justify-center py-6 sm:py-8 bg-black/30 rounded-3xl border border-white/5 relative overflow-hidden">
+              <div className="relative w-56 h-56 sm:w-64 sm:h-64 flex items-center justify-center">
+                {/* Outer Glow Ring */}
+                <div
+                  className={`absolute inset-0 rounded-full border-4 transition-all duration-1000 ${
+                    currentPhase.ringClass
+                  } ${isBreathingActive ? currentPhase.scaleClass : 'scale-100 opacity-60'}`}
+                />
+
+                {/* Inner Breathing Core Orb */}
+                <div
+                  className={`w-40 h-40 sm:w-44 sm:h-44 rounded-full flex flex-col items-center justify-center transition-all duration-1000 z-10 text-center p-4 shadow-2xl bg-gradient-to-tr ${
+                    currentPhase.bgGradient
+                  } ${isBreathingActive ? currentPhase.scaleClass : 'scale-100'}`}
+                >
+                  <span className="text-4xl sm:text-5xl font-mono font-black text-white drop-shadow-md">
+                    {breathSecondsLeft}
                   </span>
+                  <span className="text-xs sm:text-sm font-black text-white/95 uppercase tracking-wider mt-1 drop-shadow">
+                    {currentPhase.labelTh}
+                  </span>
+                </div>
+              </div>
+
+              {/* Step Instruction Hint */}
+              <div className="mt-6 text-center max-w-md px-4">
+                <div className="inline-block px-4 py-1.5 rounded-full bg-white/10 text-xs sm:text-sm font-semibold text-white backdrop-blur-sm border border-white/10">
+                  💡 {currentPhase.instructionTh}
                 </div>
               </div>
 
               {/* Controls */}
               <div className="flex items-center gap-3 mt-6">
                 <button
-                  onClick={() => setIsBreathingActive(!isBreathingActive)}
-                  className={`px-6 py-2.5 rounded-xl font-bold text-xs flex items-center gap-2 shadow-lg transition-all hover:scale-105 active:scale-95 cursor-pointer ${
+                  onClick={() => {
+                    const nextActive = !isBreathingActive;
+                    setIsBreathingActive(nextActive);
+                    if (nextActive) playBreathChime(currentPhase.type);
+                  }}
+                  className={`px-8 py-3 rounded-2xl font-black text-sm flex items-center gap-2 shadow-xl transition-all hover:scale-105 active:scale-95 cursor-pointer ${
                     isBreathingActive
-                      ? 'bg-rose-500 text-white shadow-rose-500/25'
-                      : 'bg-emerald-500 text-white shadow-emerald-500/25'
+                      ? 'bg-rose-500 hover:bg-rose-600 text-white shadow-rose-500/25'
+                      : 'bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white shadow-emerald-500/30'
                   }`}
                 >
-                  {isBreathingActive ? <Pause size={15} /> : <Play size={15} />}
-                  <span>{isBreathingActive ? 'หยุดชั่วคราว' : 'เริ่มฝึกหายใจ (Start)'}</span>
+                  {isBreathingActive ? <Pause size={17} /> : <Play size={17} />}
+                  <span>{isBreathingActive ? 'หยุดชั่วคราว (Pause)' : 'เริ่มฝึกหายใจ (Start)'}</span>
                 </button>
+
                 <button
                   onClick={() => {
                     setIsBreathingActive(false);
-                    setBreathPhase('inhale');
-                    setBreathSecondsLeft(4);
+                    setCurrentPhaseIndex(0);
+                    setBreathSecondsLeft(currentModeConfig.phases[0].duration);
                   }}
-                  className="px-4 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-semibold transition"
+                  className="p-3 rounded-2xl bg-white/10 hover:bg-white/20 text-white transition cursor-pointer"
+                  title="รีเซ็ตจังหวะ"
                 >
-                  รีเซ็ต
+                  <RotateCcw size={17} />
                 </button>
+              </div>
+            </div>
+
+            {/* Neuroscience Mechanism Callout */}
+            <div className="p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-xs text-emerald-300 leading-relaxed flex items-start gap-3">
+              <Brain size={18} className="shrink-0 text-emerald-400 mt-0.5" />
+              <div>
+                <strong className="text-white block mb-0.5">🧠 กลไกทางประสาทวิทยาของโหมดนี้:</strong>
+                <span>{currentModeConfig.scienceNoteTh}</span>
+              </div>
+            </div>
+
+            {/* Master Comparison Table of Scientific Breathing Techniques */}
+            <div className="p-5 rounded-2xl bg-white/[0.03] border border-white/10 space-y-3">
+              <div className="flex items-center gap-2 text-xs font-bold text-slate-300">
+                <Waves size={15} className="text-cyan-400" />
+                <span>สรุป 4 สุดยอดเทคนิคการหายใจลดความเครียด & สลายความกังวลระดับโลก</span>
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs">
+                  <thead>
+                    <tr className="border-b border-white/10 text-slate-400">
+                      <th className="pb-2 font-semibold">เทคนิค & งานวิจัย</th>
+                      <th className="pb-2 font-semibold">จังหวะหายใจ</th>
+                      <th className="pb-2 font-semibold">สถานการณ์ที่เหมาะที่สุด</th>
+                      <th className="pb-2 font-semibold">ผลลัพธ์ทันที</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-white/5 text-slate-300">
+                    <tr className="hover:bg-white/[0.02]">
+                      <td className="py-2.5 font-bold text-rose-300">
+                        1. Physiological Sigh
+                        <span className="block text-[10px] text-slate-500 font-normal">Stanford Medicine (Huberman)</span>
+                      </td>
+                      <td className="py-2.5 font-mono text-[11px]">เข้า 3s + สูดซ้ำ 1s / ออก 6s</td>
+                      <td className="py-2.5">เพิ่งโดน SL, หัวร้อน (Tilt), ตื่นตระหนก</td>
+                      <td className="py-2.5 text-emerald-400">หัวใจเต้นช้าลงทันทีใน 2-3 รอบ</td>
+                    </tr>
+                    <tr className="hover:bg-white/[0.02]">
+                      <td className="py-2.5 font-bold text-teal-300">
+                        2. Box Breathing
+                        <span className="block text-[10px] text-slate-500 font-normal">US Navy SEALs (Mark Divine)</span>
+                      </td>
+                      <td className="py-2.5 font-mono text-[11px]">เข้า 4s / กลั้น 4s / ออก 4s / กลั้น 4s</td>
+                      <td className="py-2.5">เตรียมกดเข้าออเดอร์, สมาธิหลุด, ว่อกแว่ก</td>
+                      <td className="py-2.5 text-emerald-400">นิ่งดั่งหินผา สมองเข้าสู่ Alpha State</td>
+                    </tr>
+                    <tr className="hover:bg-white/[0.02]">
+                      <td className="py-2.5 font-bold text-purple-300">
+                        3. เทคนิค 4-7-8
+                        <span className="block text-[10px] text-slate-500 font-normal">Dr. Andrew Weil (Harvard MD)</span>
+                      </td>
+                      <td className="py-2.5 font-mono text-[11px]">เข้า 4s / กลั้น 7s / พ่นออก 8s</td>
+                      <td className="py-2.5">คิดวนเวียน, นอนไม่หลับ, กล้ามเนื้อตึงเกร็ง</td>
+                      <td className="py-2.5 text-emerald-400">กระตุ้น Vagus Nerve สูงสุด เข้าสู่สลีปโหมด</td>
+                    </tr>
+                    <tr className="hover:bg-white/[0.02]">
+                      <td className="py-2.5 font-bold text-cyan-300">
+                        4. Coherent Breathing
+                        <span className="block text-[10px] text-slate-500 font-normal">HeartMath Institute</span>
+                      </td>
+                      <td className="py-2.5 font-mono text-[11px]">เข้า 5s / ออก 5s (6 ครั้ง/นาที)</td>
+                      <td className="py-2.5">พักสายตาระหว่างวัน, ฟื้นฟูพลังงาน</td>
+                      <td className="py-2.5 text-emerald-400">เพิ่มค่า HRV ซิงค์คลื่นหัวใจและสมอง</td>
+                    </tr>
+                  </tbody>
+                </table>
               </div>
             </div>
           </div>

@@ -24,6 +24,8 @@ import {
   Timer,
   ListChecks,
   MonitorOff,
+  Wind,
+  Waves,
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -51,10 +53,43 @@ interface Release {
 
 const RELEASES: Release[] = [
   {
-    version: 'v2.4 (ล่าสุด)',
+    version: 'v2.5 (ล่าสุด)',
+    date: 'พฤศจิกายน 2026',
+    titleTh: '🫁 ชุดเครื่องมือฝึกหายใจสลายความเครียด & ดับไฟ Tilt (Neuroscience Breathing Suite)',
+    badgeTh: 'Latest Update',
+    items: [
+      {
+        icon: Wind,
+        color: 'text-teal-400 bg-teal-500/10 border-teal-500/20',
+        titleTh: '4 สุดยอดโหมดการหายใจบำบัดทางประสาทวิทยา (แท็บที่ 3 Zen Protocol)',
+        descTh: 'อัปเกรดห้องปรับจูนสติด้วยเทคนิคการควบคุมลมหายใจที่มีงานวิจัยรับรองระดับโลก (Stanford, Harvard, Navy SEALs, HeartMath):',
+        subItems: [
+          '🫁 1. Physiological Sigh (Stanford / Huberman): สูดเข้า 2 จังหวะ (เข้าลึก + สูดซ้ำ) ผ่อนออกยาว ดับไฟ Tilt และลดหัวใจเต้นเร็วทันทีใน 2-3 รอบ',
+          '📦 2. Box Breathing (Navy SEALs): หายใจสี่เหลี่ยม 4-4-4-4 เข้า 4s, กลั้น 4s, ออก 4s, กลั้น 4s สร้างความนิ่งดั่งหินผาก่อนเปิดออเดอร์',
+          '🌙 3. เทคนิค 4-7-8 (Dr. Andrew Weil): ยาระงับประสาทธรรมชาติ เข้า 4s, กลั้น 7s, พ่นออก 8s สลายความกังวลลึก คลายกล้ามเนื้อ และช่วยให้นอนหลับ',
+          '🌊 4. Coherent Breathing (HeartMath): ความถี่พ้อง 5.5s เข้า 5s, ออก 5s ซิงค์คลื่นหัวใจและสมอง สร้างค่า Heart Rate Variability (HRV) สูงสุด',
+        ],
+        href: '/mindset',
+      },
+      {
+        icon: Waves,
+        color: 'text-cyan-400 bg-cyan-500/10 border-cyan-500/20',
+        titleTh: 'ปุ่มลัดเลือกตามสถานการณ์อารมณ์ & เสียงระฆังกำกับจังหวะ',
+        descTh: 'ฟังก์ชันอำนวยความสะดวกเพื่อให้เทรดเดอร์ใช้งานได้ทันท่วงทีในภาวะวิกฤต:',
+        subItems: [
+          '🎯 Scenario Quick Select: ปุ่มด่วน "เพิ่งโดน SL / หัวร้อน", "เตรียมเปิดไม้ / โฟกัส", "วิตกกังวลลึก / คิดวน", "พักสายตา / ปรับสมดุล"',
+          '🔔 Audio Cue Chimes: เสียงระฆังเตือนสติกำกับทุกช่วงการเปลี่ยนจังหวะ (เข้า/กลั้น/ออก) พร้อมปุ่มเปิด/ปิดเสียง',
+          '📊 ตารางเปรียบเทียบเชิงวิทยาศาสตร์: สรุปกลไกการทำงานทางประสาทวิทยาและสรีรวิทยาของแต่ละโหมดให้เข้าใจง่าย',
+        ],
+        href: '/mindset',
+      },
+    ],
+  },
+  {
+    version: 'v2.4',
     date: 'พฤศจิกายน 2026',
     titleTh: '🧘 ดีท็อกซ์อาการติดกราฟ & ตัวจับเวลาล็อคหน้าจอ (Chart Detox Protocol)',
-    badgeTh: 'Latest Update',
+    badgeTh: 'Chart Detox',
     items: [
       {
         icon: EyeOff,
